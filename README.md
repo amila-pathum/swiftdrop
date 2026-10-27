@@ -11,6 +11,12 @@ React frontend (future) -> API Gateway -> Identity Service -> PostgreSQL
 
 The API Gateway routes requests and provides central CORS handling. JWT authentication and account authorization remain enforced by the Identity Service.
 
+## Roles and authorization
+
+Identity accounts use the roles `CUSTOMER`, `MERCHANT`, `COURIER`, and `DISPATCHER` (with the existing `ADMIN` role reserved for future administration). Public registration always creates a `CUSTOMER` and rejects client-supplied role assignment. Protected code can use Spring Security method rules such as `@PreAuthorize("hasRole('MERCHANT')")`.
+
+The Identity Service validates the signed JWT and then checks the account's current status, email, and role against PostgreSQL on every authenticated request. There is intentionally no public role-promotion endpoint. Privileged accounts require a future authenticated administrative provisioning and approval workflow.
+
 ## Services
 
 | Service | Directory | Default port |

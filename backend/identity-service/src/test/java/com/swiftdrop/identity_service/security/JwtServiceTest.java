@@ -39,8 +39,10 @@ class JwtServiceTest {
     @Test
     void modifiedTokenFailsValidation() {
         String token = jwtService.generateToken(user);
-        char replacement = token.charAt(token.length() - 1) == 'A' ? 'B' : 'A';
-        String modified = token.substring(0, token.length() - 1) + replacement;
+        int signatureStart = token.lastIndexOf('.') + 1;
+        char replacement = token.charAt(signatureStart) == 'A' ? 'B' : 'A';
+        String modified = token.substring(0, signatureStart) + replacement
+            + token.substring(signatureStart + 1);
         assertThatThrownBy(() -> jwtService.parseToken(modified))
             .isInstanceOf(JwtException.class);
     }

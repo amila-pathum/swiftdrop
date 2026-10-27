@@ -7,14 +7,21 @@ import com.swiftdrop.identity_service.repository.UserRepository;
 import com.swiftdrop.identity_service.security.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -32,6 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "spring.autoconfigure.exclude=org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration,org.springframework.boot.data.jpa.autoconfigure.JpaRepositoriesAutoConfiguration"
 })
 @AutoConfigureMockMvc
+@Import(SecurityApiTest.RoleRestrictedTestEndpoints.class)
 class SecurityApiTest {
 
     @Autowired MockMvc mockMvc;
@@ -60,6 +68,32 @@ class SecurityApiTest {
                     {"name":"New User","email":"new@example.com","password":"password123"}
                     """))
             .andExpect(status().isCreated());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"MERCHANT", "COURIER", "DISPATCHER"})
+    void publicRegistrationRejectsPrivilegedRole(String role) throws Exception {
+        mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"name":"New User","email":"new@example.com",
+                     "password":"password123","role":"%s"}
+                    """.formatted(role)))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").value("Invalid request data"));
+    }
+
+    @Test
+    void duplicateRegistrationStillReturnsConflict() throws Exception {
+        when(userRepository.existsByEmail("user@example.com")).thenReturn(true);
+
+        mockMvc.perform(post("/api/auth/register")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"name":"Test User","email":"user@example.com","password":"password123"}
+                    """))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.error").value("Email is already registered"));
     }
 
     @Test
@@ -99,6 +133,38 @@ class SecurityApiTest {
     }
 
     @Test
+    void customerCanAccessCustomerAuthorizedResource() throws Exception {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        mockMvc.perform(get("/test/rbac/customer")
+                .header("Authorization", "Bearer " + jwtService.generateToken(user)))
+            .andExpect(status().isOk())
+            .andExpect(content().string("customer"));
+    }
+
+    @Test
+    void customerCannotAccessMerchantAuthorizedResource() throws Exception {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        mockMvc.perform(get("/test/rbac/merchant")
+                .header("Authorization", "Bearer " + jwtService.generateToken(user)))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.error").value("Access is denied"));
+    }
+
+    @Test
+    void inactiveAccountCannotUsePreviouslyIssuedToken() throws Exception {
+        String token = jwtService.generateToken(user);
+        ReflectionTestUtils.setField(user, "status", UserStatus.SUSPENDED);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        mockMvc.perform(get("/test/rbac/customer")
+                .header("Authorization", "Bearer " + token))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.error").value("Invalid or expired access token"));
+    }
+
+    @Test
     void invalidBearerTokenIsRejected() throws Exception {
         mockMvc.perform(get("/api/users/me")
                 .header("Authorization", "Bearer not-a-jwt"))
@@ -119,5 +185,25 @@ class SecurityApiTest {
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.error").value("Invalid or expired access token"));
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class RoleRestrictedTestEndpoints {
+
+        @RestController
+        static class Controller {
+
+            @GetMapping("/test/rbac/customer")
+            @PreAuthorize("hasRole('CUSTOMER')")
+            String customer() {
+                return "customer";
+            }
+
+            @GetMapping("/test/rbac/merchant")
+            @PreAuthorize("hasRole('MERCHANT')")
+            String merchant() {
+                return "merchant";
+            }
+        }
     }
 }
