@@ -1,15 +1,18 @@
 package com.swiftdrop.identity_service.service;
 
 import com.swiftdrop.identity_service.dto.LoginRequest;
+import com.swiftdrop.identity_service.dto.RegisterRequest;
 import com.swiftdrop.identity_service.entity.Role;
 import com.swiftdrop.identity_service.entity.User;
 import com.swiftdrop.identity_service.entity.UserStatus;
 import com.swiftdrop.identity_service.exception.AccountNotActiveException;
+import com.swiftdrop.identity_service.exception.DuplicateEmailException;
 import com.swiftdrop.identity_service.exception.InvalidCredentialsException;
 import com.swiftdrop.identity_service.repository.UserRepository;
 import com.swiftdrop.identity_service.security.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -31,6 +34,34 @@ class AuthServiceTest {
     void setUp() {
         authService = new AuthService(repository, encoder, jwtService);
         activeUser = user(UserStatus.ACTIVE);
+    }
+
+    @Test
+    void registerAlwaysCreatesActiveCustomerWithEncodedPassword() {
+        when(repository.existsByEmail("new@example.com")).thenReturn(false);
+        when(encoder.encode("password123")).thenReturn("encoded");
+        when(repository.save(any(User.class))).thenAnswer(call -> call.getArgument(0));
+
+        var response = authService.register(
+            new RegisterRequest(" New User ", " NEW@example.com ", "password123"));
+
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(repository).save(saved.capture());
+        assertThat(saved.getValue().getRole()).isEqualTo(Role.CUSTOMER);
+        assertThat(saved.getValue().getStatus()).isEqualTo(UserStatus.ACTIVE);
+        assertThat(saved.getValue().getEmail()).isEqualTo("new@example.com");
+        assertThat(saved.getValue().getPasswordHash()).isEqualTo("encoded");
+        assertThat(response.role()).isEqualTo(Role.CUSTOMER);
+    }
+
+    @Test
+    void registerRejectsDuplicateEmail() {
+        when(repository.existsByEmail("user@example.com")).thenReturn(true);
+
+        assertThatThrownBy(() -> authService.register(
+            new RegisterRequest("Someone", "User@Example.com", "password123")))
+            .isInstanceOf(DuplicateEmailException.class);
+        verify(repository, never()).save(any());
     }
 
     @Test

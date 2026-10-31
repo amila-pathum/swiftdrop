@@ -26,6 +26,18 @@ Gateway routes preserve the original path:
 
 The Gateway health endpoint is `GET /actuator/health`. It reports Gateway application health only, not Identity Service or PostgreSQL health.
 
+## Roles and authorization
+
+Identity Service supports the roles `CUSTOMER`, `MERCHANT`, `COURIER`, and `DISPATCHER` (plus a reserved `ADMIN` value).
+
+- Public registration (`POST /api/auth/register`) always creates an `ACTIVE` `CUSTOMER`. Any `role`, `status`, or similar fields in the request JSON are ignored.
+- The JWT carries the user id (`sub`), `email`, and `role` claims. On every protected request the Identity Service reloads the user from the database and rejects the token with `401` if the account is not `ACTIVE` or if the email or role no longer matches the token. A user whose role changes must sign in again.
+- The Spring Security authority is always `ROLE_<role>` taken from the current database record, never from request data.
+- Method-level authorization is enabled (`@EnableMethodSecurity`), so endpoints can be restricted with, for example, `@PreAuthorize("hasRole('MERCHANT')")`. Authenticated users without the required role receive `403` with `{"error":"Access is denied"}`.
+- `GET /api/users/me` returns only `id`, `name`, `email`, `role`, `status`, and `createdAt`; password hashes are never returned.
+
+Limitation: there is currently no way to create `MERCHANT`, `COURIER`, `DISPATCHER`, or `ADMIN` accounts through the API, and no role-promotion endpoint. Privileged account provisioning requires a future secure administrative workflow. Until then, such accounts can only be prepared directly in the database by an operator.
+
 ## Prerequisites and environment
 
 - Java 21
