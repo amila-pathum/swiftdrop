@@ -1,5 +1,6 @@
 package com.swiftdrop.identity_service.service;
 
+import com.swiftdrop.identity_service.dto.GoogleExchangeRequest;
 import com.swiftdrop.identity_service.dto.LoginRequest;
 import com.swiftdrop.identity_service.dto.RegisterRequest;
 import com.swiftdrop.identity_service.entity.Role;
@@ -8,6 +9,7 @@ import com.swiftdrop.identity_service.entity.UserStatus;
 import com.swiftdrop.identity_service.exception.AccountNotActiveException;
 import com.swiftdrop.identity_service.exception.DuplicateEmailException;
 import com.swiftdrop.identity_service.exception.InvalidCredentialsException;
+import com.swiftdrop.identity_service.exception.InvalidLoginCodeException;
 import com.swiftdrop.identity_service.repository.UserRepository;
 import com.swiftdrop.identity_service.security.JwtService;
 import org.junit.jupiter.api.BeforeEach;
@@ -24,15 +26,18 @@ import static org.mockito.Mockito.*;
 
 class AuthServiceTest {
 
+    private static final String VERIFIER = "v".repeat(43);
+
     private final UserRepository repository = mock(UserRepository.class);
     private final PasswordEncoder encoder = mock(PasswordEncoder.class);
     private final JwtService jwtService = mock(JwtService.class);
+    private final OAuthLoginCodeService loginCodes = mock(OAuthLoginCodeService.class);
     private AuthService authService;
     private User activeUser;
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(repository, encoder, jwtService);
+        authService = new AuthService(repository, encoder, jwtService, loginCodes);
         activeUser = user(UserStatus.ACTIVE);
     }
 
@@ -101,6 +106,19 @@ class AuthServiceTest {
     }
 
     @Test
+    void loginRejectsAccountWithoutPasswordLikeAWrongPassword() {
+        User googleOnly = new User("Google User", "user@example.com", null,
+            Role.CUSTOMER, UserStatus.ACTIVE);
+        when(repository.findByEmail("user@example.com")).thenReturn(Optional.of(googleOnly));
+
+        assertThatThrownBy(() -> authService.login(
+            new LoginRequest("user@example.com", "any-password")))
+            .isInstanceOf(InvalidCredentialsException.class);
+        verify(encoder, never()).matches(anyString(), any());
+        verify(jwtService, never()).generateToken(any());
+    }
+
+    @Test
     void loginRejectsNonActiveAccount() {
         User suspended = user(UserStatus.SUSPENDED);
         when(repository.findByEmail("user@example.com")).thenReturn(Optional.of(suspended));
@@ -108,6 +126,41 @@ class AuthServiceTest {
 
         assertThatThrownBy(() -> authService.login(
             new LoginRequest("user@example.com", "password123")))
+            .isInstanceOf(AccountNotActiveException.class);
+        verify(jwtService, never()).generateToken(any());
+    }
+
+    @Test
+    void googleExchangeReturnsTheSameResponseAsPasswordLogin() {
+        when(loginCodes.redeem("one-time-code", VERIFIER)).thenReturn(activeUser);
+        when(jwtService.generateToken(activeUser)).thenReturn("signed-token");
+        when(jwtService.getExpirationSeconds()).thenReturn(900L);
+
+        var response = authService.exchangeGoogleCode(
+            new GoogleExchangeRequest("one-time-code", VERIFIER));
+
+        assertThat(response.accessToken()).isEqualTo("signed-token");
+        assertThat(response.tokenType()).isEqualTo("Bearer");
+        assertThat(response.expiresIn()).isEqualTo(900);
+        assertThat(response.user().email()).isEqualTo("user@example.com");
+    }
+
+    @Test
+    void googleExchangeRejectsAnInvalidCode() {
+        when(loginCodes.redeem(anyString(), anyString())).thenThrow(new InvalidLoginCodeException());
+
+        assertThatThrownBy(() -> authService.exchangeGoogleCode(
+            new GoogleExchangeRequest("bad-code", VERIFIER)))
+            .isInstanceOf(InvalidLoginCodeException.class);
+        verify(jwtService, never()).generateToken(any());
+    }
+
+    @Test
+    void googleExchangeRejectsAnAccountSuspendedAfterSignIn() {
+        when(loginCodes.redeem("one-time-code", VERIFIER)).thenReturn(user(UserStatus.SUSPENDED));
+
+        assertThatThrownBy(() -> authService.exchangeGoogleCode(
+            new GoogleExchangeRequest("one-time-code", VERIFIER)))
             .isInstanceOf(AccountNotActiveException.class);
         verify(jwtService, never()).generateToken(any());
     }

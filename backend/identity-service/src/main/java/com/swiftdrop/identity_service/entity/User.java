@@ -25,7 +25,8 @@ public class User {
     @Column(nullable = false, length = 255)
     private String email;
 
-    @Column(name = "password_hash", nullable = false, length = 255)
+    // Null for accounts created through Google sign-in, which have no password.
+    @Column(name = "password_hash", length = 255)
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
@@ -80,6 +81,10 @@ public class User {
 
     public String getPasswordHash() {
         return passwordHash;
+    }
+
+    public boolean hasPassword() {
+        return passwordHash != null && !passwordHash.isBlank();
     }
 
     public Role getRole() {

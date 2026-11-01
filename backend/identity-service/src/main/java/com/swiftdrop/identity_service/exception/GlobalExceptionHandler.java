@@ -27,6 +27,13 @@ public class GlobalExceptionHandler {
             .body(Map.of("error", ex.getMessage()));
     }
 
+    @ExceptionHandler(InvalidLoginCodeException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidLoginCode(
+            InvalidLoginCodeException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+            .body(Map.of("error", ex.getMessage()));
+    }
+
     @ExceptionHandler(AccountNotActiveException.class)
     public ResponseEntity<Map<String, String>> handleInactiveAccount(
             AccountNotActiveException ex) {

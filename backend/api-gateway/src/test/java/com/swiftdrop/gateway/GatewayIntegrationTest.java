@@ -30,6 +30,7 @@ class GatewayIntegrationTest {
     private static final AtomicReference<String> path = new AtomicReference<>();
     private static final AtomicReference<String> method = new AtomicReference<>();
     private static final AtomicReference<String> authorization = new AtomicReference<>();
+    private static final AtomicReference<String> cookie = new AtomicReference<>();
     private static DisposableServer upstream;
 
     @Autowired
@@ -41,9 +42,21 @@ class GatewayIntegrationTest {
             path.set(request.uri());
             method.set(request.method().name());
             authorization.set(request.requestHeaders().get(HttpHeaders.AUTHORIZATION));
+            cookie.set(request.requestHeaders().get(HttpHeaders.COOKIE));
             response.header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
             response.header(HttpHeaders.CONNECTION, "close");
 
+            if (request.uri().startsWith("/oauth2/authorization/google")) {
+                return response.status(302)
+                    .header(HttpHeaders.LOCATION, "https://accounts.google.com/o/oauth2/v2/auth?state=s")
+                    .header(HttpHeaders.SET_COOKIE, "JSESSIONID=oauth-session; Path=/; HttpOnly; SameSite=Lax")
+                    .send();
+            }
+            if (request.uri().startsWith("/login/oauth2/code/google")) {
+                return response.status(302)
+                    .header(HttpHeaders.LOCATION, "http://localhost:3000/auth/google/callback#code=abc")
+                    .send();
+            }
             if (request.uri().equals("/api/users/me")) {
                 return response.status(401).sendString(
                     Mono.just("{\"error\":\"Authentication is required\"}"));
@@ -138,6 +151,49 @@ class GatewayIntegrationTest {
 
     @Test
     @Order(7)
+    void googleSignInStartPassesRedirectAndSessionCookieThrough() {
+        client.get().uri("/oauth2/authorization/google?client_challenge=abc_-123").exchange()
+            .expectStatus().isFound()
+            .expectHeader().valueEquals(HttpHeaders.LOCATION,
+                "https://accounts.google.com/o/oauth2/v2/auth?state=s")
+            .expectHeader().value(HttpHeaders.SET_COOKIE,
+                value -> assertThat(value).startsWith("JSESSIONID=oauth-session"));
+        assertThat(path.get()).isEqualTo("/oauth2/authorization/google?client_challenge=abc_-123");
+    }
+
+    @Test
+    @Order(8)
+    void googleCallbackPassesQueryCookieAndRedirectThrough() {
+        client.get().uri("/login/oauth2/code/google?state=s&code=google-code")
+            .header(HttpHeaders.COOKIE, "JSESSIONID=oauth-session").exchange()
+            .expectStatus().isFound()
+            .expectHeader().valueEquals(HttpHeaders.LOCATION,
+                "http://localhost:3000/auth/google/callback#code=abc");
+        assertThat(path.get()).isEqualTo("/login/oauth2/code/google?state=s&code=google-code");
+        assertThat(cookie.get()).isEqualTo("JSESSIONID=oauth-session");
+    }
+
+    @Test
+    @Order(9)
+    void googleCodeExchangePreservesPathAndMethod() {
+        client.post().uri("/api/auth/google/exchange")
+            .contentType(MediaType.APPLICATION_JSON).bodyValue("{}").exchange()
+            .expectStatus().isOk();
+        assertThat(path.get()).isEqualTo("/api/auth/google/exchange");
+        assertThat(method.get()).isEqualTo("POST");
+    }
+
+    @Test
+    @Order(10)
+    void otherOAuthPathsAreNotRouted() {
+        path.set(null);
+        client.get().uri("/oauth2/authorization/github").exchange()
+            .expectStatus().value(status -> assertThat(status).isGreaterThanOrEqualTo(400));
+        assertThat(path.get()).isNull();
+    }
+
+    @Test
+    @Order(11)
     void unavailableUpstreamReturnsSafeBadGateway() {
         upstream.disposeNow();
         client.post().uri("/api/auth/login")

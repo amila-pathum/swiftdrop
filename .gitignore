@@ -3,6 +3,9 @@
 .env.*
 !.env.example
 
+# Google OAuth client credentials downloaded from Google Cloud Console
+client_secret_*.json
+
 # Node
 node_modules/
 npm-debug.log*

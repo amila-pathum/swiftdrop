@@ -3,6 +3,8 @@ package com.swiftdrop.identity_service;
 import com.swiftdrop.identity_service.entity.Role;
 import com.swiftdrop.identity_service.entity.User;
 import com.swiftdrop.identity_service.entity.UserStatus;
+import com.swiftdrop.identity_service.repository.OAuthLoginCodeRepository;
+import com.swiftdrop.identity_service.repository.UserIdentityRepository;
 import com.swiftdrop.identity_service.repository.UserRepository;
 import com.jayway.jsonpath.JsonPath;
 import com.swiftdrop.identity_service.security.AuthenticatedUser;
@@ -50,6 +52,8 @@ class SecurityApiTest {
     @Autowired PasswordEncoder passwordEncoder;
     @Autowired JwtService jwtService;
     @MockitoBean UserRepository userRepository;
+    @MockitoBean UserIdentityRepository userIdentityRepository;
+    @MockitoBean OAuthLoginCodeRepository oauthLoginCodeRepository;
 
     private User user;
 
@@ -306,6 +310,27 @@ class SecurityApiTest {
                 .header("Authorization", "Bearer " + token))
             .andExpect(status().isUnauthorized())
             .andExpect(jsonPath("$.error").value("Invalid or expired access token"));
+    }
+
+    @Test
+    void googleSignInReportsUnavailableWhenNotConfigured() throws Exception {
+        mockMvc.perform(get("/oauth2/authorization/google")
+                .param("client_challenge", "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"))
+            .andExpect(status().isFound())
+            .andExpect(redirectedUrl(
+                "http://localhost:3000/auth/google/callback#error=google_unavailable"));
+        mockMvc.perform(get("/login/oauth2/code/google").param("code", "c").param("state", "s"))
+            .andExpect(redirectedUrl(
+                "http://localhost:3000/auth/google/callback#error=google_unavailable"));
+    }
+
+    @Test
+    void googleExchangeIsPublicAndValidatesItsInput() throws Exception {
+        mockMvc.perform(post("/api/auth/google/exchange")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"code\":\"\",\"verifier\":\"short\"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").value("Invalid request data"));
     }
 
     private User user(long id, String email, Role role, UserStatus status) {

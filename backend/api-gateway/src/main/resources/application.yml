@@ -9,7 +9,13 @@ spring:
             - id: identity-auth
               uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
               predicates:
-                - Path=/api/auth/register,/api/auth/login
+                - Path=/api/auth/register,/api/auth/login,/api/auth/google/exchange
+            # Browser redirects of the Google sign-in flow. Redirects, query
+            # strings and the short-lived session cookie pass through unchanged.
+            - id: identity-google-sign-in
+              uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
+              predicates:
+                - Path=/oauth2/authorization/google,/login/oauth2/code/google
             - id: identity-users
               uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
               predicates:

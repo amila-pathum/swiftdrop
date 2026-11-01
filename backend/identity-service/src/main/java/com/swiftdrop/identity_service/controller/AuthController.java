@@ -1,5 +1,6 @@
 package com.swiftdrop.identity_service.controller;
 
+import com.swiftdrop.identity_service.dto.GoogleExchangeRequest;
 import com.swiftdrop.identity_service.dto.LoginRequest;
 import com.swiftdrop.identity_service.dto.LoginResponse;
 import com.swiftdrop.identity_service.dto.RegisterRequest;
@@ -32,5 +33,10 @@ public class AuthController {
     @PostMapping("/login")
     public LoginResponse login(@Valid @RequestBody LoginRequest request) {
         return authService.login(request);
+    }
+
+    @PostMapping("/google/exchange")
+    public LoginResponse exchangeGoogleCode(@Valid @RequestBody GoogleExchangeRequest request) {
+        return authService.exchangeGoogleCode(request);
     }
 }

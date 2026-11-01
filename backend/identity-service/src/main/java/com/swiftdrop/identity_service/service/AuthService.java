@@ -1,5 +1,6 @@
 package com.swiftdrop.identity_service.service;
 
+import com.swiftdrop.identity_service.dto.GoogleExchangeRequest;
 import com.swiftdrop.identity_service.dto.LoginRequest;
 import com.swiftdrop.identity_service.dto.LoginResponse;
 import com.swiftdrop.identity_service.dto.RegisterRequest;
@@ -25,14 +26,17 @@ public class AuthService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final OAuthLoginCodeService loginCodes;
 
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
-            JwtService jwtService) {
+            JwtService jwtService,
+            OAuthLoginCodeService loginCodes) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.loginCodes = loginCodes;
     }
 
     @Transactional
@@ -61,9 +65,24 @@ public class AuthService {
         User user = userRepository.findByEmail(email)
             .orElseThrow(InvalidCredentialsException::new);
 
-        if (!passwordEncoder.matches(request.password(), user.getPasswordHash())) {
+        // Google-only accounts have no password; they fail like a wrong password.
+        if (!user.hasPassword()
+                || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new InvalidCredentialsException();
         }
+        return issueToken(user);
+    }
+
+    /**
+     * Exchanges a one-time Google sign-in code for the same response as a password
+     * login. Deliberately not transactional: a failed attempt must still consume
+     * the code, which the redeem transaction commits on its own.
+     */
+    public LoginResponse exchangeGoogleCode(GoogleExchangeRequest request) {
+        return issueToken(loginCodes.redeem(request.code(), request.verifier()));
+    }
+
+    private LoginResponse issueToken(User user) {
         if (user.getStatus() != UserStatus.ACTIVE) {
             throw new AccountNotActiveException();
         }
