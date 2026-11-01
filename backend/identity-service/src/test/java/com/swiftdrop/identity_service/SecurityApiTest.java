@@ -313,6 +313,26 @@ class SecurityApiTest {
     }
 
     @Test
+    void healthIsPublicAndShowsNoDetails() throws Exception {
+        mockMvc.perform(get("/actuator/health"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("UP"))
+            .andExpect(jsonPath("$.components").doesNotExist());
+    }
+
+    @Test
+    void otherActuatorEndpointsAreNeitherPublicNorExposed() throws Exception {
+        for (String path : new String[] {"/actuator/env", "/actuator/info", "/actuator/beans"}) {
+            mockMvc.perform(get(path))
+                .andExpect(status().isUnauthorized());
+        }
+        when(userRepository.findById(user.getId())).thenReturn(Optional.of(user));
+        mockMvc.perform(get("/actuator/env")
+                .header("Authorization", "Bearer " + jwtService.generateToken(user)))
+            .andExpect(status().isNotFound());
+    }
+
+    @Test
     void googleSignInReportsUnavailableWhenNotConfigured() throws Exception {
         mockMvc.perform(get("/oauth2/authorization/google")
                 .param("client_challenge", "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM"))

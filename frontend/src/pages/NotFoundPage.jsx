@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import AuthLayout from '../components/AuthLayout'
+import AuthLayout from '../layouts/AuthLayout'
 
 export default function NotFoundPage() {
   return (

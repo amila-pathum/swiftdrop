@@ -1,6 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom'
-import AppLayout from './components/AppLayout'
-import AuthLayout from './components/AuthLayout'
+import AppLayout from './layouts/AppLayout'
+import AuthLayout from './layouts/AuthLayout'
 import ProtectedRoute from './components/ProtectedRoute'
 import PublicOnlyRoute from './components/PublicOnlyRoute'
 import { useAuth } from './context/AuthContext'

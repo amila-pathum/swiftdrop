@@ -1,6 +1,6 @@
 import { Outlet } from 'react-router-dom'
-import Navbar from './Navbar'
-import Sidebar from './Sidebar'
+import Navbar from '../components/Navbar'
+import Sidebar from '../components/Sidebar'
 
 export default function AppLayout() {
   return (

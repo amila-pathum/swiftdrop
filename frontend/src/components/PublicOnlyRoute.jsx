@@ -1,6 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { postLoginPath } from './postLoginPath'
+import { postLoginPath } from '../utils/postLoginPath'
 import { AuthPendingScreen } from './ProtectedRoute'
 
 // Pages such as login and registration, which signed-in users should not see.

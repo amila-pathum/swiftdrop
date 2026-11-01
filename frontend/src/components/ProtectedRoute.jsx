@@ -1,6 +1,6 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import AuthLayout from './AuthLayout'
+import AuthLayout from '../layouts/AuthLayout'
 import Button from './Button'
 import LoadingSpinner from './LoadingSpinner'
 

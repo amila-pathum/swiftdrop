@@ -6,6 +6,8 @@ import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestMethodOrder;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
@@ -80,6 +82,9 @@ class GatewayIntegrationTest {
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("IDENTITY_SERVICE_URL", () -> "http://localhost:" + upstream.port());
+        for (String service : new String[] {"PARCEL", "MERCHANT", "COURIER", "DISPATCH", "PRICING"}) {
+            registry.add(service + "_SERVICE_URL", () -> "http://localhost:" + upstream.port());
+        }
         registry.add("FRONTEND_ORIGIN", () -> "http://localhost:3000");
     }
 
@@ -192,8 +197,34 @@ class GatewayIntegrationTest {
         assertThat(path.get()).isNull();
     }
 
-    @Test
+    @ParameterizedTest
     @Order(11)
+    @ValueSource(strings = {
+        "/api/parcels/SD-1001/tracking",
+        "/api/merchants/42/webhooks",
+        "/api/couriers/7/availability",
+        "/api/dispatch/zones",
+        "/api/pricing/quotes"
+    })
+    void serviceRoutesPreservePathAndMethod(String requestPath) {
+        client.post().uri(requestPath)
+            .contentType(MediaType.APPLICATION_JSON).bodyValue("{}").exchange()
+            .expectStatus().isOk();
+        assertThat(path.get()).isEqualTo(requestPath);
+        assertThat(method.get()).isEqualTo("POST");
+    }
+
+    @Test
+    @Order(12)
+    void notificationServiceIsNotExposed() {
+        path.set(null);
+        client.get().uri("/api/notifications/preferences").exchange()
+            .expectStatus().value(status -> assertThat(status).isGreaterThanOrEqualTo(400));
+        assertThat(path.get()).isNull();
+    }
+
+    @Test
+    @Order(13)
     void unavailableUpstreamReturnsSafeBadGateway() {
         upstream.disposeNow();
         client.post().uri("/api/auth/login")

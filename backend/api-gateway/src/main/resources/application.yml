@@ -20,6 +20,28 @@ spring:
               uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
               predicates:
                 - Path=/api/users/me
+            # One path prefix per service. A service owns everything under its prefix.
+            # Notification Service is internal (backend calls and RabbitMQ) and has no route.
+            - id: parcel-service
+              uri: ${PARCEL_SERVICE_URL:http://localhost:8082}
+              predicates:
+                - Path=/api/parcels/**
+            - id: merchant-service
+              uri: ${MERCHANT_SERVICE_URL:http://localhost:8083}
+              predicates:
+                - Path=/api/merchants/**
+            - id: courier-service
+              uri: ${COURIER_SERVICE_URL:http://localhost:8084}
+              predicates:
+                - Path=/api/couriers/**
+            - id: dispatch-service
+              uri: ${DISPATCH_SERVICE_URL:http://localhost:8085}
+              predicates:
+                - Path=/api/dispatch/**
+            - id: pricing-service
+              uri: ${PRICING_SERVICE_URL:http://localhost:8086}
+              predicates:
+                - Path=/api/pricing/**
           globalcors:
             add-to-simple-url-handler-mapping: true
             cors-configurations:

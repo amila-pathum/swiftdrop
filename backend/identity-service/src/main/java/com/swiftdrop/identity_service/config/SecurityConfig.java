@@ -3,6 +3,7 @@ package com.swiftdrop.identity_service.config;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.http.HttpMethod;
 import tools.jackson.databind.ObjectMapper;
 import com.swiftdrop.identity_service.security.JwtAuthenticationFilter;
 import jakarta.servlet.http.HttpServletResponse;
@@ -49,6 +50,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/api/auth/register", "/api/auth/login",
                     "/api/auth/google/exchange").permitAll()
+                .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                 .anyRequest().authenticated())
             .exceptionHandling(exceptions -> exceptions
                 .authenticationEntryPoint((request, response, exception) ->

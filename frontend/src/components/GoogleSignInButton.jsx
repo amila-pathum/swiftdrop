@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import Button from './Button'
-import { postLoginPath } from './postLoginPath'
+import { postLoginPath } from '../utils/postLoginPath'
 import { isGoogleLoginEnabled } from '../services/config'
 import { startGoogleSignIn } from '../services/googleAuth'
 

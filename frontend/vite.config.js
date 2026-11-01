@@ -16,5 +16,10 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: './src/setupTests.js',
+    // Tests must not depend on a developer's .env.local; tests that need
+    // Google sign-in enable it themselves.
+    env: {
+      VITE_GOOGLE_LOGIN_ENABLED: 'false',
+    },
   },
 })

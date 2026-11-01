@@ -1,0 +1,55 @@
+# Local infrastructure for SwiftDrop: one PostgreSQL server holding a separate
+# database per service, and RabbitMQ for future event-driven integration.
+# The services themselves run from their own directories (see README.md).
+#
+# Values come from the root .env. Ports are bound to localhost only.
+
+name: swiftdrop
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-identity_db}
+      POSTGRES_USER: ${POSTGRES_USER:-swiftdrop}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      # Read once by infrastructure/docker/postgres/init when the volume is empty.
+      PARCEL_DB_PASSWORD: ${PARCEL_DB_PASSWORD:?Set PARCEL_DB_PASSWORD in .env}
+      MERCHANT_DB_PASSWORD: ${MERCHANT_DB_PASSWORD:?Set MERCHANT_DB_PASSWORD in .env}
+      COURIER_DB_PASSWORD: ${COURIER_DB_PASSWORD:?Set COURIER_DB_PASSWORD in .env}
+      DISPATCH_DB_PASSWORD: ${DISPATCH_DB_PASSWORD:?Set DISPATCH_DB_PASSWORD in .env}
+      PRICING_DB_PASSWORD: ${PRICING_DB_PASSWORD:?Set PRICING_DB_PASSWORD in .env}
+      NOTIFICATION_DB_PASSWORD: ${NOTIFICATION_DB_PASSWORD:?Set NOTIFICATION_DB_PASSWORD in .env}
+    # Services on the host connect to localhost:${POSTGRES_PORT} (5433 by default, so a
+    # locally installed PostgreSQL on 5432 is unaffected); containers on this network
+    # connect to postgres:5432.
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ./infrastructure/docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-swiftdrop}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Set RABBITMQ_PASSWORD in .env}
+    ports:
+      - "127.0.0.1:${RABBITMQ_PORT:-5672}:5672"
+      - "127.0.0.1:${RABBITMQ_MANAGEMENT_PORT:-15672}:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+volumes:
+  postgres-data:
+  rabbitmq-data:
