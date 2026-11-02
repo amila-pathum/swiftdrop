@@ -1,0 +1,9 @@
+pyproject.toml
+app/__init__.py
+app/main.py
+swiftdrop_ai_service.egg-info/PKG-INFO
+swiftdrop_ai_service.egg-info/SOURCES.txt
+swiftdrop_ai_service.egg-info/dependency_links.txt
+swiftdrop_ai_service.egg-info/requires.txt
+swiftdrop_ai_service.egg-info/top_level.txt
+tests/test_health.py
