@@ -1,9 +1,14 @@
 pyproject.toml
 app/__init__.py
 app/main.py
+app/clients/__init__.py
+app/clients/parcel.py
+app/clients/pricing.py
 swiftdrop_ai_service.egg-info/PKG-INFO
 swiftdrop_ai_service.egg-info/SOURCES.txt
 swiftdrop_ai_service.egg-info/dependency_links.txt
 swiftdrop_ai_service.egg-info/requires.txt
 swiftdrop_ai_service.egg-info/top_level.txt
 tests/test_health.py
+tests/test_parcel_client.py
+tests/test_pricing_client.py

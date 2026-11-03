@@ -3,6 +3,7 @@ import json
 
 import httpx
 import pytest
+
 from app.clients.pricing import PricingClient, PricingServiceError
 
 
