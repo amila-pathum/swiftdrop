@@ -329,22 +329,34 @@ curl -i http://localhost:8080/api/users/me -H "Authorization: Bearer $TOKEN"
 
 Create that account first with `POST /api/auth/register` (`{"name": "...", "email": "...", "password": "..."}`).
 
-## Running the Identity Service against AWS RDS
+## Running the services against AWS RDS
 
-> **Shared database.** The RDS database `swiftdrop_dev` is used by the whole team. With the `rds` profile the Identity Service **applies its pending Flyway migrations on startup**, for everyone. Start it against RDS only from a branch whose migrations have been merged under the team's agreed process; develop and test new migrations against Docker or Testcontainers first. Never run `flyway clean`, drop the `identity` schema, or delete other people's data.
+> **Shared database.** The RDS database `swiftdrop_dev` is used by the whole team. With the `rds` profile a service **applies its pending Flyway migrations on startup**, for everyone. Start a service against RDS only from a branch whose migrations have been merged under the team's agreed process; develop and test new migrations against Docker or Testcontainers first. Never run `flyway clean`, drop a schema, or delete other people's data.
 
-By default the Identity Service uses the local Docker PostgreSQL. The opt-in Spring profile `rds` (`backend/identity-service/src/main/resources/application-rds.properties`) connects it instead to the shared RDS database, in its own schema `identity`. No other service supports RDS yet.
+By default every service uses the local Docker PostgreSQL. The opt-in Spring profile `rds` (`src/main/resources/application-rds.properties` in each service) connects it instead to the shared RDS database `swiftdrop_dev`, where each service owns exactly one schema:
 
-What the profile does:
+| Service | Schema | Port | Migrations | Tables after the first start |
+|---|---|---|---|---|
+| Identity | `identity` | 8081 | V1, V2 | `users`, `user_identities`, `oauth_login_codes` |
+| Parcel | `parcel` | 8082 | V1 | `parcels`, `parcel_status_history` |
+| Merchant | `merchant` | 8083 | none yet | none yet |
+| Courier | `courier` | 8084 | none yet | none yet |
+| Dispatch | `dispatch` | 8085 | none yet | none yet |
+| Pricing | `pricing` | 8086 | none yet | none yet |
+| Notification | `notification` | 8087 | none yet | none yet |
+
+Every schema also holds its own `flyway_schema_history`. The API Gateway has no database.
+
+What the profile does, identically in every service:
 
 - Connects to `jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=require` as `DB_USERNAME`. Every connection, including Flyway's, is encrypted with TLS, and the driver refuses to connect without it. **The server certificate is not verified**: traffic cannot be read in transit, but a client would not detect an attacker impersonating the server. No CA certificate is needed.
-- Flyway creates the `identity` schema if it is missing, keeps its history in `identity.flyway_schema_history` and runs V1 and V2 there; Hibernate validates and queries `identity`. Other services' objects in `public` are not touched.
-- Baselining is off: if `identity` already contains tables but no Flyway history, startup fails instead of skipping `V1__baseline.sql`.
-- A pool of at most 2 connections, closed after 2 minutes idle, because every developer and service shares one small instance.
+- Flyway creates the service's schema if it is missing, keeps its history in `<schema>.flyway_schema_history` and runs the service's migrations there; Hibernate validates (`ddl-auto=validate`) and queries that schema and never creates or alters tables. Nothing is written to `public` or to another service's schema. Migrations must therefore keep using unqualified table names and never name another schema.
+- Baselining is off: if a schema already contains tables but no Flyway history, startup fails instead of skipping the first migration.
+- A pool of at most 2 connections per service, closed after 2 minutes idle: one developer running all seven services uses at most 14 of the `db.t4g.micro` instance's connections, so start only the services you need.
 
 ### 1. Set the variables
 
-In the root `.env` (they are ignored without the `rds` profile):
+In the root `.env` (they are ignored without the `rds` profile). All services use the same five:
 
 | Variable | Value |
 |---|---|
@@ -352,36 +364,44 @@ In the root `.env` (they are ignored without the `rds` profile):
 | `DB_PORT` | `5432` |
 | `DB_NAME` | `swiftdrop_dev` |
 | `DB_USERNAME` | RDS user (ask the team) |
-| `DB_PASSWORD` | the RDS password: **do not put it in `.env`**, where `DB_PASSWORD` is the Docker password; enter it at run time (below) |
+| `DB_PASSWORD` | the RDS password: **do not put it in `.env`**, where `DB_PASSWORD` is the Identity Service's Docker password; enter it at run time (below) |
 
-`JWT_SECRET` and the other Identity Service variables are read from `.env` as usual.
+`JWT_SECRET`, the `*_SERVICE_PORT` values and the other variables are read from `.env` as usual. The `*_DB_PASSWORD` values are only used by the Docker setup.
 
-### 2. Start the service with the profile
+### 2. Start services with the profile
 
-`run-service.sh` lets variables already set in your shell win over `.env`, so the profile and the password apply to one run only:
+`run-service.sh` lets variables already set in your shell win over `.env`, so the profile and the password apply only to what you start from that shell. Use one terminal per service:
 
 ```bash
 read -rsp 'RDS password: ' DB_PASSWORD; echo; export DB_PASSWORD
-SPRING_PROFILES_ACTIVE=rds infrastructure/scripts/run-service.sh identity-service
-unset DB_PASSWORD                  # when done
+export SPRING_PROFILES_ACTIVE=rds
+infrastructure/scripts/run-service.sh identity-service       # :8081
+infrastructure/scripts/run-service.sh parcel-service         # :8082
+infrastructure/scripts/run-service.sh merchant-service       # :8083
+infrastructure/scripts/run-service.sh courier-service        # :8084
+infrastructure/scripts/run-service.sh dispatch-service       # :8085
+infrastructure/scripts/run-service.sh pricing-service        # :8086
+infrastructure/scripts/run-service.sh notification-service   # :8087
+unset DB_PASSWORD SPRING_PROFILES_ACTIVE                     # when done
 ```
 
-`read -s` keeps the password out of your shell history and screen. Without `SPRING_PROFILES_ACTIVE=rds` the script starts the Docker setup exactly as before. The Docker `postgres` container is not needed for this service in `rds` mode. From an IDE, add `SPRING_PROFILES_ACTIVE=rds` and the `DB_*` variables to the run configuration's environment.
+Or for a single run: `SPRING_PROFILES_ACTIVE=rds infrastructure/scripts/run-service.sh parcel-service` after the `read` line. `read -s` keeps the password out of your shell history and screen. Do not run tests (`mvnw test`, `test-backend.sh`) from a shell where `SPRING_PROFILES_ACTIVE=rds` is exported: the profile would apply to them too and they would fail (they still never reach RDS). Without the profile the script starts the Docker setup exactly as before; the Docker `postgres` container is not needed by a service running in `rds` mode. From an IDE, add `SPRING_PROFILES_ACTIVE=rds` and the `DB_*` variables to the run configuration's environment.
 
-Check it: `curl http://localhost:8081/actuator/health` returns `{"status":"UP"}` once the database is reachable. Startup fails with `Could not resolve placeholder 'DB_…'` when a variable is missing. Outbound port 5432 must be allowed by your network.
+Check a service: `curl http://localhost:<port>/actuator/health` returns `{"status":"UP"}` once the database is reachable. Startup fails with `Could not resolve placeholder 'DB_…'` when a variable is missing. Outbound port 5432 must be allowed by your network.
 
-### 3. Verify the schema in pgAdmin
+### 3. Verify the schemas in pgAdmin
 
 1. *Register → Server*. **Connection**: host `DB_HOST`, port `5432`, maintenance database `swiftdrop_dev`, username `DB_USERNAME`; enter the password but do not tick *Save password* on a shared machine.
 2. **Parameters** tab (pgAdmin 7+; *SSL* tab in older versions): *SSL mode* `require`.
-3. Open *swiftdrop_dev → Schemas → identity → Tables*: `flyway_schema_history`, `oauth_login_codes`, `user_identities`, `users`.
-4. In the Query Tool, the migration history should show V1 and V2 as `SQL` (not `BASELINE`):
+3. Open *swiftdrop_dev → Schemas*: each service you have started has its schema, with the tables listed above.
+4. In the Query Tool, each schema's migration history should show its migrations as `SQL` (not `BASELINE`), for example:
 
    ```sql
    SELECT version, description, type, success FROM identity.flyway_schema_history ORDER BY installed_rank;
+   SELECT version, description, type, success FROM parcel.flyway_schema_history ORDER BY installed_rank;
    ```
 
-Tests never use RDS: they start their own PostgreSQL with Testcontainers. `RdsProfileStartupTest` runs the real `rds` profile against such a container to check the schema behaviour.
+Tests never use RDS: they start their own PostgreSQL with Testcontainers. Each service's `RdsProfileStartupTest` runs its real `rds` profile against such a container, with clashing objects already in `public`, to check that Flyway and Hibernate use only the service's schema.
 
 ## Google sign-in (optional)
 
@@ -418,7 +438,7 @@ Google sign-in creates an `ACTIVE` `CUSTOMER` without a password and requires a 
 
 Each service's schema is managed by Flyway (`src/main/resources/db/migration` in that service), and Hibernate only validates it (`ddl-auto=validate`). Add a new `V<n>__<description>.sql` file for every schema change; never edit a migration that has already been merged.
 
-For the Identity Service, a database created before Flyway is recorded as version 1 on first start and then migrated forward; an empty database runs every migration. With the `rds` profile, migrations run in the `identity` schema of the shared RDS database and baselining is off (see "Running the Identity Service against AWS RDS").
+For the Identity Service, a database created before Flyway is recorded as version 1 on first start and then migrated forward; an empty database runs every migration. With the `rds` profile, each service's migrations run in its own schema of the shared RDS database and baselining is off (see "Running the services against AWS RDS").
 
 ## Naming conventions
 
