@@ -286,6 +286,8 @@ infrastructure/scripts/run-service.sh identity-service
 infrastructure/scripts/run-service.sh parcel-service
 ```
 
+Variables already set in your shell take precedence over `.env`, for example `SPRING_PROFILES_ACTIVE=rds infrastructure/scripts/run-service.sh identity-service`.
+
 | You are working on | Start |
 |---|---|
 | Frontend sign-in and profile | `postgres`, `identity-service`, `api-gateway`, frontend |
@@ -327,6 +329,60 @@ curl -i http://localhost:8080/api/users/me -H "Authorization: Bearer $TOKEN"
 
 Create that account first with `POST /api/auth/register` (`{"name": "...", "email": "...", "password": "..."}`).
 
+## Running the Identity Service against AWS RDS
+
+> **Shared database.** The RDS database `swiftdrop_dev` is used by the whole team. With the `rds` profile the Identity Service **applies its pending Flyway migrations on startup**, for everyone. Start it against RDS only from a branch whose migrations have been merged under the team's agreed process; develop and test new migrations against Docker or Testcontainers first. Never run `flyway clean`, drop the `identity` schema, or delete other people's data.
+
+By default the Identity Service uses the local Docker PostgreSQL. The opt-in Spring profile `rds` (`backend/identity-service/src/main/resources/application-rds.properties`) connects it instead to the shared RDS database, in its own schema `identity`. No other service supports RDS yet.
+
+What the profile does:
+
+- Connects to `jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=require` as `DB_USERNAME`. Every connection, including Flyway's, is encrypted with TLS, and the driver refuses to connect without it. **The server certificate is not verified**: traffic cannot be read in transit, but a client would not detect an attacker impersonating the server. No CA certificate is needed.
+- Flyway creates the `identity` schema if it is missing, keeps its history in `identity.flyway_schema_history` and runs V1 and V2 there; Hibernate validates and queries `identity`. Other services' objects in `public` are not touched.
+- Baselining is off: if `identity` already contains tables but no Flyway history, startup fails instead of skipping `V1__baseline.sql`.
+- A pool of at most 2 connections, closed after 2 minutes idle, because every developer and service shares one small instance.
+
+### 1. Set the variables
+
+In the root `.env` (they are ignored without the `rds` profile):
+
+| Variable | Value |
+|---|---|
+| `DB_HOST` | RDS endpoint (ask the team; not stored in the repository) |
+| `DB_PORT` | `5432` |
+| `DB_NAME` | `swiftdrop_dev` |
+| `DB_USERNAME` | RDS user (ask the team) |
+| `DB_PASSWORD` | the RDS password: **do not put it in `.env`**, where `DB_PASSWORD` is the Docker password; enter it at run time (below) |
+
+`JWT_SECRET` and the other Identity Service variables are read from `.env` as usual.
+
+### 2. Start the service with the profile
+
+`run-service.sh` lets variables already set in your shell win over `.env`, so the profile and the password apply to one run only:
+
+```bash
+read -rsp 'RDS password: ' DB_PASSWORD; echo; export DB_PASSWORD
+SPRING_PROFILES_ACTIVE=rds infrastructure/scripts/run-service.sh identity-service
+unset DB_PASSWORD                  # when done
+```
+
+`read -s` keeps the password out of your shell history and screen. Without `SPRING_PROFILES_ACTIVE=rds` the script starts the Docker setup exactly as before. The Docker `postgres` container is not needed for this service in `rds` mode. From an IDE, add `SPRING_PROFILES_ACTIVE=rds` and the `DB_*` variables to the run configuration's environment.
+
+Check it: `curl http://localhost:8081/actuator/health` returns `{"status":"UP"}` once the database is reachable. Startup fails with `Could not resolve placeholder 'DB_…'` when a variable is missing. Outbound port 5432 must be allowed by your network.
+
+### 3. Verify the schema in pgAdmin
+
+1. *Register → Server*. **Connection**: host `DB_HOST`, port `5432`, maintenance database `swiftdrop_dev`, username `DB_USERNAME`; enter the password but do not tick *Save password* on a shared machine.
+2. **Parameters** tab (pgAdmin 7+; *SSL* tab in older versions): *SSL mode* `require`.
+3. Open *swiftdrop_dev → Schemas → identity → Tables*: `flyway_schema_history`, `oauth_login_codes`, `user_identities`, `users`.
+4. In the Query Tool, the migration history should show V1 and V2 as `SQL` (not `BASELINE`):
+
+   ```sql
+   SELECT version, description, type, success FROM identity.flyway_schema_history ORDER BY installed_rank;
+   ```
+
+Tests never use RDS: they start their own PostgreSQL with Testcontainers. `RdsProfileStartupTest` runs the real `rds` profile against such a container to check the schema behaviour.
+
 ## Google sign-in (optional)
 
 Google sign-in is off unless it is configured. Without it, email/password sign-in works as before and the Google endpoints redirect back with `#error=google_unavailable`.
@@ -362,7 +418,7 @@ Google sign-in creates an `ACTIVE` `CUSTOMER` without a password and requires a 
 
 Each service's schema is managed by Flyway (`src/main/resources/db/migration` in that service), and Hibernate only validates it (`ddl-auto=validate`). Add a new `V<n>__<description>.sql` file for every schema change; never edit a migration that has already been merged.
 
-For the Identity Service, a database created before Flyway is recorded as version 1 on first start and then migrated forward; an empty database runs every migration.
+For the Identity Service, a database created before Flyway is recorded as version 1 on first start and then migrated forward; an empty database runs every migration. With the `rds` profile, migrations run in the `identity` schema of the shared RDS database and baselining is off (see "Running the Identity Service against AWS RDS").
 
 ## Naming conventions
 
