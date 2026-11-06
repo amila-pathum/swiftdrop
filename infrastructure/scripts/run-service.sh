@@ -13,10 +13,21 @@ if [[ ! -x "$dir/mvnw" ]]; then
 	exit 1
 fi
 if [[ -f "$root/.env" ]]; then
+	# Variables already set in the environment win over .env, so one run can
+	# override a value without editing it, for example:
+	#   SPRING_PROFILES_ACTIVE=rds run-service.sh identity-service
+	preset=()
+	for name in $(compgen -e); do
+		preset+=("$name=${!name}")
+	done
 	set -a
 	# shellcheck source=/dev/null
 	source "$root/.env"
 	set +a
+	for entry in "${preset[@]}"; do
+		name="${entry%%=*}"
+		[[ "${!name-}" == "${entry#*=}" ]] || export "$entry"
+	done
 else
 	echo "Warning: $root/.env not found; copy .env.example to .env first." >&2
 fi
