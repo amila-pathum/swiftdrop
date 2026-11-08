@@ -277,6 +277,18 @@ docker compose exec postgres psql -U swiftdrop identity_db     # inside the cont
 
 Every service builds its JDBC URL from `POSTGRES_HOST` and `POSTGRES_PORT`, so changing them in `.env` moves all services at once. Database tests do not use either; Testcontainers starts its own PostgreSQL.
 
+## Starting everything at once
+
+`infrastructure/scripts/run-all.sh` starts the seven backend services, the API Gateway and the frontend in one terminal. In local mode it first runs `docker compose up -d --wait`. It writes each part's output to `logs/<name>.log` (ignored by Git), waits until every part answers, and stops them all on `Ctrl+C`:
+
+```bash
+infrastructure/scripts/run-all.sh                    # local Docker PostgreSQL
+DB_PROFILE=rds infrastructure/scripts/run-all.sh     # AWS RDS (.env.rds; Docker not started)
+infrastructure/scripts/run-all.sh identity-service api-gateway frontend   # only some parts
+```
+
+Before starting anything, it refuses if a port is already in use and, with `DB_PROFILE=rds`, checks `.env.rds` for every service. All nine parts need about 2–3 GB of memory.
+
 ## Starting only what you need
 
 Spring Boot does not read the root `.env` itself. `infrastructure/scripts/run-service.sh` loads it and starts one service; run each in its own terminal from the repository root:
