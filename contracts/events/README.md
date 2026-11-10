@@ -45,3 +45,29 @@ See [parcel-status-changed.json](./parcel-status-changed.json).
 - `eventId` is a UUID.
 - `courierId` may be null if no courier is assigned.
 
+## Retry and Dead-Letter Policy
+
+The Notification Service uses Spring AMQP listener retry
+to handle temporary processing failures.
+
+| Setting | Value |
+|---|---|
+| Retry enabled | Yes |
+| Maximum attempts | 3 |
+| Initial retry interval | 1 second |
+| Retry multiplier | 2 |
+| Maximum retry interval | 5 seconds |
+| Requeue after exhaustion | No |
+
+If all processing attempts fail, the message is rejected
+and routed to the configured dead-letter exchange.
+
+The dead-letter exchange routes failed messages to:
+
+- Exchange: `swiftdrop.dlx`
+- Routing key: `notification.failed`
+- Queue: `notification.dlq`
+
+Consumers in other services must configure their own
+retry policies.
+

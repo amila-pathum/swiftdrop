@@ -30,10 +30,12 @@ public class ParcelStatusConsumer {
                         ParcelStatusChangedEvent.class
                 );
 
-        log.info("Received parcel status event");
-        log.info("Event ID: {}", event.eventId());
-        log.info("Tracking Number: {}", event.trackingNumber());
-        log.info("Old Status: {}", event.oldStatus());
-        log.info("New Status: {}", event.newStatus());
+        log.info(
+            "Received parcel status event: eventId={}, trackingNumber={}, oldStatus={}, newStatus={}",
+            event.eventId(),
+            event.trackingNumber(),
+            event.oldStatus(),
+            event.newStatus()
+        );
     }
 }
