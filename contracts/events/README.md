@@ -10,3 +10,38 @@ Conventions:
 - The publishing service owns the event and its schema. Consumers must ignore fields they do not know.
 - Adding an optional field keeps the version. Any other change is a new version, published alongside the old one until all consumers have moved.
 - Events carry identifiers and the data consumers need, never passwords, tokens or other secrets.
+
+
+# Parcel Status Changed Event
+
+## RabbitMQ Configuration
+
+- Exchange: `swiftdrop.events`
+- Exchange Type: `topic`
+- Routing Key: `parcel.status-changed`
+
+## RabbitMQ Queues
+
+The Parcel Service publishes the event to the `swiftdrop.events` exchange.
+
+The exchange routes a copy of each event to all three durable queues using the routing key `parcel.status-changed`.
+
+| Consumer | Queue Name | Responsible Member |
+|---|---|---|
+| Notifications | `notification.parcel-status-changed` | Member 10 |
+| Webhooks | `webhook.parcel-status-changed` | Member 9 |
+| Reports | `reports.parcel-status-changed` | Member 7 |
+
+Each consumer processes messages independently from its own queue.
+
+## Event Payload
+
+See [parcel-status-changed.json](./parcel-status-changed.json).
+
+## Notes
+
+- All consumers must use the same event contract.
+- `occurredAt` uses UTC ISO 8601 format.
+- `eventId` is a UUID.
+- `courierId` may be null if no courier is assigned.
+
