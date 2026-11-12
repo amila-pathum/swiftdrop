@@ -39,6 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest(properties = {
     "swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+    "management.health.rabbit.enabled=false",
     "DB_HOST=rds-host.invalid",
     "DB_NAME=" + RdsProfileStartupTest.DATABASE,
     "DB_USERNAME=" + RdsProfileStartupTest.USERNAME,
