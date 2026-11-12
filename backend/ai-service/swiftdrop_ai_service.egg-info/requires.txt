@@ -1,6 +1,8 @@
 fastapi<1,>=0.115
 uvicorn[standard]<1,>=0.30
 httpx<1,>=0.27
+PyJWT<3,>=2.10
+google-genai<3,>=2.34
 
 [dev]
 pytest<10,>=8

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Parcel Status Changed",
+  "description": "Published when a parcel's status changes.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "eventId",
+    "eventType",
+    "occurredAt",
+    "trackingNumber",
+    "parcelId",
+    "customerId",
+    "oldStatus",
+    "newStatus"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "eventType": {
+      "const": "ParcelStatusChanged"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "trackingNumber": {
+      "type": "string"
+    },
+    "parcelId": {
+      "type": "string"
+    },
+    "merchantId": {
+      "type": ["string", "null"]
+    },
+    "merchantOrderReference": {
+      "type": ["string", "null"]
+    },
+    "customerId": {
+      "type": "string"
+    },
+    "courierId": {
+      "type": ["string", "null"]
+    },
+    "oldStatus": {
+      "type": "string"
+    },
+    "newStatus": {
+      "type": "string"
+    }
+  }
+}
