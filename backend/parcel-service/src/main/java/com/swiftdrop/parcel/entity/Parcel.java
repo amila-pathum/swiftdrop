@@ -69,7 +69,7 @@ public class Parcel {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
-    protected Parcel() { }
+    public Parcel() { }
 
     @PrePersist
     void beforeInsert() {
