@@ -68,13 +68,13 @@ class FlywayMigrationTest {
     @Test
     void emptyDatabaseRunsEveryMigration() {
         assertThat(freshResult.success).isTrue();
-        assertThat(history(fresh)).containsExactly("1:SQL:true", "2:SQL:true");
+        assertThat(history(fresh)).containsExactly("1:SQL:true", "2:SQL:true", "3:SQL:true");
     }
 
     @Test
     void existingDatabaseIsBaselinedAndOnlyRunsNewMigrations() {
         assertThat(existingResult.success).isTrue();
-        assertThat(history(existing)).containsExactly("1:BASELINE:true", "2:SQL:true");
+        assertThat(history(existing)).containsExactly("1:BASELINE:true", "2:SQL:true", "3:SQL:true");
     }
 
     @Test
