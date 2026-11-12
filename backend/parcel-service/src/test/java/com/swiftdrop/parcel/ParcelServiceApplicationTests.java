@@ -1,5 +1,13 @@
 package com.swiftdrop.parcel;
 
+import com.swiftdrop.parcel.entity.Parcel;
+import com.swiftdrop.parcel.entity.ParcelStatus;
+import com.swiftdrop.parcel.repository.ParcelRepository;
+import com.swiftdrop.parcel.repository.ParcelStatusHistoryRepository;
+import com.swiftdrop.parcel.service.ParcelService;
+import java.math.BigDecimal;
+import java.util.UUID;
+import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -28,6 +36,44 @@ class ParcelServiceApplicationTests {
     static final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:18");
 
     @Autowired MockMvc mockMvc;
+    @Autowired ParcelService parcelService;
+    @Autowired ParcelRepository parcels;
+    @Autowired ParcelStatusHistoryRepository history;
+
+    @Test
+    void persistsParcelAndCompleteStatusHistory() {
+        UUID actor = UUID.randomUUID();
+        Parcel parcel = new Parcel();
+        parcel.setTrackingNumber("T-" + UUID.randomUUID());
+        parcel.setSenderId(actor);
+        parcel.setCreatedBy(actor);
+        parcel.setReceiverName("Receiver");
+        parcel.setReceiverPhone("0771234567");
+        parcel.setPickupAddress("Pickup address");
+        parcel.setDeliveryAddress("Delivery address");
+        parcel.setWeight(new BigDecimal("1.250"));
+        parcel.setSize("SMALL");
+        parcel.setParcelType("STANDARD");
+        parcel.setCharge(new BigDecimal("500.00"));
+        UUID id = parcelService.createParcel(parcel).getId();
+
+        parcelService.changeStatus(id, ParcelStatus.PICKED_UP, actor, "Courier collected parcel");
+        parcelService.changeStatus(id, ParcelStatus.IN_TRANSIT, actor, "Parcel in transit");
+        parcelService.changeStatus(id, ParcelStatus.OUT_FOR_DELIVERY, actor, "Courier delivering");
+        parcelService.changeStatus(id, ParcelStatus.DELIVERED, actor, "Delivery completed");
+
+        assertThat(parcels.findById(id).orElseThrow().getStatus()).isEqualTo(ParcelStatus.DELIVERED);
+        var entries = history.findByParcelIdOrderByChangedAtAsc(id);
+        assertThat(entries).extracting(entry -> entry.getPreviousStatus())
+                .containsExactly(null, ParcelStatus.CREATED, ParcelStatus.PICKED_UP,
+                        ParcelStatus.IN_TRANSIT, ParcelStatus.OUT_FOR_DELIVERY);
+        assertThat(entries).extracting(entry -> entry.getNewStatus())
+                .containsExactly(ParcelStatus.CREATED, ParcelStatus.PICKED_UP,
+                        ParcelStatus.IN_TRANSIT, ParcelStatus.OUT_FOR_DELIVERY, ParcelStatus.DELIVERED);
+        assertThat(entries).extracting(entry -> entry.getNote())
+                .containsExactly("Parcel created", "Courier collected parcel", "Parcel in transit",
+                        "Courier delivering", "Delivery completed");
+    }
 
     @Test
     void contextLoadsAndReportsHealthy() throws Exception {
