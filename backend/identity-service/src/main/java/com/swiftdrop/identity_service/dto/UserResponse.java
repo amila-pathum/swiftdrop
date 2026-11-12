@@ -10,6 +10,8 @@ public record UserResponse(
     Long id,
     String name,
     String email,
+    String phone,
+    String address,
     Role role,
     UserStatus status,
     Instant createdAt
@@ -19,6 +21,8 @@ public record UserResponse(
             user.getId(),
             user.getName(),
             user.getEmail(),
+            user.getPhone(),
+            user.getAddress(),
             user.getRole(),
             user.getStatus(),
             user.getCreatedAt()

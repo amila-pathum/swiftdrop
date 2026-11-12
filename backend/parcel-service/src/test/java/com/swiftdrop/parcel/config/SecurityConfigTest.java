@@ -1,5 +1,7 @@
 package com.swiftdrop.parcel.config;
 
+import com.swiftdrop.parcel.service.ParcelService;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -45,6 +47,9 @@ class SecurityConfigTest {
     private static final byte[] OTHER_KEY = bytes(32, 100);
 
     @Autowired MockMvc mockMvc;
+
+    @MockitoBean ParcelService parcelService;
+    @MockitoBean com.swiftdrop.parcel.service.ParcelCreationService parcelCreationService;
 
     /** Test-only endpoint showing the convention for a protected, role-restricted endpoint. */
     @TestConfiguration
