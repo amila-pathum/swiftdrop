@@ -11,9 +11,9 @@ import com.swiftdrop.identity_service.repository.UserRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.time.Instant;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,12 +24,13 @@ import static org.mockito.Mockito.*;
 class UserServiceTest {
 
     private final UserRepository userRepository = mock(UserRepository.class);
+    private final PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
     private UserService userService;
     private User activeUser;
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository);
+        userService = new UserService(userRepository, passwordEncoder);
         activeUser = createUser(1L, "John Doe", "john@example.com", UserStatus.ACTIVE);
     }
 
@@ -138,4 +139,3 @@ class UserServiceTest {
         return user;
     }
 }
-
