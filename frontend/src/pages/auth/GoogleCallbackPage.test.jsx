@@ -93,7 +93,7 @@ describe('GoogleCallbackPage', () => {
       expect(authService.exchangeGoogleCode).toHaveBeenCalledTimes(1)
       expect(authService.exchangeGoogleCode).toHaveBeenCalledWith('one-time-code', VERIFIER)
       expect(heading('Customer dashboard')).toBeInTheDocument()
-      expect(currentLocation()).toBe('/dashboard')
+      expect(currentLocation()).toBe('/customer/dashboard')
       expect(getAccessToken()).toBe('google-session-token')
       // The session is restored from storage, not by a second profile request.
       expect(authService.getCurrentUser).not.toHaveBeenCalled()
@@ -140,7 +140,7 @@ describe('GoogleCallbackPage', () => {
 
       await renderCallback('#code=one-time-code')
 
-      expect(currentLocation()).toBe('/dashboard')
+      expect(currentLocation()).toBe('/customer/dashboard')
     })
 
     it("shows the dashboard for the signed-in user's role", async () => {

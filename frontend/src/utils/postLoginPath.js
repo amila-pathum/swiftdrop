@@ -1,8 +1,15 @@
-const PUBLIC_ONLY_PATHS = ['/login', '/register']
-const NOT_A_DESTINATION = [...PUBLIC_ONLY_PATHS, '/auth/google/callback']
+export const PUBLIC_ONLY_PATHS = Object.freeze([
+  '/login',
+  '/register',
+  '/register/merchant',
+  '/register/courier',
+  '/forgot-password',
+])
+const NOT_A_DESTINATION = [...PUBLIC_ONLY_PATHS, '/auth/google/callback', '/application/submitted']
 
 // Where to send a user who has just signed in: the page ProtectedRoute
-// redirected them away from, if any, otherwise their dashboard.
+// redirected them away from, if any, otherwise /dashboard, which resolves to
+// their role dashboard or, for accounts awaiting approval, their application status.
 export function postLoginPath(from) {
   const pathname = from?.pathname
   if (typeof pathname !== 'string'

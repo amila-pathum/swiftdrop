@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, ApiErrorKind } from './apiClient'
-import { exchangeGoogleCode, getCurrentUser, login, register } from './authService'
+import {
+  exchangeGoogleCode,
+  getCurrentUser,
+  login,
+  register,
+  requestPasswordReset,
+} from './authService'
 import { API_BASE_URL } from './config'
 import { getAccessToken, getSession, saveSession } from './tokenStorage'
 
@@ -34,11 +40,16 @@ describe('authService', () => {
   })
 
   describe('register', () => {
-    it('posts name, email and password and returns the created user', async () => {
+    it('posts the customer details and returns the created user', async () => {
       fetchMock.mockResolvedValue(jsonResponse(201, USER))
 
-      await expect(register('Test Customer', 'customer@example.com', 'password123'))
-        .resolves.toEqual(USER)
+      await expect(register({
+        name: 'Test Customer',
+        email: 'customer@example.com',
+        phone: '0771234567',
+        address: '1 Main St',
+        password: 'password123',
+      })).resolves.toEqual(USER)
 
       const [url, init] = fetchMock.mock.calls[0]
       expect(url).toBe(`${API_BASE_URL}/api/auth/register`)
@@ -46,6 +57,8 @@ describe('authService', () => {
       expect(JSON.parse(init.body)).toEqual({
         name: 'Test Customer',
         email: 'customer@example.com',
+        phone: '0771234567',
+        address: '1 Main St',
         password: 'password123',
       })
       expect(init.headers.Authorization).toBeUndefined()
@@ -55,7 +68,7 @@ describe('authService', () => {
     it('surfaces a duplicate email conflict', async () => {
       fetchMock.mockResolvedValue(jsonResponse(409, { error: 'Email is already registered' }))
 
-      const error = await register('A', 'taken@example.com', 'password123').catch((e) => e)
+      const error = await register({ name: 'A', email: 'taken@example.com', password: 'password123' }).catch((e) => e)
 
       expect(error).toBeInstanceOf(ApiError)
       expect(error.status).toBe(409)
@@ -191,6 +204,38 @@ describe('authService', () => {
       const error = await getCurrentUser().catch((e) => e)
 
       expect(error.kind).toBe(ApiErrorKind.UNAUTHENTICATED)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('remember me', () => {
+    const loginResponse = {
+      accessToken: 'remembered-token', tokenType: 'Bearer', expiresIn: 900, user: USER,
+    }
+
+    it('keeps the session in this tab only by default', async () => {
+      fetchMock.mockResolvedValue(jsonResponse(200, loginResponse))
+      await login('customer@example.com', 'password123')
+
+      expect(sessionStorage.getItem('swiftdrop.accessToken')).toBe('remembered-token')
+      expect(localStorage.getItem('swiftdrop.accessToken')).toBeNull()
+    })
+
+    it('keeps the session across browser restarts when asked', async () => {
+      fetchMock.mockResolvedValue(jsonResponse(200, loginResponse))
+      await login('customer@example.com', 'password123', { remember: true })
+
+      expect(localStorage.getItem('swiftdrop.accessToken')).toBe('remembered-token')
+      expect(sessionStorage.getItem('swiftdrop.accessToken')).toBeNull()
+      expect(JSON.parse(fetchMock.mock.calls[0][1].body))
+        .toEqual({ email: 'customer@example.com', password: 'password123' })
+    })
+  })
+
+  describe('requestPasswordReset', () => {
+    it('is planned: rejects without calling the backend', async () => {
+      const error = await requestPasswordReset('user@example.com').catch((e) => e)
+      expect(error.kind).toBe('NOT_IMPLEMENTED')
       expect(fetchMock).not.toHaveBeenCalled()
     })
   })

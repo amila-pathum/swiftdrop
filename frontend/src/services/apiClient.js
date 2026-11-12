@@ -1,4 +1,5 @@
 import { API_BASE_URL } from './config'
+import { buildPath } from './endpoints'
 import { getAccessToken } from './tokenStorage'
 
 export const ApiErrorKind = Object.freeze({
@@ -7,6 +8,8 @@ export const ApiErrorKind = Object.freeze({
   UNAUTHENTICATED: 'UNAUTHENTICATED',
   HTTP: 'HTTP',
   INVALID_RESPONSE: 'INVALID_RESPONSE',
+  // The endpoint is planned but not implemented by the backend yet (see endpoints.js).
+  NOT_IMPLEMENTED: 'NOT_IMPLEMENTED',
 })
 
 const UNAVAILABLE_STATUSES = new Set([502, 503, 504])
@@ -16,6 +19,7 @@ const MESSAGES = {
   unavailable: 'The service is temporarily unavailable. Please try again shortly.',
   noSession: 'Please sign in to continue.',
   invalidResponse: 'The server returned an unexpected response.',
+  notImplemented: 'This feature is not available yet. Please check back soon.',
 }
 
 // Messages are safe to show to users; tokens and request bodies are never included.
@@ -26,6 +30,19 @@ export class ApiError extends Error {
     this.status = status
     this.kind = kind
   }
+}
+
+// Listeners told when an authenticated request is rejected with 401, i.e. the
+// server no longer accepts the stored token. AuthContext ends the session.
+const unauthorizedListeners = new Set()
+
+/**
+ * Registers a callback for 401 responses to authenticated requests.
+ * @returns {() => void} Unsubscribe function.
+ */
+export function onUnauthorized(listener) {
+  unauthorizedListeners.add(listener)
+  return () => unauthorizedListeners.delete(listener)
 }
 
 async function readJson(response) {
@@ -95,6 +112,9 @@ export async function request(path, { method = 'GET', body, auth = false, signal
 
   const data = await readJson(response)
   if (!response.ok) {
+    if (auth && response.status === 401) {
+      unauthorizedListeners.forEach((listener) => listener())
+    }
     throw errorFromResponse(response, data)
   }
   if (data === undefined) {
@@ -109,4 +129,31 @@ export async function request(path, { method = 'GET', body, auth = false, signal
 export const apiClient = {
   get: (path, options) => request(path, { ...options, method: 'GET' }),
   post: (path, body, options) => request(path, { ...options, method: 'POST', body }),
+  put: (path, body, options) => request(path, { ...options, method: 'PUT', body }),
+  patch: (path, body, options) => request(path, { ...options, method: 'PATCH', body }),
+  delete: (path, options) => request(path, { ...options, method: 'DELETE' }),
+}
+
+/**
+ * Calls an entry from ENDPOINTS (services/endpoints.js). Planned endpoints are
+ * never called: they reject with an ApiError of kind NOT_IMPLEMENTED.
+ * @param {{method: string, path: string, available: boolean, auth?: boolean}} endpoint
+ * @param {object} [options]
+ * @param {object} [options.params] Values for `:name` path segments.
+ * @param {*} [options.body]
+ * @param {AbortSignal} [options.signal]
+ */
+export async function callEndpoint(endpoint, { params, body, signal } = {}) {
+  if (!endpoint.available) {
+    throw new ApiError(MESSAGES.notImplemented, {
+      status: 501,
+      kind: ApiErrorKind.NOT_IMPLEMENTED,
+    })
+  }
+  return request(buildPath(endpoint.path, params), {
+    method: endpoint.method,
+    body,
+    auth: Boolean(endpoint.auth),
+    signal,
+  })
 }

@@ -1,67 +1,101 @@
-import { ApiErrorKind } from '../../services/apiClient'
+// Validation rules for the authentication forms. Each validator returns
+// { field: message } in field order; empty means valid.
+import {
+  collectErrors,
+  LIMITS,
+  passwordTooLong,
+  validateEmail,
+  validateNewPassword,
+  validatePasswordConfirmation,
+  validatePhone,
+  validateRequiredText,
+} from '../../utils/validation'
 
-// Rules mirror the Identity Service request DTOs (LoginRequest, RegisterRequest).
-// Each validator returns { field: message } in field order; empty means valid.
+// Kept here for existing imports; the shared versions live in services/errorMessages.
+export { isServiceUnavailable, SERVICE_UNAVAILABLE_MESSAGE } from '../../services/errorMessages'
 
-// Matches the backend's lenient @Email check: something@something, no spaces.
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+$/
-const NAME_MAX = 100
-const EMAIL_MAX = 255
-const PASSWORD_MIN = 8
-// BCrypt only accepts 72 bytes, so multi-byte characters count more than once.
-const PASSWORD_MAX = 72
+const fullName = (value) => validateRequiredText(value, {
+  emptyMessage: 'Enter your full name.',
+  max: LIMITS.NAME_MAX,
+  label: 'Name',
+})
 
-export const SERVICE_UNAVAILABLE_MESSAGE =
-  'SwiftDrop service is temporarily unavailable. Please try again shortly.'
-
-export function isServiceUnavailable(error) {
-  return error?.kind === ApiErrorKind.NETWORK
-    || error?.kind === ApiErrorKind.SERVICE_UNAVAILABLE
-}
-
-function passwordTooLong(password) {
-  return password.length > PASSWORD_MAX
-    || new TextEncoder().encode(password).length > PASSWORD_MAX
-}
-
-function validateEmail(email) {
-  const value = email.trim()
-  if (value === '') return 'Enter your email address.'
-  if (value.length > EMAIL_MAX) return `Email must be ${EMAIL_MAX} characters or fewer.`
-  if (!EMAIL_PATTERN.test(value)) return 'Enter a valid email address.'
-  return null
-}
-
-function collect(entries) {
-  return Object.fromEntries(entries.filter(([, message]) => message !== null))
-}
+const address = (value, emptyMessage = 'Enter your address.') => validateRequiredText(value, {
+  emptyMessage,
+  max: LIMITS.ADDRESS_MAX,
+  label: 'Address',
+})
 
 export function validateLogin({ email, password }) {
-  return collect([
+  return collectErrors([
     ['email', validateEmail(email)],
     ['password',
       password.trim() === '' ? 'Enter your password.'
-        : passwordTooLong(password) ? `Password must be ${PASSWORD_MAX} characters or fewer.`
+        : passwordTooLong(password) ? `Password must be ${LIMITS.PASSWORD_MAX} characters or fewer.`
           : null],
   ])
 }
 
-export function validateRegistration({ name, email, password, confirmPassword }) {
-  const trimmedName = name.trim()
-  return collect([
-    ['name',
-      trimmedName === '' ? 'Enter your full name.'
-        : trimmedName.length > NAME_MAX ? `Name must be ${NAME_MAX} characters or fewer.`
-          : null],
+export function validateForgotPassword({ email }) {
+  return collectErrors([['email', validateEmail(email)]])
+}
+
+export function validateRegistration({ name, email, phone, address: addr, password, confirmPassword }) {
+  return collectErrors([
+    ['name', fullName(name)],
     ['email', validateEmail(email)],
-    ['password',
-      password.trim() === '' ? 'Enter a password.'
-        : password.length < PASSWORD_MIN ? `Password must be at least ${PASSWORD_MIN} characters.`
-          : passwordTooLong(password) ? `Password must be ${PASSWORD_MAX} characters or fewer.`
-            : null],
-    ['confirmPassword',
-      confirmPassword === '' ? 'Confirm your password.'
-        : confirmPassword !== password ? 'Passwords do not match.'
+    ['phone', validatePhone(phone)],
+    ['address', address(addr)],
+    ['password', validateNewPassword(password)],
+    ['confirmPassword', validatePasswordConfirmation(confirmPassword, password)],
+  ])
+}
+
+export function validateMerchantRegistration(values) {
+  return collectErrors([
+    ['businessName', validateRequiredText(values.businessName, {
+      emptyMessage: 'Enter your business name.', max: LIMITS.NAME_MAX, label: 'Business name',
+    })],
+    ['businessRegistrationNumber', validateRequiredText(values.businessRegistrationNumber, {
+      emptyMessage: 'Enter your business registration number.', max: 50, label: 'Registration number',
+    })],
+    ['businessEmail', validateEmail(values.businessEmail, {
+      emptyMessage: 'Enter your business email address.',
+    })],
+    ['businessPhone', validatePhone(values.businessPhone, {
+      emptyMessage: 'Enter your business phone number.',
+    })],
+    ['businessAddress', address(values.businessAddress, 'Enter your business address.')],
+    ['contactName', validateRequiredText(values.contactName, {
+      emptyMessage: "Enter the contact person's name.", max: LIMITS.NAME_MAX, label: 'Name',
+    })],
+    ['contactEmail', validateEmail(values.contactEmail, {
+      emptyMessage: "Enter the contact person's email address.",
+    })],
+    ['password', validateNewPassword(values.password)],
+    ['confirmPassword', validatePasswordConfirmation(values.confirmPassword, values.password)],
+  ])
+}
+
+export function validateCourierRegistration(values, vehicleTypes = []) {
+  const allowedVehicles = vehicleTypes.map((type) => type.value)
+  return collectErrors([
+    ['name', fullName(values.name)],
+    ['email', validateEmail(values.email)],
+    ['phone', validatePhone(values.phone)],
+    ['address', address(values.address)],
+    ['vehicleType',
+      !values.vehicleType ? 'Select your vehicle type.'
+        : allowedVehicles.length > 0 && !allowedVehicles.includes(values.vehicleType)
+          ? 'Select a vehicle type from the list.'
           : null],
+    ['vehicleRegistrationNumber', validateRequiredText(values.vehicleRegistrationNumber, {
+      emptyMessage: 'Enter your vehicle registration number.', max: 20, label: 'Registration number',
+    })],
+    ['preferredArea', validateRequiredText(values.preferredArea, {
+      emptyMessage: 'Enter your preferred delivery area.', max: LIMITS.TEXT_MAX, label: 'Delivery area',
+    })],
+    ['password', validateNewPassword(values.password)],
+    ['confirmPassword', validatePasswordConfirmation(values.confirmPassword, values.password)],
   ])
 }

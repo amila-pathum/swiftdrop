@@ -1,18 +1,22 @@
 import { NavLink } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { navigationFor } from '../utils/roles'
 
-// Shared by every role. Role-specific links are added here as features are built.
-const LINKS = [
-  { to: '/dashboard', label: 'Dashboard' },
-  { to: '/profile', label: 'Profile' },
-]
+/**
+ * Role-aware navigation for the signed-in layout. Links come from
+ * navigationFor() in utils/roles.js; add role-specific links there.
+ */
+export default function Sidebar({ open = false, onNavigate }) {
+  const { user } = useAuth()
+  const links = navigationFor(user)
 
-export default function Sidebar() {
   return (
-    <nav className="sidebar" aria-label="Main navigation">
+    <nav id="app-sidebar" className={`sidebar${open ? ' sidebar-open' : ''}`}
+      aria-label="Main navigation">
       <ul>
-        {LINKS.map(({ to, label }) => (
+        {links.map(({ to, label }) => (
           <li key={to}>
-            <NavLink to={to}>{label}</NavLink>
+            <NavLink to={to} onClick={onNavigate}>{label}</NavLink>
           </li>
         ))}
       </ul>

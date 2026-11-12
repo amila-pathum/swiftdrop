@@ -140,7 +140,7 @@ describe('App with the real AuthProvider', () => {
       await signIn()
 
       expect(heading('Your profile')).toBeInTheDocument()
-      expect(authService.login).toHaveBeenCalledWith(USER.email, 'password123')
+      expect(authService.login).toHaveBeenCalledWith(USER.email, 'password123', { remember: false })
     })
 
     it('sends a direct login to the role dashboard', async () => {
@@ -171,6 +171,8 @@ describe('App with the real AuthProvider', () => {
 
       fireEvent.change(screen.getByLabelText('Full name'), { target: { value: 'New Customer' } })
       fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'new@example.com' } })
+      fireEvent.change(screen.getByLabelText('Phone number'), { target: { value: '0771234567' } })
+      fireEvent.change(screen.getByLabelText('Address'), { target: { value: '1 Main St' } })
       fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password123' } })
       fireEvent.change(screen.getByLabelText('Confirm password'),
         { target: { value: 'password123' } })
@@ -178,13 +180,50 @@ describe('App with the real AuthProvider', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
       })
 
-      expect(authService.register)
-        .toHaveBeenCalledWith('New Customer', 'new@example.com', 'password123')
+      expect(authService.register).toHaveBeenCalledWith({
+        name: 'New Customer',
+        email: 'new@example.com',
+        phone: '0771234567',
+        address: '1 Main St',
+        password: 'password123',
+      })
       expect(authService.login).not.toHaveBeenCalled()
       expect(heading('Sign in to SwiftDrop')).toBeInTheDocument()
       expect(screen.getByRole('status')).toHaveTextContent('Your account has been created')
       expect(screen.getByLabelText('Email')).toHaveValue('new@example.com')
       expect(getSession()).toBeNull()
+    })
+  })
+
+  describe('accounts awaiting approval', () => {
+    it('signs a pending merchant in to the application status page, not the dashboard', async () => {
+      const pending = { ...USER, role: 'MERCHANT', status: 'PENDING_APPROVAL' }
+      authService.login.mockImplementation(async () => ({
+        user: pending, expiresAt: saveSession('pending-token', 900),
+      }))
+      await renderApp('/merchant/dashboard')
+      expect(heading('Sign in to SwiftDrop')).toBeInTheDocument()
+
+      fireEvent.change(screen.getByLabelText('Email'), { target: { value: USER.email } })
+      fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password123' } })
+      await act(async () => {
+        fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+      })
+      await act(async () => {})
+
+      expect(heading('Application pending')).toBeInTheDocument()
+      expect(screen.queryByRole('heading', { name: 'Merchant dashboard' })).not.toBeInTheDocument()
+    })
+
+    it('restores a pending courier session onto the application status page', async () => {
+      saveSession('stored-token', 900)
+      authService.getCurrentUser.mockResolvedValue({
+        ...USER, role: 'COURIER', status: 'PENDING_APPROVAL',
+      })
+      await renderApp('/dashboard')
+      await act(async () => {})
+
+      expect(heading('Application pending')).toBeInTheDocument()
     })
   })
 })

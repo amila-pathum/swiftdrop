@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { onUnauthorized } from '../services/apiClient'
 import * as authService from '../services/authService'
 import { clearSession, getSession, isSessionExpired } from '../services/tokenStorage'
 
@@ -127,6 +128,14 @@ export function AuthProvider({ children }) {
     loadUser()
   }, [loadUser])
 
+  // Any authenticated request rejected with 401 (e.g. by a domain service)
+  // means the token is no longer accepted: end the session.
+  useEffect(() => onUnauthorized(() => {
+    if (getSession() !== null) {
+      endSession(true)
+    }
+  }), [endSession])
+
   // Timers can be paused in background tabs, so recheck when the tab is shown again.
   useEffect(() => {
     const handleVisibilityChange = () => {
@@ -141,9 +150,10 @@ export function AuthProvider({ children }) {
   }, [endSession])
 
   // Errors are rethrown for the caller (e.g. a login form). A failed login leaves
-  // the current session and state untouched.
-  const login = useCallback(async (email, password) => {
-    const { user, expiresAt } = await authService.login(email, password)
+  // the current session and state untouched. `remember` keeps the session after
+  // the tab is closed, until the token expires.
+  const login = useCallback(async (email, password, { remember = false } = {}) => {
+    const { user, expiresAt } = await authService.login(email, password, { remember })
     generationRef.current += 1
     scheduleExpiry(expiresAt)
     setState({ user, status: AuthStatus.AUTHENTICATED, error: null, sessionExpired: false })
@@ -160,10 +170,8 @@ export function AuthProvider({ children }) {
   }, [scheduleExpiry])
 
   // Registration does not sign the user in; the backend returns no token.
-  const register = useCallback(
-    (name, email, password) => authService.register(name, email, password),
-    [],
-  )
+  // `details`: { name, email, password, phone, address }.
+  const register = useCallback((details) => authService.register(details), [])
 
   const logout = useCallback(() => endSession(false), [endSession])
 

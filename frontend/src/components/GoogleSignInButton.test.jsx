@@ -116,7 +116,7 @@ describe('Continue with Google', () => {
       fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
     })
 
-    expect(auth.login).toHaveBeenCalledWith('user@example.com', 'password123')
+    expect(auth.login).toHaveBeenCalledWith('user@example.com', 'password123', { remember: false })
     expect(startGoogleSignIn).not.toHaveBeenCalled()
   })
 
@@ -128,13 +128,21 @@ describe('Continue with Google', () => {
 
     fireEvent.change(screen.getByLabelText('Full name'), { target: { value: 'New Customer' } })
     fireEvent.change(screen.getByLabelText('Email'), { target: { value: 'new@example.com' } })
+    fireEvent.change(screen.getByLabelText('Phone number'), { target: { value: '0771234567' } })
+    fireEvent.change(screen.getByLabelText('Address'), { target: { value: '1 Main St, Colombo' } })
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'password123' } })
     fireEvent.change(screen.getByLabelText('Confirm password'), { target: { value: 'password123' } })
     await act(async () => {
       fireEvent.click(screen.getByRole('button', { name: 'Create account' }))
     })
 
-    expect(auth.register).toHaveBeenCalledWith('New Customer', 'new@example.com', 'password123')
+    expect(auth.register).toHaveBeenCalledWith({
+      name: 'New Customer',
+      email: 'new@example.com',
+      phone: '0771234567',
+      address: '1 Main St, Colombo',
+      password: 'password123',
+    })
     expect(startGoogleSignIn).not.toHaveBeenCalled()
   })
 })

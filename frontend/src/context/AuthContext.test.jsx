@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider, useAuth } from './AuthContext'
-import { ApiError, ApiErrorKind } from '../services/apiClient'
+import { ApiError, ApiErrorKind, request } from '../services/apiClient'
 import * as authService from '../services/authService'
 import { getAccessToken, getSession, saveSession } from '../services/tokenStorage'
 
@@ -206,7 +206,8 @@ describe('AuthContext', () => {
         user = await result.current.login('customer@example.com', 'password123')
       })
 
-      expect(authService.login).toHaveBeenCalledWith('customer@example.com', 'password123')
+      expect(authService.login)
+        .toHaveBeenCalledWith('customer@example.com', 'password123', { remember: false })
       expect(user).toEqual(USER)
       expect(result.current.status).toBe('authenticated')
       expect(result.current.user).toEqual(USER)
@@ -313,11 +314,14 @@ describe('AuthContext', () => {
 
       let created
       await act(async () => {
-        created = await result.current.register('Test Customer', USER.email, 'password123')
+        created = await result.current.register({
+          name: 'Test Customer', email: USER.email, password: 'password123',
+        })
       })
 
-      expect(authService.register)
-        .toHaveBeenCalledWith('Test Customer', USER.email, 'password123')
+      expect(authService.register).toHaveBeenCalledWith({
+        name: 'Test Customer', email: USER.email, password: 'password123',
+      })
       expect(created).toEqual(USER)
       expect(result.current.status).toBe('anonymous')
     })
@@ -448,5 +452,44 @@ describe('AuthContext', () => {
     expect(() => renderHook(() => useAuth()))
       .toThrow('useAuth must be used within an AuthProvider')
     consoleError.mockRestore()
+  })
+
+  describe('a token rejected by another service', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('ends the session with an expiry notice', async () => {
+      saveSession('stored-token', 900)
+      authService.getCurrentUser.mockResolvedValue(USER)
+      const { result } = renderAuth()
+      await flush()
+      expect(result.current.status).toBe('authenticated')
+
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401 })))
+      await act(async () => {
+        await request('/api/parcels', { auth: true }).catch(() => {})
+      })
+
+      expect(result.current.status).toBe('anonymous')
+      expect(result.current.sessionExpired).toBe(true)
+      expect(getSession()).toBeNull()
+    })
+  })
+
+  describe('remember me', () => {
+    it('passes the choice to the auth service', async () => {
+      mockSuccessfulLogin()
+      const { result } = renderAuth()
+      await flush()
+
+      await act(async () => {
+        await result.current.login('customer@example.com', 'password123', { remember: true })
+      })
+
+      expect(authService.login)
+        .toHaveBeenCalledWith('customer@example.com', 'password123', { remember: true })
+    })
   })
 })
