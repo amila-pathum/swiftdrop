@@ -116,4 +116,8 @@ public class User {
         this.phone = phone;
         this.address = address;
     }
+
+    public void updatePassword(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
 }

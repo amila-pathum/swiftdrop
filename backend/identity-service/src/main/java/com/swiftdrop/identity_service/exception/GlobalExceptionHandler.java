@@ -61,4 +61,25 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT)
             .body(Map.of("error", "A conflicting record already exists"));
     }
+
+    @ExceptionHandler(InvalidCurrentPasswordException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidCurrentPassword(
+            InvalidCurrentPasswordException ex) {
+        return ResponseEntity.badRequest()
+            .body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(PasswordMismatchException.class)
+    public ResponseEntity<Map<String, String>> handlePasswordMismatch(
+            PasswordMismatchException ex) {
+        return ResponseEntity.badRequest()
+            .body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(SamePasswordException.class)
+    public ResponseEntity<Map<String, String>> handleSamePassword(
+            SamePasswordException ex) {
+        return ResponseEntity.badRequest()
+            .body(Map.of("error", ex.getMessage()));
+    }
 }
