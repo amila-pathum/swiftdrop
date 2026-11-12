@@ -41,9 +41,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
     "management.health.rabbit.enabled=false",
     "DB_HOST=rds-host.invalid",
-    "DB_NAME=" + RdsProfileStartupTest.DATABASE,
-    "DB_USERNAME=" + RdsProfileStartupTest.USERNAME,
-    "DB_PASSWORD=unused-with-service-connection"
+    "NOTIFICATION_DB_NAME=" + RdsProfileStartupTest.DATABASE,
+    "NOTIFICATION_DB_USERNAME=" + RdsProfileStartupTest.USERNAME,
+    "NOTIFICATION_DB_PASSWORD=unused-with-service-connection"
 })
 @ActiveProfiles("rds")
 @AutoConfigureMockMvc
@@ -85,10 +85,10 @@ class RdsProfileStartupTest {
         assertThat(jdbc.queryForList(
             "SELECT version || ':' || type FROM public.flyway_schema_history"
                 + " WHERE version IS NOT NULL ORDER BY installed_rank",
-            String.class)).containsExactly();
+            String.class)).containsExactly("1:SQL");
         assertThat(jdbc.queryForList(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name",
-            String.class)).containsExactly("flyway_schema_history");
+            String.class)).containsExactly("flyway_schema_history", "webhook_deliveries", "webhook_delivery_attempts");
     }
 
     @Test
@@ -143,9 +143,9 @@ class RdsProfileStartupTest {
             rds.load(in);
         }
         assertThat(rds.getProperty("spring.datasource.url"))
-            .isEqualTo("jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}?sslmode=require");
-        assertThat(rds.getProperty("spring.datasource.username")).isEqualTo("${DB_USERNAME}");
-        assertThat(rds.getProperty("spring.datasource.password")).isEqualTo("${DB_PASSWORD}");
+            .isEqualTo("jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${NOTIFICATION_DB_NAME}?sslmode=require");
+        assertThat(rds.getProperty("spring.datasource.username")).isEqualTo("${NOTIFICATION_DB_USERNAME}");
+        assertThat(rds.getProperty("spring.datasource.password")).isEqualTo("${NOTIFICATION_DB_PASSWORD}");
         assertThat(rds.stringPropertyNames()).noneMatch(key -> key.contains("sslrootcert"));
         assertThat(rds.getProperty("spring.flyway.default-schema")).isEqualTo("public");
         assertThat(rds.getProperty("spring.flyway.schemas")).isEqualTo("public");
