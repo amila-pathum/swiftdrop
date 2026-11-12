@@ -38,6 +38,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest(properties = {
@@ -281,10 +282,14 @@ class SecurityApiTest {
                 .header("Authorization", "Bearer " + jwtService.generateToken(user)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.id").value(1))
+            .andExpect(jsonPath("$.name").value("Test User"))
             .andExpect(jsonPath("$.email").value("user@example.com"))
+            .andExpect(jsonPath("$.phone").value((String) null))
+            .andExpect(jsonPath("$.address").value((String) null))
             .andExpect(jsonPath("$.role").value("CUSTOMER"))
             .andExpect(jsonPath("$.status").value("ACTIVE"))
-            .andExpect(jsonPath("$.length()").value(6))
+            .andExpect(jsonPath("$.createdAt").value("2026-01-01T00:00:00Z"))
+            .andExpect(jsonPath("$.length()").value(8))
             .andExpect(jsonPath("$.password").doesNotExist())
             .andExpect(jsonPath("$.passwordHash").doesNotExist());
     }
@@ -351,6 +356,124 @@ class SecurityApiTest {
                 .content("{\"code\":\"\",\"verifier\":\"short\"}"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.error").value("Invalid request data"));
+    }
+
+    @Test
+    void updateProfileRequiresAuthentication() throws Exception {
+        mockMvc.perform(put("/api/users/me")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"name":"New Name","phone":"+1234567890","address":"123 Main St"}
+                    """))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.error").value("Authentication is required"));
+    }
+
+    @Test
+    void updateProfileUpdatesAllowedFieldsAndReturnsProfile() throws Exception {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(call -> call.getArgument(0));
+
+        mockMvc.perform(put("/api/users/me")
+                .header("Authorization", "Bearer " + jwtService.generateToken(user))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"name":"Updated Name","phone":"+1234567890","address":"123 Main St"}
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(1))
+            .andExpect(jsonPath("$.name").value("Updated Name"))
+            .andExpect(jsonPath("$.email").value("user@example.com"))
+            .andExpect(jsonPath("$.phone").value("+1234567890"))
+            .andExpect(jsonPath("$.address").value("123 Main St"))
+            .andExpect(jsonPath("$.role").value("CUSTOMER"))
+            .andExpect(jsonPath("$.status").value("ACTIVE"))
+            .andExpect(jsonPath("$.createdAt").value("2026-01-01T00:00:00Z"))
+            .andExpect(jsonPath("$.length()").value(8));
+
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(saved.capture());
+        assertThat(saved.getValue().getName()).isEqualTo("Updated Name");
+        assertThat(saved.getValue().getPhone()).isEqualTo("+1234567890");
+        assertThat(saved.getValue().getAddress()).isEqualTo("123 Main St");
+        assertThat(saved.getValue().getEmail()).isEqualTo("user@example.com");
+        assertThat(saved.getValue().getRole()).isEqualTo(Role.CUSTOMER);
+        assertThat(saved.getValue().getStatus()).isEqualTo(UserStatus.ACTIVE);
+    }
+
+    @Test
+    void updateProfileIgnoresClientSuppliedIdEmailRoleAndStatus() throws Exception {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(userRepository.save(any(User.class))).thenAnswer(call -> call.getArgument(0));
+
+        mockMvc.perform(put("/api/users/me")
+                .header("Authorization", "Bearer " + jwtService.generateToken(user))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "id": 999,
+                      "email": "hacked@example.com",
+                      "role": "ADMIN",
+                      "status": "DISABLED",
+                      "name": "Updated Name",
+                      "phone": "+1234567890",
+                      "address": "123 Main St"
+                    }
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(1))
+            .andExpect(jsonPath("$.name").value("Updated Name"))
+            .andExpect(jsonPath("$.email").value("user@example.com"))
+            .andExpect(jsonPath("$.role").value("CUSTOMER"))
+            .andExpect(jsonPath("$.status").value("ACTIVE"));
+
+        ArgumentCaptor<User> saved = ArgumentCaptor.forClass(User.class);
+        verify(userRepository).save(saved.capture());
+        assertThat(saved.getValue().getId()).isEqualTo(1L);
+        assertThat(saved.getValue().getEmail()).isEqualTo("user@example.com");
+        assertThat(saved.getValue().getRole()).isEqualTo(Role.CUSTOMER);
+        assertThat(saved.getValue().getStatus()).isEqualTo(UserStatus.ACTIVE);
+    }
+
+    @Test
+    void updateProfileValidatesInput() throws Exception {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        // Blank name
+        mockMvc.perform(put("/api/users/me")
+                .header("Authorization", "Bearer " + jwtService.generateToken(user))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"name":"","phone":"+1234567890","address":"123 Main St"}
+                    """))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").value("Invalid request data"));
+
+        // Name too long (> 100)
+        mockMvc.perform(put("/api/users/me")
+                .header("Authorization", "Bearer " + jwtService.generateToken(user))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(String.format("{\"name\":\"%s\",\"phone\":\"123\",\"address\":\"abc\"}", "a".repeat(101))))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").value("Invalid request data"));
+
+        // Phone too long (> 30)
+        mockMvc.perform(put("/api/users/me")
+                .header("Authorization", "Bearer " + jwtService.generateToken(user))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(String.format("{\"name\":\"Valid\",\"phone\":\"%s\",\"address\":\"abc\"}", "1".repeat(31))))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").value("Invalid request data"));
+
+        // Address too long (> 500)
+        mockMvc.perform(put("/api/users/me")
+                .header("Authorization", "Bearer " + jwtService.generateToken(user))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(String.format("{\"name\":\"Valid\",\"phone\":\"123\",\"address\":\"%s\"}", "x".repeat(501))))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").value("Invalid request data"));
+
+        verify(userRepository, never()).save(any());
     }
 
     private User user(long id, String email, Role role, UserStatus status) {
