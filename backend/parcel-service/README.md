@@ -115,3 +115,22 @@ verifier denies courier changes. Once confirmed, implement the trusted lookup an
 test matching, nonmatching, absent, disabled, and unavailable mappings before enabling
 courier updates. The existing service unit test mocks a positive verifier result;
 it is not evidence that the production mapping exists.
+
+## Merge compatibility: dispatch HTTP projection
+
+The Phase 4 `/api/parcels?status=CREATED` endpoint retains its paginated details
+response. The incoming Dispatch Service expects an array of dispatch projections;
+that separate contract is available at `/api/parcels/dispatch?status=CREATED`
+and `/api/parcels/dispatch/{parcelId}`. Both require DISPATCHER or ADMIN.
+
+For Dispatch Service's optional HTTP data source, set its existing environment
+settings before startup (no Dispatch Service source changes are required):
+
+```text
+PARCEL_CREATED_PATH=/api/parcels/dispatch?status=CREATED
+PARCEL_PATH=/api/parcels/dispatch/{parcelId}
+```
+
+Customer cancellation is retained at `PATCH /api/parcels/{id}/cancel`, using the
+numeric Identity subject. Existing paginated customer reads and Phase 3 status
+updates retain their original contracts.

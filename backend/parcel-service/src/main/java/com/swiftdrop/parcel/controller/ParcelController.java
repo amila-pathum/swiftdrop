@@ -15,6 +15,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import java.util.List;
 import java.util.UUID;
+import com.swiftdrop.parcel.service.ParcelService;
+import com.swiftdrop.parcel.dto.response.DispatchParcelResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -29,11 +31,13 @@ public class ParcelController {
     private final ParcelCreationService service;
     private final ParcelStatusUpdateService statusUpdates;
     private final ParcelQueryService queryService;
+    private final ParcelService parcelService;
 
-    public ParcelController(ParcelCreationService service, ParcelStatusUpdateService statusUpdates, ParcelQueryService queryService) {
+    public ParcelController(ParcelCreationService service, ParcelStatusUpdateService statusUpdates, ParcelQueryService queryService, ParcelService parcelService) {
         this.service = service;
         this.statusUpdates = statusUpdates;
         this.queryService = queryService;
+        this.parcelService = parcelService;
     }
 
     @PostMapping
@@ -122,5 +126,35 @@ public class ParcelController {
                 "Page must be non-negative and size must be between 1 and 100");
         }
         return PageRequest.of(page, size, sort);
+    }
+
+    @PatchMapping("/{id}/cancel")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ParcelResponse cancelParcel(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        return ParcelResponse.from(parcelService.cancelParcel(id, parseUserId(jwt)));
+    }
+
+    // Separate projection contract: the Phase 4 endpoints retain their paginated DTOs.
+    @GetMapping("/dispatch")
+    @PreAuthorize("hasAnyRole('DISPATCHER', 'ADMIN')")
+    public List<DispatchParcelResponse> listForDispatch(
+            @RequestParam(required = false) String status, @AuthenticationPrincipal Jwt jwt) {
+        parseUserId(jwt);
+        ParcelStatus parcelStatus;
+        try {
+            parcelStatus = status == null || status.isBlank() ? null
+                : ParcelStatus.valueOf(status.trim().toUpperCase(java.util.Locale.ROOT));
+        } catch (IllegalArgumentException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid parcel status");
+        }
+        return parcelService.listParcels(parcelStatus).stream().map(DispatchParcelResponse::from).toList();
+    }
+
+    @GetMapping("/dispatch/{id}")
+    @PreAuthorize("hasAnyRole('DISPATCHER', 'ADMIN')")
+    public DispatchParcelResponse findForDispatch(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+        parseUserId(jwt);
+        return parcelService.findParcel(id).map(DispatchParcelResponse::from)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parcel not found"));
     }
 }

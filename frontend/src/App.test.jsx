@@ -1,11 +1,23 @@
 import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { useAuth } from './context/AuthContext'
 import { ApiError, ApiErrorKind } from './services/apiClient'
+import { dispatchService } from './services/dispatchService'
 
 vi.mock('./context/AuthContext', () => ({ useAuth: vi.fn() }))
+vi.mock('./services/dispatchService', () => ({
+  dispatchService: {
+    getUnassigned: vi.fn().mockResolvedValue({ content: [], page: 0, totalPages: 0, totalElements: 0 }),
+    getParcels: vi.fn().mockResolvedValue({ content: [], page: 0, totalPages: 0, totalElements: 0 }),
+    getCouriers: vi.fn().mockResolvedValue([]),
+    getParcel: vi.fn().mockResolvedValue({ parcel: {}, history: [] }),
+    assignCourier: vi.fn(),
+    getReport: vi.fn().mockResolvedValue([]),
+    exportReport: vi.fn().mockResolvedValue(''),
+  },
+}))
 
 const USER = {
   id: 1,
@@ -54,6 +66,18 @@ const currentPath = () => screen.getByTestId('location').textContent
 const heading = (name) => screen.getByRole('heading', { level: 1, name })
 
 describe('App routing', () => {
+  beforeEach(() => {
+    dispatchService.getUnassigned.mockResolvedValue({
+      content: [], page: 0, totalPages: 0, totalElements: 0,
+    })
+    dispatchService.getParcels.mockResolvedValue({
+      content: [], page: 0, totalPages: 0, totalElements: 0,
+    })
+    dispatchService.getCouriers.mockResolvedValue([])
+    dispatchService.getParcel.mockResolvedValue({ parcel: {}, history: [] })
+    dispatchService.getReport.mockResolvedValue([])
+  })
+
   afterEach(() => {
     vi.resetAllMocks()
   })
@@ -227,7 +251,6 @@ describe('App routing', () => {
 
     it.each([
       ['COURIER', 'Courier dashboard'],
-      ['DISPATCHER', 'Dispatcher dashboard'],
       ['ADMIN', 'Admin dashboard'],
     ])('shows a not-available page for %s', (role, title) => {
       authenticatedAs(role)
@@ -236,6 +259,28 @@ describe('App routing', () => {
       expect(heading(title)).toBeInTheDocument()
       expect(screen.getByText(/future development phase/)).toBeInTheDocument()
       expect(screen.queryByText('Customer dashboard')).not.toBeInTheDocument()
+    })
+
+    it('shows dispatch management to dispatcher users', async () => {
+      authenticatedAs('DISPATCHER')
+      renderAt('/dashboard')
+
+      expect(await screen.findByRole('heading', { level: 1, name: 'Dispatch dashboard' }))
+        .toBeInTheDocument()
+      expect(currentPath()).toBe('/dispatcher/dashboard')
+      expect(screen.getByRole('link', { name: 'Reports' })).toHaveAttribute('href', '/reports')
+    })
+
+    it('allows admins to open reports and redirects other roles away', async () => {
+      authenticatedAs('ADMIN')
+      renderAt('/reports')
+      expect(await screen.findByRole('heading', { level: 1, name: 'Dispatch reports' }))
+        .toBeInTheDocument()
+
+      authenticatedAs('CUSTOMER')
+      renderAt('/reports')
+      expect(await screen.findByRole('heading', { level: 1, name: 'Customer dashboard' }))
+        .toBeInTheDocument()
     })
 
     it.each([

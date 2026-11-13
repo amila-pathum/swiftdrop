@@ -26,6 +26,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest(properties = {
@@ -105,6 +106,17 @@ class ParcelCreationApiTest {
         mvc.perform(post("/api/parcels").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_MERCHANT")))
                 .contentType(MediaType.APPLICATION_JSON).content(BODY)).andExpect(status().isForbidden());
         verifyNoInteractions(pricing);
+    }
+
+    @Test
+    void dispatchCanReadCreatedParcelProjection() throws Exception {
+        mvc.perform(get("/api/parcels/dispatch?status=CREATED").with(jwt().jwt(j -> j.subject("42").claim("role", "DISPATCHER"))
+                .authorities(new SimpleGrantedAuthority("ROLE_DISPATCHER"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray());
+        mvc.perform(get("/api/parcels").with(jwt()
+                .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
+            .andExpect(status().isForbidden());
     }
 
     @ParameterizedTest

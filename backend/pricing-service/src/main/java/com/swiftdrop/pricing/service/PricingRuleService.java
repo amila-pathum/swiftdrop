@@ -69,4 +69,13 @@ public class PricingRuleService {
 
         return pricingRuleRepository.save(pricingRule);
     }
+
+    public PricingRule getActivePricingRuleByZoneId(UUID zoneId) {
+    return pricingRuleRepository
+            .findByZone_IdAndActiveTrue(zoneId)
+            .orElseThrow(() ->
+                    new RuntimeException(
+                            "No active pricing rule found for this zone"));
+    }
+    
 }
