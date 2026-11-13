@@ -119,6 +119,29 @@ describe('App routing', () => {
       screen.getByRole('button', { name: 'Log out' }).click()
       expect(auth.logout).toHaveBeenCalledTimes(1)
     })
+
+    it('allows MERCHANT to access merchant pages and redirects CUSTOMER', () => {
+      authenticatedAs('CUSTOMER')
+      renderAt('/merchant/api-keys')
+      expect(heading('Customer dashboard')).toBeInTheDocument()
+
+      authenticatedAs('MERCHANT')
+      renderAt('/merchant/api-keys')
+      expect(heading('API key management')).toBeInTheDocument()
+
+      renderAt('/merchant/webhooks')
+      expect(heading('Webhook Settings')).toBeInTheDocument()
+    })
+
+    it('allows ADMIN to access admin approvals and redirects non-admins', () => {
+      authenticatedAs('MERCHANT')
+      renderAt('/admin/merchant-approvals')
+      expect(heading('Your business, at a glance')).toBeInTheDocument()
+
+      authenticatedAs('ADMIN')
+      renderAt('/admin/merchant-approvals')
+      expect(heading('Merchant Applications')).toBeInTheDocument()
+    })
   })
 
   describe('role-based dashboard', () => {
@@ -130,8 +153,16 @@ describe('App routing', () => {
       expect(screen.queryByText(/future development phase/)).not.toBeInTheDocument()
     })
 
+    it('shows the merchant dashboard for MERCHANT', () => {
+      authenticatedAs('MERCHANT')
+      renderAt('/dashboard')
+
+      expect(heading('Your business, at a glance')).toBeInTheDocument()
+      expect(screen.queryByText(/future development phase/)).not.toBeInTheDocument()
+      expect(screen.queryByText('Customer dashboard')).not.toBeInTheDocument()
+    })
+
     it.each([
-      ['MERCHANT', 'Merchant dashboard'],
       ['COURIER', 'Courier dashboard'],
       ['DISPATCHER', 'Dispatcher dashboard'],
       ['ADMIN', 'Admin dashboard'],

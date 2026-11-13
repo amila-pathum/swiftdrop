@@ -145,11 +145,11 @@ describe('GoogleCallbackPage', () => {
 
     it("shows the dashboard for the signed-in user's role", async () => {
       storePending()
-      mockSuccessfulExchange({ ...CUSTOMER, role: 'MERCHANT' })
+      mockSuccessfulExchange({ ...CUSTOMER, role: 'COURIER' })
 
       await renderCallback('#code=one-time-code')
 
-      expect(heading('Merchant dashboard')).toBeInTheDocument()
+      expect(heading('Courier dashboard')).toBeInTheDocument()
     })
   })
 
