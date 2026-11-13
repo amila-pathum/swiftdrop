@@ -12,7 +12,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -51,6 +50,13 @@ public class ParcelService {
 
     public Optional<Parcel> findParcel(UUID parcelId) {
         return parcels.findById(parcelId);
+    }
+
+    /** Returns all parcels created by the given customer, newest first. */
+    @Transactional(readOnly = true)
+    public List<Parcel> getMyParcels(UUID senderId) {
+        Objects.requireNonNull(senderId, "senderId is required");
+        return parcels.findBySenderIdOrderByCreatedAtDesc(senderId);
     }
 
     /**
