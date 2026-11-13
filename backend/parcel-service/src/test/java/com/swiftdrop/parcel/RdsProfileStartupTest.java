@@ -85,7 +85,7 @@ class RdsProfileStartupTest {
         assertThat(jdbc.queryForList(
             "SELECT version || ':' || type FROM public.flyway_schema_history"
                 + " WHERE version IS NOT NULL ORDER BY installed_rank",
-            String.class)).containsExactly("1:SQL");
+            String.class)).containsExactly("1:SQL", "2:SQL");
         assertThat(jdbc.queryForList(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name",
             String.class)).containsExactly("flyway_schema_history", "parcel_status_history", "parcels");
@@ -98,9 +98,9 @@ class RdsProfileStartupTest {
             INSERT INTO public.parcels (id, tracking_number, sender_id, receiver_name, receiver_phone,
                 pickup_address, delivery_address, weight, size, parcel_type, charge, status,
                 created_by, created_at, updated_at)
-            VALUES (gen_random_uuid(), 'SD-RDS-TEST', gen_random_uuid(), 'Receiver', '0700000000',
+            VALUES (gen_random_uuid(), 'SD-RDS-TEST', 42, 'Receiver', '0700000000',
                 'Pickup', 'Delivery', 1.5, 'SMALL', 'DOCUMENT', 350.00, 'CREATED',
-                gen_random_uuid(), now(), now())
+                42, now(), now())
             """);
         assertThat(parcels.findByTrackingNumber("SD-RDS-TEST")).isPresent();
     }

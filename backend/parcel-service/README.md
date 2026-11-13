@@ -74,3 +74,44 @@ It stops on a populated legacy database because UUIDs have no intrinsic numeric
 Identity mapping. Such databases need an explicit data migration based on the
 real Identity mapping before this change can be deployed. Parcel, history,
 merchant, and courier entity identifiers retain their existing UUID contracts.
+
+## Creation API test matrix
+
+Run `.\mvnw.cmd "-Dtest=ParcelCreationApiTest,HttpPricingClientTest,SecurityConfigTest,ParcelCreationServiceTest" test`
+with Docker running. ParcelCreationApiTest requires Docker and fails instead of
+silently skipping when it is unavailable. It uses disposable PostgreSQL and mocked
+pricing; successful creation and the shared request helper use signed CUSTOMER JWTs.
+
+Coverage includes required receiver/address fields, phone format, weight limits,
+unsupported size/type, authentication/authorization, pricing failures, invalid
+charges, frontend charge tampering, duplicate tracking (409), history insertion
+rollback, and exactly one parcel plus one initial history row on success.
+
+The initial supported values are SMALL/MEDIUM/LARGE and STANDARD. These are
+provisional until the product/pricing team confirms its supported values.
+
+Real end-to-end verification through Gateway remains pending: the current Pricing
+Service has zone/rule management but no quote endpoint matching HttpPricingClient,
+and that client still needs the agreed pricing authentication. Do not treat the
+mocked pricing integration test as verification of the real pricing flow. Once
+those contracts are implemented, start the local services, obtain a CUSTOMER token
+from Identity, run verification/parcel-creation.postman_collection.json through
+Gateway, then run verification/verify-created-parcel.sql with the returned parcelId.
+
+## Phase 3 verification
+
+Run `.\mvnw.cmd "-Dtest=ParcelStatusUpdateApiTest,ParcelStatusUpdateServiceTest,ParcelStatusTransitionValidatorTest,SecurityConfigTest" test`.
+The API suite requires Docker and sends real HTTP requests to a random-port server
+with cryptographically signed test JWTs (not tokens acquired from a running Identity
+Service). PostgreSQL is disposable; no development or team database is modified.
+It checks ADMIN/DISPATCHER updates, forbidden roles/unverified couriers, missing JWT,
+invalid transitions and cancellation, rollback after flushing parcel/history writes,
+and concurrent updates yielding one 200, one 409, and only one new history record.
+
+Courier authorization remains incomplete. Member 6 must confirm the authoritative
+mapping from numeric Identity user IDs to assigned courier UUIDs, including endpoint,
+authentication, missing/disabled courier semantics, and failure handling. The current
+verifier denies courier changes. Once confirmed, implement the trusted lookup and
+test matching, nonmatching, absent, disabled, and unavailable mappings before enabling
+courier updates. The existing service unit test mocks a positive verifier result;
+it is not evidence that the production mapping exists.
