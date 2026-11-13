@@ -10,7 +10,6 @@ import com.swiftdrop.parcel.repository.ParcelStatusHistoryRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import java.math.BigDecimal;
-import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -26,7 +25,7 @@ class ParcelCreationServiceTest {
         when(tracking.generate()).thenReturn("SDTEST001");
         when(parcels.saveAndFlush(any(Parcel.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        UUID userId = UUID.randomUUID();
+        Long userId = 42L;
         CreateParcelRequest request = new CreateParcelRequest("Nimal", "0771234567",
             "Colombo", "Kandy", new BigDecimal("2.500"), "MEDIUM", "STANDARD");
         var response = new ParcelCreationService(parcels, history, pricing, tracking)

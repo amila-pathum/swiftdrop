@@ -41,7 +41,7 @@ public class ParcelService {
 
     /** Records the old and new status in the same transaction as the update. */
     @Transactional
-    public Parcel changeStatus(UUID parcelId, ParcelStatus newStatus, UUID changedBy, String note) {
+    public Parcel changeStatus(UUID parcelId, ParcelStatus newStatus, Long changedBy, String note) {
         Objects.requireNonNull(changedBy, "changedBy is required");
         Parcel parcel = parcels.findForStatusUpdateById(parcelId)
                 .orElseThrow(() -> new IllegalArgumentException("Parcel not found: " + parcelId));

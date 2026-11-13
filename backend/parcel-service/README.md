@@ -1,7 +1,7 @@
 # Parcel creation
 
 `POST /api/parcels` requires a valid Identity Service JWT with `role: CUSTOMER`
-and a UUID subject. The subject supplies both `senderId` and `createdBy`.
+and a canonical positive numeric subject (a Java Long, matching Identity user IDs). The subject supplies both `senderId` and `createdBy`.
 
 ```json
 {
@@ -44,3 +44,33 @@ From this directory in PowerShell, run `.\mvnw.cmd test` with Docker running.
 Database tests use disposable Testcontainers PostgreSQL, not `.env` or RDS.
 For only the supplied creation unit test, run
 `.\mvnw.cmd "-Dtest=ParcelCreationServiceTest" test`.
+
+## Phase 2 verification (2026-11-13)
+
+The creation implementation is already present: CreateParcelRequest, ParcelResponse,
+PricingClient, HttpPricingClient, TrackingNumberGenerator, ParcelCreationService,
+ParcelController, ParcelApiExceptionHandler, and ParcelCreationServiceTest.
+
+- Compile and ParcelCreationServiceTest: passed.
+- JWT contract: Identity JwtService emits role CUSTOMER and a decimal user ID
+  subject, for example "42". Parcel now uses Long/BIGINT for senderId, createdBy,
+  and changedBy. Signed-token regression tests cover this creation endpoint.
+- Gateway: GatewayIntegrationTest passes, including POST /api/parcels.
+- Pricing: pending Member 4 confirmation. The pricing service currently has no
+  quote controller. Confirm path, payload, weight units, currency, allowed sizes
+  and types, response charge precision, and service authentication.
+- Postman: collection prepared in verification/parcel-creation.postman_collection.json;
+  not executed. Import it and set accessToken locally to a real CUSTOMER token.
+  baseUrl defaults to the gateway on port 8080. A successful request stores parcelId
+  and trackingNumber as collection variables. Each execution creates a record.
+- PostgreSQL: not verified in this run; Docker engine was unavailable, so
+  Testcontainers tests were skipped. After a successful Postman request, run
+  verification/verify-created-parcel.sql in parcel_db with the returned parcelId.
+  Confirm sender_id/created_by/changed_by match the JWT subject, charge matches
+  Pricing, and exactly one initial null -> CREATED history entry exists.
+
+V2 preserves the V1 migration checksum and changes only sender and audit user IDs.
+It stops on a populated legacy database because UUIDs have no intrinsic numeric
+Identity mapping. Such databases need an explicit data migration based on the
+real Identity mapping before this change can be deployed. Parcel, history,
+merchant, and courier entity identifiers retain their existing UUID contracts.

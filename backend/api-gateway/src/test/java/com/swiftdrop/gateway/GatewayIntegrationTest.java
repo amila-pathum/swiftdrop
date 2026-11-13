@@ -200,6 +200,7 @@ class GatewayIntegrationTest {
     @ParameterizedTest
     @Order(11)
     @ValueSource(strings = {
+        "/api/parcels",
         "/api/parcels/SD-1001/tracking",
         "/api/merchants/42/webhooks",
         "/api/couriers/7/availability",

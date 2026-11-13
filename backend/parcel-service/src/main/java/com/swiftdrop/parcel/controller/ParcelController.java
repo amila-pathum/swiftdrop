@@ -10,7 +10,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
-import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/parcels")
@@ -26,11 +25,11 @@ public class ParcelController {
     @PreAuthorize("hasRole('CUSTOMER')")
     public ParcelResponse create(@Valid @RequestBody CreateParcelRequest request,
                                  @AuthenticationPrincipal Jwt jwt) {
-        UUID userId;
+        Long userId;
         try {
-            userId = UUID.fromString(jwt.getSubject());
-            if (!userId.toString().equalsIgnoreCase(jwt.getSubject())) {
-                throw new IllegalArgumentException("Non-canonical UUID");
+            userId = Long.valueOf(jwt.getSubject());
+            if (userId <= 0 || !userId.toString().equals(jwt.getSubject())) {
+                throw new IllegalArgumentException("Non-canonical user ID");
             }
         } catch (IllegalArgumentException exception) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,

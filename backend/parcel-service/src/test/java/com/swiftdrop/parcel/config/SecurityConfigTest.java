@@ -132,6 +132,37 @@ class SecurityConfigTest {
             .andExpect(jsonPath("$.error").value("Access is denied"));
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"42", "9223372036854775807"})
+    void customerCreationAcceptsIdentityNumericSubject(String subject) throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/parcels")
+                .header("Authorization", signed(identityToken("CUSTOMER").subject(subject), KEY))
+                .contentType("application/json")
+                .content("""
+                    {"receiverName":"Nimal","receiverPhone":"0771234567",
+                     "pickupAddress":"Colombo","deliveryAddress":"Kandy",
+                     "weight":2.5,"size":"MEDIUM","parcelType":"STANDARD"}
+                    """))
+            .andExpect(status().isCreated());
+        org.mockito.Mockito.verify(parcelCreationService).createCustomerParcel(
+            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(Long.valueOf(subject)));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0", "-1", "01", "+1", "9223372036854775808", "550e8400-e29b-41d4-a716-446655440000"})
+    void creationRejectsNonIdentitySubjects(String subject) throws Exception {
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/parcels")
+                .header("Authorization", signed(identityToken("CUSTOMER").subject(subject), KEY))
+                .contentType("application/json")
+                .content("""
+                    {"receiverName":"Nimal","receiverPhone":"0771234567",
+                     "pickupAddress":"Colombo","deliveryAddress":"Kandy",
+                     "weight":2.5,"size":"MEDIUM","parcelType":"STANDARD"}
+                    """))
+            .andExpect(status().isUnauthorized());
+        org.mockito.Mockito.verifyNoInteractions(parcelCreationService);
+    }
+
     @Test
     void invalidTokensAreRejected() throws Exception {
         Instant past = Instant.now().minusSeconds(3600);
