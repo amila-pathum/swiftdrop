@@ -56,7 +56,7 @@ public class ParcelService {
 
     /** Returns all parcels created by the given customer, newest first. */
     @Transactional(readOnly = true)
-    public List<Parcel> getMyParcels(UUID senderId) {
+    public List<Parcel> getMyParcels(Long senderId) {
         Objects.requireNonNull(senderId, "senderId is required");
         return parcels.findBySenderIdOrderByCreatedAtDesc(senderId);
     }
@@ -65,7 +65,7 @@ public class ParcelService {
      * Cancels a parcel owned by the customer, if it is still in CREATED status.
      */
     @Transactional
-    public Parcel cancelParcel(UUID parcelId, UUID customerId) {
+    public Parcel cancelParcel(UUID parcelId, Long customerId) {
         Objects.requireNonNull(parcelId, "parcelId is required");
         Objects.requireNonNull(customerId, "customerId is required");
         Parcel parcel = parcels.findForStatusUpdateById(parcelId)
@@ -117,7 +117,7 @@ public class ParcelService {
 
     /** Records the old and new status in the same transaction as the update. */
     @Transactional
-    public Parcel changeStatus(UUID parcelId, ParcelStatus newStatus, UUID changedBy, String note) {
+    public Parcel changeStatus(UUID parcelId, ParcelStatus newStatus, Long changedBy, String note) {
         Objects.requireNonNull(changedBy, "changedBy is required");
         Parcel parcel = parcels.findForStatusUpdateById(parcelId)
                 .orElseThrow(() -> new IllegalArgumentException("Parcel not found: " + parcelId));
