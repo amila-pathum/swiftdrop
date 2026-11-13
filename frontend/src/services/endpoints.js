@@ -137,6 +137,63 @@ export const ENDPOINTS = Object.freeze({
     // PLANNED (Parcel Service, public). -> { trackingNumber, status,
     //   lastUpdatedAt, history: [{ status, occurredAt, note }] }; 404 if unknown.
   },
+
+    // Pricing & Zones
+  getZones: {
+    method: 'GET',
+    path: '/api/zones',
+    available: true,
+  },
+  getZoneById: {
+    method: 'GET',
+    path: '/api/zones/:id',
+    available: true,
+  },
+  createZone: {
+    method: 'POST',
+    path: '/api/zones',
+    available: true,
+  },
+  updateZone: {
+    method: 'PUT',
+    path: '/api/zones/:id',
+    available: true,
+  },
+  disableZone: {
+    method: 'PATCH',
+    path: '/api/zones/:id/disable',
+    available: true,
+  },
+  getPricingRules: {
+    method: 'GET',
+    path: '/api/pricing/rules',
+    available: true,
+  },
+  getPricingRuleById: {
+    method: 'GET',
+    path: '/api/pricing/rules/:id',
+    available: true,
+  },
+  createPricingRule: {
+    method: 'POST',
+    path: '/api/pricing/rules',
+    available: true,
+  },
+  updatePricingRule: {
+    method: 'PUT',
+    path: '/api/pricing/rules/:id',
+    available: true,
+  },
+  disablePricingRule: {
+    method: 'PATCH',
+    path: '/api/pricing/rules/:id/disable',
+    available: true,
+  },
+  calculateQuote: {
+    method: 'POST',
+    path: '/api/pricing/quote',
+    available: true,
+  },
 })
 
 /** Substitutes `:name` segments with URL-encoded values. */
