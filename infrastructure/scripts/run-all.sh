@@ -36,6 +36,24 @@ for part in "${parts[@]}"; do
 		exit 1
 	}
 done
+# Git Bash has no setsid. Bash job control gives each background job its own
+# process group; taskkill additionally stops native Windows descendants.
+windows_shell=0
+case "$(uname -s)" in MINGW*|MSYS*) windows_shell=1 ;; esac
+if ((windows_shell)); then
+    command -v taskkill.exe >/dev/null || { echo "taskkill.exe is required." >&2; exit 1; }
+    set -m
+elif ! command -v setsid >/dev/null; then
+    echo "setsid is required on this platform; use Linux/WSL or Git Bash." >&2
+    exit 1
+fi
+launch() {
+    if ((windows_shell)); then
+        exec "$@"
+    else
+        exec setsid "$@"
+    fi
+}
 command -v curl >/dev/null || { echo "curl is required." >&2; exit 1; }
 if [[ ",${SPRING_PROFILES_ACTIVE-}," == *,rds,* ]]; then
 	echo "Unset SPRING_PROFILES_ACTIVE and use DB_PROFILE=rds instead." >&2
@@ -69,7 +87,12 @@ health_url() {
 	fi
 }
 port_in_use() {
-	ss -ltnH "sport = :$1" 2>/dev/null | grep -q .
+	if ((windows_shell)); then
+        netstat.exe -ano -p tcp | awk -v port=":$1" '$2 ~ (port "$") && $4 == "LISTENING" { found=1 }
+            END { exit !found }'
+    else
+        ss -ltnH "sport = :$1" 2>/dev/null | grep -q .
+    fi
 }
 
 # ---- Checks before anything starts ----
@@ -109,7 +132,17 @@ stop_all() {
 	trap - INT TERM EXIT
 	echo
 	echo "Stopping everything ..."
-	local pid
+	local pid winpid
+    if ((windows_shell)); then
+        for pid in "${pids[@]}"; do
+            # MSYS PID and Windows PID may differ. Resolve only jobs we launched.
+            winpid="$(ps -p "$pid" | awk 'NR==1 { for(i=1;i<=NF;i++) if($i=="WINPID") col=i }
+                NR>1 && col { print $col; exit }')"
+            if [[ "$winpid" =~ ^[0-9]+$ ]]; then
+                MSYS_NO_PATHCONV=1 taskkill.exe /PID "$winpid" /T /F >/dev/null 2>&1 || true
+            fi
+        done
+    fi
 	for pid in "${pids[@]}"; do
 		kill -TERM -- "-$pid" 2>/dev/null || true
 	done
@@ -135,12 +168,12 @@ start_part() {
 			echo "  installing frontend dependencies (npm install) ..."
 			(cd "$root/frontend" && npm install) >>"$log" 2>&1
 		fi
-		(cd "$root/frontend" && exec setsid npm run dev) >>"$log" 2>&1 &
+		(cd "$root/frontend" && launch npm run dev) >>"$log" 2>&1 &
 	elif [[ "$part" == api-gateway ]]; then
 		# The gateway has no database, so it always runs without DB_PROFILE.
-		env -u DB_PROFILE setsid "$run_service" "$part" >>"$log" 2>&1 &
+		launch env -u DB_PROFILE bash "$run_service" "$part" >>"$log" 2>&1 &
 	else
-		DB_PROFILE="$profile" setsid "$run_service" "$part" >>"$log" 2>&1 &
+		DB_PROFILE="$profile" launch bash "$run_service" "$part" >>"$log" 2>&1 &
 	fi
 	pids+=("$!")
 	names+=("$part")

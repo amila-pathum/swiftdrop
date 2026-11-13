@@ -116,6 +116,14 @@ public class ParcelController {
 
     /** Parses and validates the JWT subject as a UUID. Shared by all endpoints. */
     private UUID extractUserId(Jwt jwt) {
+        try {
+            return UUID.fromString(jwt.getSubject());
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
+                "Invalid authenticated user identifier");
+        }
+    }
+
     @GetMapping
     @PreAuthorize("hasAnyRole('DISPATCHER', 'ADMIN')")
     public Page<ParcelDetailsResponse> getParcelsByStatus(@RequestParam ParcelStatus status,
