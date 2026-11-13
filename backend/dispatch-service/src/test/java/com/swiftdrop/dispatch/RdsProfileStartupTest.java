@@ -72,9 +72,8 @@ class RdsProfileStartupTest {
             .andExpect(jsonPath("$.status").value("UP"));
     }
 
-    // The service has no migrations yet: Flyway only records its history in public.
     @Test
-    void flywayUsesOnlyThePublicSchema() {
+    void flywayCreatesDispatchTablesAndSeedsDemoDataInPublic() {
         assertThat(jdbc.queryForList("""
             SELECT schema_name FROM information_schema.schemata
             WHERE schema_name NOT LIKE 'pg\\_%' AND schema_name <> 'information_schema'
@@ -84,10 +83,14 @@ class RdsProfileStartupTest {
         assertThat(jdbc.queryForList(
             "SELECT version || ':' || type FROM public.flyway_schema_history"
                 + " WHERE version IS NOT NULL ORDER BY installed_rank",
-            String.class)).containsExactly();
+            String.class)).containsExactly("1:SQL", "2:SQL");
         assertThat(jdbc.queryForList(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name",
-            String.class)).containsExactly("flyway_schema_history");
+            String.class)).containsExactly(
+                "dispatch_assignments", "dispatch_couriers", "dispatch_parcels",
+                "dispatch_report_events", "dispatch_status_history", "flyway_schema_history");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM dispatch_parcels", Integer.class))
+            .isEqualTo(8);
     }
 
     @Test
