@@ -9,6 +9,6 @@ public record CreateParcelRequest(
     @NotBlank String pickupAddress,
     @NotBlank String deliveryAddress,
     @NotNull @DecimalMin("0.001") @Digits(integer = 7, fraction = 3) BigDecimal weight,
-    @NotBlank @Size(max = 30) String size,
-    @NotBlank @Size(max = 50) String parcelType
+    @NotBlank @Pattern(regexp = "SMALL|MEDIUM|LARGE", message = "Size must be SMALL, MEDIUM or LARGE") String size,
+    @NotBlank @Pattern(regexp = "STANDARD", message = "Unsupported parcel type") String parcelType
 ) {}

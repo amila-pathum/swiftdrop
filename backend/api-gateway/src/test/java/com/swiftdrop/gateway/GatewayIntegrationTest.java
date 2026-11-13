@@ -209,6 +209,7 @@ class GatewayIntegrationTest {
         "/api/admin/users",
         "/api/admin/users/42/status",
         "/api/admin/users/42/password-reset",
+        "/api/parcels",
         "/api/parcels/SD-1001/tracking",
         "/api/merchants/42/webhooks",
         "/api/couriers/7/availability",

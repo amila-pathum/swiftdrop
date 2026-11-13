@@ -137,4 +137,8 @@ public class User {
     public void changeStatus(UserStatus status) {
         this.status = status;
     }
+
+    public void changeRole(Role role) {
+        this.role = role;
+    }
 }
