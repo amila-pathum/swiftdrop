@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Parcel Status Changed v2 (proposed)",
+  "description": "Proposed creation-aware contract. Consumer rollout and version dispatch must be agreed before publication.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "eventId",
+    "eventType",
+    "occurredAt",
+    "trackingNumber",
+    "parcelId",
+    "customerId",
+    "oldStatus",
+    "newStatus"
+  ],
+  "properties": {
+    "eventId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "eventType": {
+      "const": "ParcelStatusChanged"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "trackingNumber": {
+      "type": "string"
+    },
+    "parcelId": {
+      "type": "string"
+    },
+    "merchantId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "merchantOrderReference": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "customerId": {
+      "type": "string"
+    },
+    "courierId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "oldStatus": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1,
+      "pattern": "\\S",
+      "description": "Null for creation only; otherwise the previous status."
+    },
+    "newStatus": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "\\S"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "newStatus": {
+            "const": "CREATED"
+          }
+        },
+        "required": [
+          "newStatus"
+        ]
+      },
+      "then": {
+        "properties": {
+          "oldStatus": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "oldStatus": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  ]
+}
