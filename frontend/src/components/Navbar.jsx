@@ -2,6 +2,7 @@ import { useAuth } from '../context/AuthContext'
 import { roleLabel } from '../utils/roles'
 import Button from './Button'
 import Logo from './Logo'
+import NotificationBell from './NotificationBell'
 
 function MenuIcon() {
   return (
@@ -39,6 +40,7 @@ export default function Navbar({ onMenuClick, menuOpen = false }) {
       </div>
       {user && (
         <div className="navbar-user">
+          <NotificationBell />
           <span className="navbar-avatar" aria-hidden="true">
             {(user.name ?? '?').trim().charAt(0).toUpperCase()}
           </span>
