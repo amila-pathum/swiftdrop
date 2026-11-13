@@ -21,7 +21,7 @@ public class Parcel {
     private String trackingNumber;
 
     @Column(name = "sender_id", nullable = false)
-    private UUID senderId;
+    private Long senderId;
 
     @Column(name = "receiver_name", nullable = false, length = 150)
     private String receiverName;
@@ -52,7 +52,7 @@ public class Parcel {
     private ParcelStatus status;
 
     @Column(name = "created_by", nullable = false)
-    private UUID createdBy;
+    private Long createdBy;
 
     @Column(name = "merchant_id")
     private UUID merchantId;
@@ -88,8 +88,8 @@ public class Parcel {
     public String getTrackingNumber() { return trackingNumber; }
     public void setTrackingNumber(String trackingNumber) { this.trackingNumber = trackingNumber; }
 
-    public UUID getSenderId() { return senderId; }
-    public void setSenderId(UUID senderId) { this.senderId = senderId; }
+    public Long getSenderId() { return senderId; }
+    public void setSenderId(Long senderId) { this.senderId = senderId; }
 
     public String getReceiverName() { return receiverName; }
     public void setReceiverName(String receiverName) { this.receiverName = receiverName; }
@@ -118,8 +118,8 @@ public class Parcel {
     public ParcelStatus getStatus() { return status; }
     public void setStatus(ParcelStatus status) { this.status = status; }
 
-    public UUID getCreatedBy() { return createdBy; }
-    public void setCreatedBy(UUID createdBy) { this.createdBy = createdBy; }
+    public Long getCreatedBy() { return createdBy; }
+    public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }
 
     public UUID getMerchantId() { return merchantId; }
     public void setMerchantId(UUID merchantId) { this.merchantId = merchantId; }

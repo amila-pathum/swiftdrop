@@ -10,6 +10,12 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class ParcelApiExceptionHandler {
+    @ExceptionHandler(org.springframework.dao.DataIntegrityViolationException.class)
+    ResponseEntity<Map<String, String>> dataConflict() {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(Map.of("error", "Parcel could not be created due to a data conflict"));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     ResponseEntity<Map<String, String>> invalidRequest(MethodArgumentNotValidException ex) {
         String message = ex.getBindingResult().getFieldErrors().stream()
