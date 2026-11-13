@@ -10,8 +10,13 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -82,6 +87,29 @@ public class EmailNotificationService {
     }
 
     /**
+     * Converts raw system statuses like "IN_TRANSIT" into friendly status words like "In Transit".
+     */
+    public static String formatFriendlyStatus(String status) {
+        if (status == null || status.isBlank()) {
+            return "Updated";
+        }
+        return switch (status.trim().toUpperCase()) {
+            case "CREATED" -> "Created";
+            case "PENDING" -> "Pending";
+            case "PICKED_UP" -> "Picked Up";
+            case "IN_TRANSIT" -> "In Transit";
+            case "OUT_FOR_DELIVERY" -> "Out for Delivery";
+            case "DELIVERED" -> "Delivered";
+            case "CANCELLED" -> "Cancelled";
+            case "RETURNED" -> "Returned";
+            case "FAILED_DELIVERY" -> "Delivery Failed";
+            default -> Arrays.stream(status.split("_"))
+                    .map(word -> word.isEmpty() ? "" : Character.toUpperCase(word.charAt(0)) + word.substring(1).toLowerCase())
+                    .collect(Collectors.joining(" "));
+        };
+    }
+
+    /**
      * Sends an email notification to the customer informing them of parcel status change.
      */
     public void sendParcelUpdateEmail(ParcelStatusChangedEvent event) {
@@ -89,13 +117,16 @@ public class EmailNotificationService {
 
         String recipientEmail = resolveCustomerEmail(event.customerId());
 
+        String friendlyNewStatus = formatFriendlyStatus(event.newStatus());
+        String friendlyOldStatus = formatFriendlyStatus(event.oldStatus());
+
         String subject = String.format("SwiftDrop Update: Parcel %s is now %s",
-                event.trackingNumber(), event.newStatus());
+                event.trackingNumber(), friendlyNewStatus);
 
         String body = String.format(
                 "Hello,\n\nYour parcel with tracking number %s has changed status from %s to %s at %s UTC.\n" +
                 "You can view live updates on the SwiftDrop tracking portal.\n\nThank you,\nSwiftDrop Team",
-                event.trackingNumber(), event.oldStatus(), event.newStatus(), event.occurredAt()
+                event.trackingNumber(), friendlyOldStatus, friendlyNewStatus, event.occurredAt()
         );
 
         if (!StringUtils.hasText(recipientEmail)) {

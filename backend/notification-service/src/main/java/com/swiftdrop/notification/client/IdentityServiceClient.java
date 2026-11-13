@@ -108,10 +108,11 @@ public class IdentityServiceClient {
         try {
             byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);
             return Jwts.builder()
-                    .subject("notification-service")
-                    .claim("email", "internal-notification@swiftdrop.com")
+                    .subject("999")
+                    .claim("email", "admin@swiftdrop.com")
                     .claim("role", "ADMIN")
                     .claim("status", "ACTIVE")
+                    .claim("ver", 0)
                     .issuedAt(new Date())
                     .expiration(Date.from(Instant.now().plusSeconds(300)))
                     .signWith(Keys.hmacShaKeyFor(keyBytes))

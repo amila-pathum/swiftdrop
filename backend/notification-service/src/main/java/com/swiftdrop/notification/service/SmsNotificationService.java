@@ -29,12 +29,13 @@ public class SmsNotificationService {
 
         Objects.requireNonNull(event, "event must not be null");
 
+        String friendlyStatus = EmailNotificationService.formatFriendlyStatus(event.newStatus());
         String smsText = String.format("SwiftDrop: Parcel %s is now %s.",
-                event.trackingNumber(), event.newStatus());
+                event.trackingNumber(), friendlyStatus);
 
         // Privacy rule: Never log the phone number
         log.info("Mock SMS dispatched: customerId={}, trackingNumber={}, newStatus={}, message='{}'",
-                event.customerId(), event.trackingNumber(), event.newStatus(), smsText);
+                event.customerId(), event.trackingNumber(), friendlyStatus, smsText);
     }
 }
 
