@@ -19,11 +19,11 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/parcels")
 public class ParcelController {
-    private final ParcelCreationService service;
+    private final ParcelCreationService creationService;
     private final ParcelService parcelService;
 
-    public ParcelController(ParcelCreationService service, ParcelService parcelService) {
-        this.service = service;
+    public ParcelController(ParcelCreationService creationService, ParcelService parcelService) {
+        this.creationService = creationService;
         this.parcelService = parcelService;
     }
 
@@ -46,12 +46,6 @@ public class ParcelController {
     public DispatchParcelResponse find(@PathVariable UUID parcelId) {
         return parcelService.findParcel(parcelId).map(DispatchParcelResponse::from)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parcel not found"));
-    private final ParcelCreationService creationService;
-    private final ParcelService parcelService;
-
-    public ParcelController(ParcelCreationService creationService, ParcelService parcelService) {
-        this.creationService = creationService;
-        this.parcelService = parcelService;
     }
 
     @PostMapping
@@ -69,6 +63,13 @@ public class ParcelController {
                 .stream()
                 .map(ParcelResponse::from)
                 .toList();
+    }
+
+    @PatchMapping("/{id}/cancel")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ParcelResponse cancelParcel(@PathVariable("id") UUID id,
+                                       @AuthenticationPrincipal Jwt jwt) {
+        return ParcelResponse.from(parcelService.cancelParcel(id, extractUserId(jwt)));
     }
 
     /** Parses and validates the JWT subject as a UUID. Shared by all endpoints. */
