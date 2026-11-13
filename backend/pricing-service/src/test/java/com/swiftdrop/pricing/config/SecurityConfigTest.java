@@ -18,6 +18,10 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.swiftdrop.pricing.repository.PricingRuleRepository;
+import com.swiftdrop.pricing.repository.ZoneRepository;
+import org.mockito.Mockito;
+
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Date;
@@ -49,9 +53,20 @@ class SecurityConfigTest {
     /** Test-only endpoint showing the convention for a protected, role-restricted endpoint. */
     @TestConfiguration
     static class ExampleEndpoint {
+
         @Bean
         ExampleController exampleController() {
             return new ExampleController();
+        }
+
+        @Bean
+        PricingRuleRepository pricingRuleRepository() {
+            return Mockito.mock(PricingRuleRepository.class);
+        }
+
+        @Bean
+        ZoneRepository zoneRepository() {
+            return Mockito.mock(ZoneRepository.class);
         }
     }
 
