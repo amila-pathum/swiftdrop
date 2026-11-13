@@ -32,8 +32,7 @@ export const parcelService = {
     }),
 }
 
-// Public parcel tracking. PLANNED in the Parcel Service (see endpoints.js);
-// rejects with NOT_IMPLEMENTED until it exists.
+// Public parcel tracking through the API Gateway.
 
 // Tracking numbers: letters, digits and dashes, 6 to 40 characters.
 export const TRACKING_NUMBER_PATTERN = /^[A-Za-z0-9-]{6,40}$/

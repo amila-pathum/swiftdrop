@@ -75,8 +75,10 @@ public class AdminBootstrap implements ApplicationRunner {
         var existing = userRepository.findByEmail(email);
         if (existing.isPresent()) {
             if (existing.get().getRole() != Role.ADMIN) {
-                log.warn("Admin bootstrap skipped: the bootstrap email belongs to an existing "
-                    + "non-admin account, which is never promoted automatically");
+                throw new IllegalStateException(
+                    "Admin bootstrap failed: the bootstrap email belongs to an existing "
+                    + "non-admin account (role " + existing.get().getRole()
+                    + "). Remove ADMIN_BOOTSTRAP_EMAIL or resolve the conflict.");
             }
             return;
         }

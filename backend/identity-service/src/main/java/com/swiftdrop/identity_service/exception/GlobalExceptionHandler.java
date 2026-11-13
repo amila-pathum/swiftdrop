@@ -104,7 +104,12 @@ public class GlobalExceptionHandler {
             .body(Map.of("error", ex.getMessage()));
     }
 
-    // Malformed JSON, or an unknown enum value such as an invalid role or status.
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<Map<String, String>> handleRateLimit(RateLimitExceededException ex) {
+        return ResponseEntity.status(429)
+            .body(Map.of("error", ex.getMessage()));
+    }
+
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, String>> handleUnreadableBody(
             HttpMessageNotReadableException ex) {

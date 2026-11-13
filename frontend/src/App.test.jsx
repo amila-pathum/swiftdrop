@@ -56,6 +56,7 @@ const heading = (name) => screen.getByRole('heading', { level: 1, name })
 describe('App routing', () => {
   afterEach(() => {
     vi.resetAllMocks()
+    vi.unstubAllGlobals()
   })
 
   describe('anonymous users', () => {
@@ -275,12 +276,33 @@ describe('App routing', () => {
   })
 
   describe('parcel tracking', () => {
-    it('explains that tracking is not available yet instead of faking a result', async () => {
+    it('loads public tracking and renders the backend history contract', async () => {
       mockAuth()
+      const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+        trackingNumber: 'SD-2026-000123', status: 'IN_TRANSIT',
+        createdAt: '2026-01-01T00:00:00Z', estimatedDeliveryDate: null,
+        origin: null, destination: null,
+        trackingHistory: [{ status: 'CREATED', timestamp: '2026-01-01T00:00:00Z',
+          description: null, location: null }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      vi.stubGlobal('fetch', fetchMock)
       renderAt('/track/SD-2026-000123')
 
-      expect(await screen.findByText('Tracking coming soon')).toBeInTheDocument()
-      expect(screen.getByText(/Online parcel tracking is not available yet/)).toBeInTheDocument()
+      expect(await screen.findByText('In transit')).toBeInTheDocument()
+      expect(screen.getByText('Created')).toBeInTheDocument()
+      const [url, init] = fetchMock.mock.calls[0]
+      expect(url).toContain('/api/parcels/track/SD-2026-000123')
+      expect(init.headers.Authorization).toBeUndefined()
+    })
+
+    it('shows the tracking not found response', async () => {
+      mockAuth()
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
+        JSON.stringify({ error: 'Parcel not found' }),
+        { status: 404, headers: { 'Content-Type': 'application/json' } },
+      )))
+      renderAt('/track/SD-UNKNOWN')
+      expect(await screen.findByRole('alert')).toHaveTextContent('We could not find a parcel')
     })
 
     it('rejects a malformed tracking number in the URL', () => {

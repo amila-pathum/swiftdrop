@@ -28,7 +28,7 @@ function formatDateTime(value) {
 }
 
 function TrackingResult({ parcel }) {
-  const history = Array.isArray(parcel.history) ? parcel.history : []
+  const history = Array.isArray(parcel.trackingHistory) ? parcel.trackingHistory : []
   return (
     <section className="card tracking-result" aria-labelledby="tracking-result-title">
       <header className="tracking-result-head">
@@ -38,15 +38,18 @@ function TrackingResult({ parcel }) {
         </div>
         <span className="pill pill-info">{formatStatus(parcel.status)}</span>
       </header>
+      {parcel.estimatedDeliveryDate && (
+        <p>Estimated delivery: {parcel.estimatedDeliveryDate}</p>
+      )}
       {history.length === 0 ? (
         <EmptyState title="No updates yet" description="Status updates will appear here." />
       ) : (
         <ol className="timeline">
           {history.map((entry, index) => (
-            <li key={`${entry.status}-${entry.occurredAt}-${index}`}>
+            <li key={`${entry.status}-${entry.timestamp}-${index}`}>
               <p className="timeline-status">{formatStatus(entry.status)}</p>
-              <p className="timeline-time">{formatDateTime(entry.occurredAt)}</p>
-              {entry.note && <p className="timeline-note">{entry.note}</p>}
+              <p className="timeline-time">{formatDateTime(entry.timestamp)}</p>
+              {entry.description && <p className="timeline-note">{entry.description}</p>}
             </li>
           ))}
         </ol>

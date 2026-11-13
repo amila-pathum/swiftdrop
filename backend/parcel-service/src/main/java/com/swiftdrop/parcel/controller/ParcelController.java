@@ -2,6 +2,10 @@ package com.swiftdrop.parcel.controller;
 
 import com.swiftdrop.parcel.dto.request.CreateParcelRequest;
 import com.swiftdrop.parcel.dto.response.ParcelResponse;
+import com.swiftdrop.parcel.dto.response.PublicTrackingResponse;
+import com.swiftdrop.parcel.service.ParcelService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.CacheControl;
 import com.swiftdrop.parcel.service.ParcelCreationService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -17,8 +21,19 @@ import java.util.UUID;
 public class ParcelController {
     private final ParcelCreationService service;
 
-    public ParcelController(ParcelCreationService service) {
+    private final ParcelService parcels;
+
+    public ParcelController(ParcelCreationService service, ParcelService parcels) {
         this.service = service;
+        this.parcels = parcels;
+    }
+
+    @GetMapping("/track/{trackingNumber}")
+    public ResponseEntity<PublicTrackingResponse>
+            track(@PathVariable String trackingNumber) {
+        return ResponseEntity.ok()
+            .cacheControl(CacheControl.noStore())
+            .body(parcels.track(trackingNumber));
     }
 
     @PostMapping

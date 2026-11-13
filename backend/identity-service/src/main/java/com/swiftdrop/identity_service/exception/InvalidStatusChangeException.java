@@ -5,4 +5,8 @@ public class InvalidStatusChangeException extends RuntimeException {
     public InvalidStatusChangeException() {
         super("This status change is not allowed");
     }
+
+    public InvalidStatusChangeException(String message) {
+        super(message);
+    }
 }
