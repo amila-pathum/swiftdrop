@@ -59,13 +59,15 @@ public class ParcelStatusConsumer {
 
         // 2. Customer notification : Save in-app notification, send email and mock SMS
         if (StringUtils.hasText(event.customerId())) {
+            String friendlyNew = EmailNotificationService.formatFriendlyStatus(event.newStatus());
+            String friendlyOld = EmailNotificationService.formatFriendlyStatus(event.oldStatus());
             String messageText;
             if (StringUtils.hasText(event.oldStatus())) {
-                messageText = String.format("Parcel %s status updated from %s to %s",
-                        event.trackingNumber(), event.oldStatus(), event.newStatus());
+                messageText = String.format("Parcel %s is now %s (previously %s)",
+                        event.trackingNumber(), friendlyNew, friendlyOld);
             } else {
                 messageText = String.format("Parcel %s status is now %s",
-                        event.trackingNumber(), event.newStatus());
+                        event.trackingNumber(), friendlyNew);
             }
 
             Notification notification = Notification.builder()
