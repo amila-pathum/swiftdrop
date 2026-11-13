@@ -49,6 +49,7 @@ class SecurityConfigTest {
     @Autowired MockMvc mockMvc;
 
     @MockitoBean ParcelService parcelService;
+    @MockitoBean com.swiftdrop.parcel.service.ParcelQueryService parcelQueryService;
     @MockitoBean com.swiftdrop.parcel.service.ParcelCreationService parcelCreationService;
     @MockitoBean com.swiftdrop.parcel.service.ParcelStatusUpdateService parcelStatusUpdateService;
 
@@ -216,5 +217,83 @@ class SecurityConfigTest {
             .hasMessage("JWT_SECRET must be valid Base64");
         assertThatThrownBy(() -> SecurityConfig.decoderFor(Base64.getEncoder().encodeToString(bytes(16))))
             .hasMessage("JWT_SECRET must contain at least 256 bits");
+    }
+
+    @Test
+    void customerListingUsesJwtIdentityAndBoundedPagination() throws Exception {
+        mockMvc.perform(get("/api/parcels/my?page=2&size=5&userId=999&role=ADMIN")
+            .header("Authorization", signed(identityToken("CUSTOMER"), KEY)))
+            .andExpect(status().isOk());
+        org.mockito.Mockito.verify(parcelQueryService).getMyParcels(42L,
+            org.springframework.data.domain.PageRequest.of(2, 5,
+                org.springframework.data.domain.Sort.by("createdAt").descending()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"page=-1", "size=0", "size=101", "page=abc"})
+    void invalidPaginationReturnsBadRequest(String query) throws Exception {
+        mockMvc.perform(get("/api/parcels/my?" + query)
+            .header("Authorization", signed(identityToken("CUSTOMER"), KEY)))
+            .andExpect(status().isBadRequest());
+        mockMvc.perform(get("/api/parcels?status=CREATED&" + query)
+            .header("Authorization", signed(identityToken("ADMIN"), KEY)))
+            .andExpect(status().isBadRequest());
+        org.mockito.Mockito.verifyNoInteractions(parcelQueryService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"CUSTOMER", "ADMIN", "DISPATCHER"})
+    void detailsAndHistoryForwardVerifiedIdentity(String role) throws Exception {
+        var id = java.util.UUID.randomUUID();
+        mockMvc.perform(get("/api/parcels/" + id)
+            .header("Authorization", signed(identityToken(role), KEY))).andExpect(status().isOk());
+        mockMvc.perform(get("/api/parcels/" + id + "/history")
+            .header("Authorization", signed(identityToken(role), KEY))).andExpect(status().isOk());
+        org.mockito.Mockito.verify(parcelQueryService).getParcelById(id, 42L, role);
+        org.mockito.Mockito.verify(parcelQueryService).getParcelHistory(id, 42L, role);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"ADMIN", "DISPATCHER"})
+    void staffListingUsesStatusAndAscendingDefaultPage(String role) throws Exception {
+        mockMvc.perform(get("/api/parcels?status=CREATED")
+            .header("Authorization", signed(identityToken(role), KEY))).andExpect(status().isOk());
+        org.mockito.Mockito.verify(parcelQueryService).getParcelsByStatus(
+            com.swiftdrop.parcel.entity.ParcelStatus.CREATED, role,
+            org.springframework.data.domain.PageRequest.of(0, 10,
+                org.springframework.data.domain.Sort.by("createdAt").ascending()));
+    }
+
+    @Test
+    void getEndpointsRejectMissingTokensAndDisallowedRoles() throws Exception {
+        String[] paths = {"/api/parcels/my", "/api/parcels?status=CREATED",
+            "/api/parcels/00000000-0000-0000-0000-000000000001",
+            "/api/parcels/00000000-0000-0000-0000-000000000001/history"};
+        for (String path : paths) {
+            mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
+            for (String role : new String[]{"MERCHANT", "COURIER"}) {
+                mockMvc.perform(get(path).header("Authorization", signed(identityToken(role), KEY)))
+                    .andExpect(status().isForbidden());
+            }
+            mockMvc.perform(get(path).header("Authorization",
+                signed(identityToken(path.contains("status=") ? "ADMIN" : "CUSTOMER").subject("bad"), KEY)))
+                .andExpect(status().isUnauthorized());
+        }
+        mockMvc.perform(get("/api/parcels?status=CREATED")
+            .header("Authorization", signed(identityToken("CUSTOMER"), KEY)))
+            .andExpect(status().isForbidden());
+        mockMvc.perform(get("/api/parcels/my")
+            .header("Authorization", signed(identityToken("ADMIN"), KEY)))
+            .andExpect(status().isForbidden());
+        org.mockito.Mockito.verifyNoInteractions(parcelQueryService);
+    }
+
+    @Test
+    void invalidStatusAndParcelIdReturnBadRequest() throws Exception {
+        for (String path : new String[]{"/api/parcels", "/api/parcels?status=INVALID", "/api/parcels/not-a-uuid"}) {
+            mockMvc.perform(get(path).header("Authorization", signed(identityToken("ADMIN"), KEY)))
+                .andExpect(status().isBadRequest());
+        }
+        org.mockito.Mockito.verifyNoInteractions(parcelQueryService);
     }
 }
