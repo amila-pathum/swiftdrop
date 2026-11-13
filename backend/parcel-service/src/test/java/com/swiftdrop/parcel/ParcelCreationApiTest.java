@@ -114,7 +114,7 @@ class ParcelCreationApiTest {
                 .authorities(new SimpleGrantedAuthority("ROLE_DISPATCHER"))))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray());
-        mvc.perform(get("/api/parcels").with(jwt()
+        mvc.perform(get("/api/parcels/dispatch").with(jwt()
                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
             .andExpect(status().isForbidden());
     }
