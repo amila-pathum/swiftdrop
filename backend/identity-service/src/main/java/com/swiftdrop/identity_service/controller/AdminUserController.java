@@ -1,13 +1,20 @@
 package com.swiftdrop.identity_service.controller;
 
+import com.swiftdrop.identity_service.dto.ChangeRoleRequest;
 import com.swiftdrop.identity_service.dto.ChangeStatusRequest;
 import com.swiftdrop.identity_service.dto.CreateStaffRequest;
 import com.swiftdrop.identity_service.dto.PasswordResetTokenResponse;
 import com.swiftdrop.identity_service.dto.UserResponse;
+import com.swiftdrop.identity_service.entity.Role;
+import com.swiftdrop.identity_service.entity.UserStatus;
 import com.swiftdrop.identity_service.security.AuthenticatedUser;
 import com.swiftdrop.identity_service.service.AdminUserService;
 import com.swiftdrop.identity_service.service.PasswordResetService;
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -16,8 +23,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
@@ -38,6 +47,24 @@ public class AdminUserController {
         this.passwordResetService = passwordResetService;
     }
 
+    /**
+     * Lists users with pagination, optional search (by name, email, or phone),
+     * and optional filtering by role and account status.
+     */
+    @GetMapping
+    public Page<UserResponse> listUsers(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String phone,
+            @RequestParam(required = false) Role role,
+            @RequestParam(required = false) UserStatus status,
+            @PageableDefault(size = 10, sort = "createdAt", direction = Sort.Direction.DESC) Pageable pageable) {
+        String searchTerm = search != null && !search.isBlank() ? search : q;
+        return adminUserService.listUsers(searchTerm, name, email, phone, role, status, pageable);
+    }
+
     /** Creates a DISPATCHER or ADMIN account. */
     @PostMapping
     public ResponseEntity<UserResponse> createStaff(@Valid @RequestBody CreateStaffRequest request) {
@@ -48,6 +75,19 @@ public class AdminUserController {
     @GetMapping("/{id}")
     public UserResponse getUser(@PathVariable long id) {
         return adminUserService.getUser(id);
+    }
+
+    /** Changes a user's role. */
+    @PatchMapping("/{id}/role")
+    public UserResponse changeRole(@AuthenticationPrincipal AuthenticatedUser admin,
+            @PathVariable long id, @Valid @RequestBody ChangeRoleRequest request) {
+        return adminUserService.changeRole(admin.id(), id, request.role());
+    }
+
+    @PutMapping("/{id}/role")
+    public UserResponse updateRole(@AuthenticationPrincipal AuthenticatedUser admin,
+            @PathVariable long id, @Valid @RequestBody ChangeRoleRequest request) {
+        return adminUserService.changeRole(admin.id(), id, request.role());
     }
 
     /** Activates, suspends or disables an account. */

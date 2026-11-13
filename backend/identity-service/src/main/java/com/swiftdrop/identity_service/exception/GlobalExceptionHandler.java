@@ -98,7 +98,7 @@ public class GlobalExceptionHandler {
             .body(Map.of("error", ex.getMessage()));
     }
 
-    @ExceptionHandler({RoleNotAllowedException.class, InvalidStatusChangeException.class})
+    @ExceptionHandler({RoleNotAllowedException.class, InvalidStatusChangeException.class, InvalidRoleChangeException.class})
     public ResponseEntity<Map<String, String>> handleRejectedAdminRequest(RuntimeException ex) {
         return ResponseEntity.badRequest()
             .body(Map.of("error", ex.getMessage()));
