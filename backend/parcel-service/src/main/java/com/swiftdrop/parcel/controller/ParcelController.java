@@ -42,6 +42,13 @@ public class ParcelController {
                 .toList();
     }
 
+    @PatchMapping("/{id}/cancel")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ParcelResponse cancelParcel(@PathVariable("id") UUID id,
+                                       @AuthenticationPrincipal Jwt jwt) {
+        return ParcelResponse.from(parcelService.cancelParcel(id, extractUserId(jwt)));
+    }
+
     /** Parses and validates the JWT subject as a UUID. Shared by all endpoints. */
     private UUID extractUserId(Jwt jwt) {
         try {
