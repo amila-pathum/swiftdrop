@@ -1,12 +1,6 @@
-<<<<<<< HEAD
-import { render, screen } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-=======
 import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
-import { afterEach, describe, expect, it, vi } from 'vitest'
->>>>>>> develop
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { useAuth } from './context/AuthContext'
 import { ApiError, ApiErrorKind } from './services/apiClient'
@@ -267,13 +261,13 @@ describe('App routing', () => {
       expect(screen.queryByText('Customer dashboard')).not.toBeInTheDocument()
     })
 
-<<<<<<< HEAD
     it('shows dispatch management to dispatcher users', async () => {
       authenticatedAs('DISPATCHER')
       renderAt('/dashboard')
 
       expect(await screen.findByRole('heading', { level: 1, name: 'Dispatch dashboard' }))
         .toBeInTheDocument()
+      expect(currentPath()).toBe('/dispatcher/dashboard')
       expect(screen.getByRole('link', { name: 'Reports' })).toHaveAttribute('href', '/reports')
     })
 
@@ -287,7 +281,8 @@ describe('App routing', () => {
       renderAt('/reports')
       expect(await screen.findByRole('heading', { level: 1, name: 'Customer dashboard' }))
         .toBeInTheDocument()
-=======
+    })
+
     it.each([
       ['CUSTOMER', '/customer/dashboard'],
       ['MERCHANT', '/merchant/dashboard'],
@@ -310,7 +305,6 @@ describe('App routing', () => {
       authenticatedAs(role)
       renderAt(path)
       expect(currentPath()).toBe(expected)
->>>>>>> develop
     })
 
     it('handles an unrecognised role safely', () => {

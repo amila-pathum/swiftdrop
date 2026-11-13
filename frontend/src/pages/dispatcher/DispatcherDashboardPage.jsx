@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 import { useCallback, useEffect, useState } from 'react'
 import Button from '../../components/Button'
 import LoadingSpinner from '../../components/LoadingSpinner'
@@ -10,7 +9,6 @@ function ParcelTable({ parcels, onAssign, onCancel, onDetails, emptyMessage }) {
   if (parcels.length === 0) {
     return <p className="dispatch-empty">{emptyMessage}</p>
   }
-
   return (
     <div className="dispatch-table-wrap">
       <table className="dispatch-table">
@@ -368,12 +366,4 @@ export default function DispatcherDashboardPage() {
       )}
     </section>
   )
-=======
-import NotAvailablePage from '../NotAvailablePage'
-import { useAuth } from '../../context/AuthContext'
-
-export default function DispatcherDashboardPage() {
-  const { user } = useAuth()
-  return <NotAvailablePage title="Dispatcher dashboard" description={user?.name ? `Welcome, ${user.name}.` : undefined} />
->>>>>>> develop
 }

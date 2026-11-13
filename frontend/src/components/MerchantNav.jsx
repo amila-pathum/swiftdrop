@@ -60,7 +60,7 @@ const MERCHANT_LINKS = [
   { to: '/profile', label: 'Business profile', icon: BusinessIcon },
 ]
 
-export default function MerchantNav({ className = '' }) {
+export default function MerchantNav({ className = '', onNavigate }) {
   return (
     <ul className={`merchant-nav-list ${className}`.trim()}>
       {MERCHANT_LINKS.map(({ to, label, icon: Icon }) => (
@@ -69,6 +69,7 @@ export default function MerchantNav({ className = '' }) {
             to={to}
             end={to === '/dashboard'}
             className={({ isActive }) => (isActive ? 'active' : '')}
+            onClick={onNavigate}
           >
             <Icon />
             <span>{label}</span>
