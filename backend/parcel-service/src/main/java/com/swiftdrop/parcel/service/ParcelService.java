@@ -8,6 +8,7 @@ import com.swiftdrop.parcel.repository.ParcelStatusHistoryRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -37,6 +38,13 @@ public class ParcelService {
         history.save(new ParcelStatusHistory(saved, null, ParcelStatus.CREATED,
                 saved.getCreatedBy(), "Parcel created"));
         return saved;
+    }
+
+    /** Returns all parcels created by the given customer, newest first. */
+    @Transactional(readOnly = true)
+    public List<Parcel> getMyParcels(UUID senderId) {
+        Objects.requireNonNull(senderId, "senderId is required");
+        return parcels.findBySenderIdOrderByCreatedAtDesc(senderId);
     }
 
     /** Records the old and new status in the same transaction as the update. */
