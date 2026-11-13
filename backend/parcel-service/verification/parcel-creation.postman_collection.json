@@ -1,0 +1,65 @@
+{
+  "info": {
+    "name": "SwiftDrop Parcel Creation",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Requires running Gateway, Identity, Parcel, PostgreSQL and the agreed Pricing endpoint. Set accessToken to a valid CUSTOMER JWT from Identity. Each run creates a parcel."
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Create customer parcel",
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{accessToken}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{baseUrl}}/api/parcels",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"receiverName\": \"Nimal\",\n  \"receiverPhone\": \"0771234567\",\n  \"pickupAddress\": \"Colombo\",\n  \"deliveryAddress\": \"Kandy\",\n  \"weight\": 2.5,\n  \"size\": \"MEDIUM\",\n  \"parcelType\": \"STANDARD\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Created\", () => pm.response.to.have.status(201));",
+              "if (pm.response.code === 201) {",
+              "  const p = pm.response.json();",
+              "  pm.test(\"Initial status\", () => pm.expect(p.status).to.eql(\"CREATED\"));",
+              "  pm.test(\"Server price\", () => pm.expect(p.charge).to.be.a(\"number\").and.at.least(0));",
+              "  pm.test(\"Identifiers\", () => { pm.expect(p.id).to.be.a(\"string\"); pm.expect(p.trackingNumber).to.be.a(\"string\"); });",
+              "  pm.collectionVariables.set(\"parcelId\", p.id);",
+              "  pm.collectionVariables.set(\"trackingNumber\", p.trackingNumber);",
+              "}"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

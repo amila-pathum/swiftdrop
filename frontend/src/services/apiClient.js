@@ -78,10 +78,17 @@ function errorFromResponse(response, body) {
  * @param {*} [options.body] Serialized as JSON when provided.
  * @param {boolean} [options.auth=false] Attach the stored bearer token.
  * @param {AbortSignal} [options.signal]
- * @returns {Promise<*>} Parsed JSON body, or null for an empty response.
+ * @param {'json'|'text'} [options.responseType='json']
+ * @returns {Promise<*>} Parsed JSON (or requested text) body, or null for an empty response.
  */
-export async function request(path, { method = 'GET', body, auth = false, signal } = {}) {
-  const headers = { Accept: 'application/json' }
+export async function request(path, {
+  method = 'GET',
+  body,
+  auth = false,
+  signal,
+  responseType = 'json',
+} = {}) {
+  const headers = { Accept: responseType === 'text' ? 'text/csv' : 'application/json' }
 
   if (auth) {
     const token = getAccessToken()
@@ -110,12 +117,17 @@ export async function request(path, { method = 'GET', body, auth = false, signal
     throw new ApiError(MESSAGES.network, { kind: ApiErrorKind.NETWORK })
   }
 
-  const data = await readJson(response)
+  const data = response.ok && responseType === 'text'
+    ? await response.text()
+    : await readJson(response)
   if (!response.ok) {
     if (auth && response.status === 401) {
       unauthorizedListeners.forEach((listener) => listener())
     }
     throw errorFromResponse(response, data)
+  }
+  if (responseType === 'text') {
+    return data
   }
   if (data === undefined) {
     throw new ApiError(MESSAGES.invalidResponse, {
