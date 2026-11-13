@@ -46,6 +46,12 @@ public class ParcelController {
     public DispatchParcelResponse find(@PathVariable UUID parcelId) {
         return parcelService.findParcel(parcelId).map(DispatchParcelResponse::from)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parcel not found"));
+    private final ParcelCreationService creationService;
+    private final ParcelService parcelService;
+
+    public ParcelController(ParcelCreationService creationService, ParcelService parcelService) {
+        this.creationService = creationService;
+        this.parcelService = parcelService;
     }
 
     @PostMapping
@@ -53,16 +59,29 @@ public class ParcelController {
     @PreAuthorize("hasRole('CUSTOMER')")
     public ParcelResponse create(@Valid @RequestBody CreateParcelRequest request,
                                  @AuthenticationPrincipal Jwt jwt) {
-        UUID userId;
+        return creationService.createCustomerParcel(request, extractUserId(jwt));
+    }
+
+    @GetMapping("/my")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public List<ParcelResponse> getMyParcels(@AuthenticationPrincipal Jwt jwt) {
+        return parcelService.getMyParcels(extractUserId(jwt))
+                .stream()
+                .map(ParcelResponse::from)
+                .toList();
+    }
+
+    /** Parses and validates the JWT subject as a UUID. Shared by all endpoints. */
+    private UUID extractUserId(Jwt jwt) {
         try {
-            userId = UUID.fromString(jwt.getSubject());
+            UUID userId = UUID.fromString(jwt.getSubject());
             if (!userId.toString().equalsIgnoreCase(jwt.getSubject())) {
                 throw new IllegalArgumentException("Non-canonical UUID");
             }
+            return userId;
         } catch (IllegalArgumentException exception) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
                 "Token subject is not a valid user identifier");
         }
-        return service.createCustomerParcel(request, userId);
     }
 }
