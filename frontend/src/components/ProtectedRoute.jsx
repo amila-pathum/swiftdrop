@@ -1,6 +1,7 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import AuthLayout from '../layouts/AuthLayout'
+import { APPLICATION_STATUS_PATH, isActive } from '../utils/roles'
 import Button from './Button'
 import LoadingSpinner from './LoadingSpinner'
 
@@ -35,11 +36,18 @@ export function AuthPendingScreen() {
 }
 
 /**
- * Restricts routes to signed-in users, optionally limited to `allowedRoles`.
+ * Restricts routes to signed-in users.
+ *
+ * - Anonymous users go to /login (and come back here after signing in).
+ * - `allowedRoles`: other roles are sent to /dashboard, which resolves to their own home.
+ * - `requireActive` (default true): accounts that are not ACTIVE (e.g. a
+ *   merchant or courier awaiting approval) are sent to the application status page.
+ *   Use requireActive={false} for pages any signed-in user may see (profile, status).
+ *
  * This only controls navigation; the backend remains the security boundary.
  * Never put `allowedRoles` on /dashboard, which is the redirect target.
  */
-export default function ProtectedRoute({ allowedRoles, children }) {
+export default function ProtectedRoute({ allowedRoles, requireActive = true, children }) {
   const { status, user } = useAuth()
   const location = useLocation()
 
@@ -51,6 +59,9 @@ export default function ProtectedRoute({ allowedRoles, children }) {
   }
   if (allowedRoles && !allowedRoles.includes(user?.role)) {
     return <Navigate to="/dashboard" replace />
+  }
+  if (requireActive && !isActive(user)) {
+    return <Navigate to={APPLICATION_STATUS_PATH} replace />
   }
   return children ?? <Outlet />
 }

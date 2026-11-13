@@ -44,7 +44,7 @@ class ExistingDatabaseStartupTest {
     void startsWithBaselinedSchemaAndKeepsExistingUsers() {
         assertThat(jdbc.queryForList(
             "SELECT version || ':' || type FROM flyway_schema_history ORDER BY installed_rank",
-            String.class)).containsExactly("1:BASELINE", "2:SQL", "3:SQL");
+            String.class)).containsExactly("1:BASELINE", "2:SQL", "3:SQL", "4:SQL");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM users", Integer.class)).isEqualTo(2);
     }
 

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import { useCallback, useEffect, useState } from 'react'
 import Button from '../../components/Button'
 import LoadingSpinner from '../../components/LoadingSpinner'
@@ -367,4 +368,12 @@ export default function DispatcherDashboardPage() {
       )}
     </section>
   )
+=======
+import NotAvailablePage from '../NotAvailablePage'
+import { useAuth } from '../../context/AuthContext'
+
+export default function DispatcherDashboardPage() {
+  const { user } = useAuth()
+  return <NotAvailablePage title="Dispatcher dashboard" description={user?.name ? `Welcome, ${user.name}.` : undefined} />
+>>>>>>> develop
 }

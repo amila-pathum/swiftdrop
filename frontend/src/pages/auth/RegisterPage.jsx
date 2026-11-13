@@ -1,146 +1,102 @@
-import { useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import Alert from '../../components/Alert'
+import AuthCard from '../../components/AuthCard'
 import Button from '../../components/Button'
 import FormField from '../../components/FormField'
 import GoogleSignInButton from '../../components/GoogleSignInButton'
+import RegistrationTypeTabs from '../../components/RegistrationTypeTabs'
 import { useAuth } from '../../context/AuthContext'
-import { isServiceUnavailable, SERVICE_UNAVAILABLE_MESSAGE, validateRegistration } from './authForm'
+import { useForm } from '../../hooks/useForm'
+import { isGoogleLoginEnabled } from '../../services/config'
+import { describeError } from '../../services/errorMessages'
+import { validateRegistration } from './authForm'
 
-const EMPTY_FORM = { name: '', email: '', password: '', confirmPassword: '' }
-
-function registrationErrorMessage(error) {
-  if (isServiceUnavailable(error)) return SERVICE_UNAVAILABLE_MESSAGE
-  if (error?.status === 400) return 'Some details are invalid. Check the form and try again.'
-  return 'Something went wrong. Please try again.'
+const EMPTY_FORM = {
+  name: '', email: '', phone: '', address: '', password: '', confirmPassword: '',
 }
 
-// Public registration always creates a CUSTOMER account; the backend ignores any role.
+// Customer sign-up. Public registration always creates a CUSTOMER account; the
+// backend ignores any role. It returns no token, so the user signs in next.
 export default function RegisterPage() {
   const { register } = useAuth()
   const navigate = useNavigate()
+  const form = useForm({
+    initialValues: EMPTY_FORM,
+    validate: validateRegistration,
+    idPrefix: 'register',
+  })
 
-  const [values, setValues] = useState(EMPTY_FORM)
-  const [errors, setErrors] = useState({})
-  const [formError, setFormError] = useState(null)
-  const [attempted, setAttempted] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  // Guards against a second submit before the disabled state has rendered.
-  const submittingRef = useRef(false)
-
-  function handleChange(event) {
-    const next = { ...values, [event.target.name]: event.target.value }
-    setValues(next)
-    if (attempted) {
-      setErrors(validateRegistration(next))
-    }
-  }
-
-  async function handleSubmit(event) {
-    event.preventDefault()
-    if (submittingRef.current) return
-
-    setAttempted(true)
-    const found = validateRegistration(values)
-    setErrors(found)
-    const firstInvalid = Object.keys(found)[0]
-    if (firstInvalid) {
-      document.getElementById(`register-${firstInvalid}`)?.focus()
-      return
-    }
-
-    submittingRef.current = true
-    setSubmitting(true)
-    setFormError(null)
+  const onSubmit = form.handleSubmit(async (values) => {
     try {
-      // confirmPassword is checked here only; the API accepts name, email and password.
-      const user = await register(values.name.trim(), values.email.trim(), values.password)
+      // confirmPassword is checked here only.
+      const user = await register({
+        name: values.name.trim(),
+        email: values.email.trim(),
+        phone: values.phone.trim(),
+        address: values.address.trim(),
+        password: values.password,
+      })
       navigate('/login', { state: { registeredEmail: user?.email ?? values.email.trim() } })
     } catch (error) {
       if (error?.status === 409) {
-        setErrors((current) => ({ ...current, email: 'This email is already registered.' }))
-        document.getElementById('register-email')?.focus()
+        form.setFieldError('email', 'This email is already registered.')
       } else {
-        setFormError(registrationErrorMessage(error))
+        form.setFormError(describeError(error, {
+          byStatus: { 400: 'Some details are invalid. Check the form and try again.' },
+        }))
       }
-      submittingRef.current = false
-      setSubmitting(false)
     }
-  }
+  })
 
   return (
-    <div className="card auth-card">
-      <header className="card-header">
-        <h1 className="card-title">Create a customer account</h1>
-        <p className="card-subtitle">
-          Sending for a business? Merchant sign-up is coming soon.
+    <AuthCard
+      title="Create a customer account"
+      subtitle="Send, receive and track parcels. Sending for a business? Apply as a merchant instead."
+      footer={(
+        <p className="card-footer-text">
+          Already have an account? <Link to="/login">Sign in</Link>
         </p>
-      </header>
-
-      {formError && (
-        <div className="alert alert-error" role="alert">
-          <p>{formError}</p>
-        </div>
       )}
+    >
+      <RegistrationTypeTabs />
+      {form.formError && <Alert variant="error">{form.formError}</Alert>}
 
-      <form className="form" onSubmit={handleSubmit} noValidate>
+      <form className="form" onSubmit={onSubmit} noValidate>
+        <FormField {...form.field('name')} label="Full name" autoComplete="name" />
+        <FormField {...form.field('email')} label="Email" type="email" autoComplete="email" />
+        <FormField {...form.field('phone')} label="Phone number" type="tel" autoComplete="tel"
+          placeholder="077 123 4567" />
+        <FormField {...form.field('address')} label="Address" autoComplete="street-address" />
         <FormField
-          id="register-name"
-          name="name"
-          label="Full name"
-          autoComplete="name"
-          value={values.name}
-          onChange={handleChange}
-          error={errors.name}
-        />
-        <FormField
-          id="register-email"
-          name="email"
-          label="Email"
-          type="email"
-          autoComplete="email"
-          value={values.email}
-          onChange={handleChange}
-          error={errors.email}
-        />
-        <FormField
-          id="register-password"
-          name="password"
+          {...form.field('password')}
           label="Password"
           type="password"
           revealable
           autoComplete="new-password"
           hint="Use 8 to 72 characters."
-          value={values.password}
-          onChange={handleChange}
-          error={errors.password}
         />
         <FormField
-          id="register-confirmPassword"
-          name="confirmPassword"
+          {...form.field('confirmPassword')}
           label="Confirm password"
           type="password"
           revealable
           autoComplete="new-password"
-          value={values.confirmPassword}
-          onChange={handleChange}
-          error={errors.confirmPassword}
         />
         <p className="form-note">
-          Courier, dispatcher and admin accounts are created by SwiftDrop administrators and
-          cannot be selected here.
+          Dispatcher and admin accounts are created by SwiftDrop administrators and cannot be
+          selected here. Merchants and couriers apply using the tabs above.
         </p>
-        <Button type="submit" fullWidth loading={submitting} loadingText="Creating account…">
+        <Button type="submit" fullWidth loading={form.submitting} loadingText="Creating account…">
           Create account
         </Button>
       </form>
 
-      <div className="divider" role="separator"><span>or</span></div>
-
-      <GoogleSignInButton />
-
-      <p className="card-footer-text">
-        Already have an account? <Link to="/login">Sign in</Link>
-      </p>
-    </div>
+      {isGoogleLoginEnabled() && (
+        <>
+          <div className="divider" role="separator"><span>or</span></div>
+          <GoogleSignInButton />
+        </>
+      )}
+    </AuthCard>
   )
 }

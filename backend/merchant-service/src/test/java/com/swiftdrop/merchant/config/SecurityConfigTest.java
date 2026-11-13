@@ -183,6 +183,19 @@ class SecurityConfigTest {
     }
 
     @Test
+    void anAccountAwaitingApprovalIsAuthenticatedButHoldsNoRole() throws Exception {
+        for (String status : new String[] {"PENDING_APPROVAL", "SUSPENDED", "DISABLED"}) {
+            mockMvc.perform(get("/test/security/merchant-only").header("Authorization",
+                    signed(identityToken("MERCHANT").claim("status", status), KEY)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("Access is denied"));
+        }
+        mockMvc.perform(get("/test/security/merchant-only").header("Authorization",
+                signed(identityToken("MERCHANT").claim("status", "ACTIVE"), KEY)))
+            .andExpect(status().isOk());
+    }
+
+    @Test
     void anotherRoleIsForbidden() throws Exception {
 
         mockMvc.perform(

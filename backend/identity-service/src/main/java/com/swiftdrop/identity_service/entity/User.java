@@ -43,6 +43,10 @@ public class User {
     @Column(name = "address", length = 500)
     private String address;
 
+    // Carried in every access token; a token with an older version is refused.
+    @Column(name = "token_version", nullable = false)
+    private int tokenVersion;
+
     protected User() {
     }
 
@@ -119,5 +123,18 @@ public class User {
 
     public void updatePassword(String passwordHash) {
         this.passwordHash = passwordHash;
+    }
+
+    public int getTokenVersion() {
+        return tokenVersion;
+    }
+
+    /** Invalidates every access token issued to this user so far. */
+    public void invalidateTokens() {
+        tokenVersion++;
+    }
+
+    public void changeStatus(UserStatus status) {
+        this.status = status;
     }
 }

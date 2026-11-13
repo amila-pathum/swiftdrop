@@ -12,6 +12,7 @@ const NOW = 1_700_000_000_000
 describe('tokenStorage', () => {
   beforeEach(() => {
     sessionStorage.clear()
+    localStorage.clear()
   })
 
   afterEach(() => {
@@ -92,5 +93,43 @@ describe('tokenStorage', () => {
 
     expect(getSession()).toBeNull()
     expect(isSessionExpired()).toBe(true)
+  })
+
+  describe('remember me', () => {
+    it('keeps a persistent session in localStorage only', () => {
+      saveSession('remembered', 900, NOW, { persistent: true })
+
+      expect(localStorage.length).toBe(2)
+      expect(sessionStorage.length).toBe(0)
+      expect(getSession()).toEqual({ accessToken: 'remembered', expiresAt: NOW + 900_000 })
+      expect(getAccessToken(NOW + 1)).toBe('remembered')
+    })
+
+    it('still expires a persistent session with the token', () => {
+      saveSession('remembered', 900, NOW, { persistent: true })
+      expect(getAccessToken(NOW + 900_000)).toBeNull()
+      expect(isSessionExpired(NOW + 900_000)).toBe(true)
+    })
+
+    it('replaces a session in the other store when signing in again', () => {
+      saveSession('remembered', 900, NOW, { persistent: true })
+      saveSession('tab-only', 900, NOW)
+
+      expect(localStorage.length).toBe(0)
+      expect(getSession().accessToken).toBe('tab-only')
+
+      saveSession('remembered-again', 900, NOW, { persistent: true })
+      expect(sessionStorage.length).toBe(0)
+      expect(getSession().accessToken).toBe('remembered-again')
+    })
+
+    it('clears both stores on sign-out', () => {
+      sessionStorage.setItem('swiftdrop.accessToken', 'a')
+      localStorage.setItem('swiftdrop.accessToken', 'b')
+      clearSession()
+
+      expect(sessionStorage.length).toBe(0)
+      expect(localStorage.length).toBe(0)
+    })
   })
 })

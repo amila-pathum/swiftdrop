@@ -200,6 +200,15 @@ class GatewayIntegrationTest {
     @ParameterizedTest
     @Order(11)
     @ValueSource(strings = {
+        "/api/auth/register/merchant",
+        "/api/auth/register/courier",
+        "/api/auth/logout",
+        "/api/auth/password-reset/request",
+        "/api/auth/password-reset/confirm",
+        "/api/users/me/change-password",
+        "/api/admin/users",
+        "/api/admin/users/42/status",
+        "/api/admin/users/42/password-reset",
         "/api/parcels/SD-1001/tracking",
         "/api/merchants/42/webhooks",
         "/api/couriers/7/availability",

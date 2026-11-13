@@ -29,7 +29,9 @@ public class UserService {
     public UserResponse getCurrentUser(long userId) {
         var user = userRepository.findById(userId)
             .orElseThrow(UserNotFoundException::new);
-        if (user.getStatus() != UserStatus.ACTIVE) {
+        // Accounts awaiting approval may read their own profile, so the frontend
+        // can show their status; suspended and disabled accounts may not.
+        if (!user.getStatus().canSignIn()) {
             throw new AccountNotActiveException();
         }
         return UserResponse.from(user);

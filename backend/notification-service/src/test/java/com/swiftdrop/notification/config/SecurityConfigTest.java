@@ -30,6 +30,9 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.swiftdrop.notification.webhook.retry.WebhookDeliveryStore;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
 /**
  * JWT validation and role checks, with tokens signed exactly as the Identity
  * Service signs them (jjwt). Runs without a database or Docker.
@@ -39,12 +42,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "management.health.rabbit.enabled=false",
     "spring.autoconfigure.exclude=org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration,org.springframework.boot.data.jpa.autoconfigure.JpaRepositoriesAutoConfiguration"
 })
+
 @AutoConfigureMockMvc
 class SecurityConfigTest {
 
     private static final byte[] KEY = bytes(32);
     private static final byte[] OTHER_KEY = bytes(32, 100);
 
+    @MockitoBean
+    WebhookDeliveryStore webhookDeliveryStore;
     @Autowired MockMvc mockMvc;
 
     /** Test-only endpoint showing the convention for a protected, role-restricted endpoint. */
@@ -118,6 +124,19 @@ class SecurityConfigTest {
                 .header("Authorization", signed(identityToken("MERCHANT"), KEY)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.userId").value("42"));
+    }
+
+    @Test
+    void anAccountAwaitingApprovalIsAuthenticatedButHoldsNoRole() throws Exception {
+        for (String status : new String[] {"PENDING_APPROVAL", "SUSPENDED", "DISABLED"}) {
+            mockMvc.perform(get("/test/security/merchant-only").header("Authorization",
+                    signed(identityToken("MERCHANT").claim("status", status), KEY)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("Access is denied"));
+        }
+        mockMvc.perform(get("/test/security/merchant-only").header("Authorization",
+                signed(identityToken("MERCHANT").claim("status", "ACTIVE"), KEY)))
+            .andExpect(status().isOk());
     }
 
     @Test

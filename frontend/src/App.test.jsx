@@ -1,6 +1,12 @@
+<<<<<<< HEAD
 import { render, screen } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+=======
+import { render, screen, within } from '@testing-library/react'
+import { MemoryRouter, useLocation } from 'react-router-dom'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+>>>>>>> develop
 import App from './App'
 import { useAuth } from './context/AuthContext'
 import { ApiError, ApiErrorKind } from './services/apiClient'
@@ -45,16 +51,23 @@ function mockAuth(overrides = {}) {
   return auth
 }
 
-const authenticatedAs = (role = 'CUSTOMER') =>
-  mockAuth({ status: 'authenticated', user: { ...USER, role } })
+const authenticatedAs = (role = 'CUSTOMER', status = 'ACTIVE') =>
+  mockAuth({ status: 'authenticated', user: { ...USER, role, status } })
+
+function LocationProbe() {
+  return <div data-testid="location">{useLocation().pathname}</div>
+}
 
 function renderAt(path) {
   return render(
     <MemoryRouter initialEntries={[path]}>
       <App />
+      <LocationProbe />
     </MemoryRouter>,
   )
 }
+
+const currentPath = () => screen.getByTestId('location').textContent
 
 const heading = (name) => screen.getByRole('heading', { level: 1, name })
 
@@ -76,7 +89,16 @@ describe('App routing', () => {
   })
 
   describe('anonymous users', () => {
-    it.each(['/', '/dashboard', '/profile'])('are redirected from %s to login', (path) => {
+    it.each([
+      '/dashboard',
+      '/profile',
+      '/customer/dashboard',
+      '/merchant/dashboard',
+      '/courier/dashboard',
+      '/dispatcher/dashboard',
+      '/admin/dashboard',
+      '/application/status',
+    ])('are redirected from %s to login', (path) => {
       mockAuth()
       renderAt(path)
 
@@ -84,10 +106,42 @@ describe('App routing', () => {
       expect(screen.queryByRole('navigation')).not.toBeInTheDocument()
     })
 
-    it('can open the login and registration pages', () => {
+    it.each([
+      ['/register', 'Create a customer account'],
+      ['/register/merchant', 'Apply for a merchant account'],
+      ['/register/courier', 'Apply to become a courier'],
+      ['/forgot-password', 'Reset your password'],
+    ])('can open %s', (path, title) => {
       mockAuth()
-      renderAt('/register')
-      expect(heading('Create a customer account')).toBeInTheDocument()
+      renderAt(path)
+      expect(heading(title)).toBeInTheDocument()
+    })
+
+    it('see the landing page at /', () => {
+      mockAuth()
+      renderAt('/')
+
+      expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent(/Deliveries that are/)
+      for (const id of ['home', 'about', 'services', 'track', 'get-started']) {
+        expect(document.getElementById(id)).not.toBeNull()
+      }
+      expect(screen.getAllByRole('link', { name: 'Log in' })[0]).toHaveAttribute('href', '/login')
+      expect(screen.getAllByRole('link', { name: 'Get started' })[0])
+        .toHaveAttribute('href', '/#get-started')
+      expect(screen.getByRole('link', { name: 'Sign up as a customer' }))
+        .toHaveAttribute('href', '/register')
+      expect(screen.getByRole('link', { name: 'Apply as a merchant' }))
+        .toHaveAttribute('href', '/register/merchant')
+      expect(screen.getByRole('link', { name: 'Apply as a courier' }))
+        .toHaveAttribute('href', '/register/courier')
+      expect(screen.getAllByRole('search', { name: 'Track a parcel' })).toHaveLength(2)
+      expect(screen.getByRole('contentinfo')).toBeInTheDocument()
+    })
+
+    it('can open the application submitted page', () => {
+      mockAuth()
+      renderAt('/application/submitted')
+      expect(heading('Application submitted')).toBeInTheDocument()
     })
 
     it('see the session-expired notice and can dismiss it', () => {
@@ -108,9 +162,20 @@ describe('App routing', () => {
   })
 
   describe('authenticated users', () => {
-    it('are redirected from / to their dashboard inside the shared layout', () => {
+    it('see the landing page at / with a link to their dashboard', () => {
       authenticatedAs('CUSTOMER')
       renderAt('/')
+
+      expect(screen.getAllByRole('link', { name: 'Go to dashboard' })[0])
+        .toHaveAttribute('href', '/dashboard')
+      expect(within(screen.getByRole('banner')).queryByRole('link', { name: 'Log in' }))
+        .not.toBeInTheDocument()
+      expect(screen.queryByText(/Already have an account/)).not.toBeInTheDocument()
+    })
+
+    it('reach their dashboard inside the shared layout', () => {
+      authenticatedAs('CUSTOMER')
+      renderAt('/dashboard')
 
       expect(heading('Customer dashboard')).toBeInTheDocument()
       expect(screen.getByText('Welcome, Test User.')).toBeInTheDocument()
@@ -129,12 +194,16 @@ describe('App routing', () => {
       expect(screen.queryByText(/password/i)).not.toBeInTheDocument()
     })
 
-    it.each(['/login', '/register'])('are redirected from %s to the dashboard', (path) => {
-      authenticatedAs('CUSTOMER')
-      renderAt(path)
+    it.each(['/login', '/register', '/register/merchant', '/register/courier', '/forgot-password'])(
+      'are redirected from %s to the dashboard',
+      (path) => {
+        authenticatedAs('CUSTOMER')
+        renderAt(path)
 
-      expect(heading('Customer dashboard')).toBeInTheDocument()
-    })
+        expect(heading('Customer dashboard')).toBeInTheDocument()
+        expect(currentPath()).toBe('/customer/dashboard')
+      },
+    )
 
     it('can log out from the navbar', () => {
       const auth = authenticatedAs('CUSTOMER')
@@ -142,6 +211,29 @@ describe('App routing', () => {
 
       screen.getByRole('button', { name: 'Log out' }).click()
       expect(auth.logout).toHaveBeenCalledTimes(1)
+    })
+
+    it('allows MERCHANT to access merchant pages and redirects CUSTOMER', () => {
+      authenticatedAs('CUSTOMER')
+      renderAt('/merchant/api-keys')
+      expect(heading('Customer dashboard')).toBeInTheDocument()
+
+      authenticatedAs('MERCHANT')
+      renderAt('/merchant/api-keys')
+      expect(heading('API key management')).toBeInTheDocument()
+
+      renderAt('/merchant/webhooks')
+      expect(heading('Webhook Settings')).toBeInTheDocument()
+    })
+
+    it('allows ADMIN to access admin approvals and redirects non-admins', () => {
+      authenticatedAs('MERCHANT')
+      renderAt('/admin/merchant-approvals')
+      expect(heading('Your business, at a glance')).toBeInTheDocument()
+
+      authenticatedAs('ADMIN')
+      renderAt('/admin/merchant-approvals')
+      expect(heading('Merchant Applications')).toBeInTheDocument()
     })
   })
 
@@ -154,8 +246,16 @@ describe('App routing', () => {
       expect(screen.queryByText(/future development phase/)).not.toBeInTheDocument()
     })
 
+    it('shows the merchant dashboard for MERCHANT', () => {
+      authenticatedAs('MERCHANT')
+      renderAt('/dashboard')
+
+      expect(heading('Your business, at a glance')).toBeInTheDocument()
+      expect(screen.queryByText(/future development phase/)).not.toBeInTheDocument()
+      expect(screen.queryByText('Customer dashboard')).not.toBeInTheDocument()
+    })
+
     it.each([
-      ['MERCHANT', 'Merchant dashboard'],
       ['COURIER', 'Courier dashboard'],
       ['ADMIN', 'Admin dashboard'],
     ])('shows a not-available page for %s', (role, title) => {
@@ -167,6 +267,7 @@ describe('App routing', () => {
       expect(screen.queryByText('Customer dashboard')).not.toBeInTheDocument()
     })
 
+<<<<<<< HEAD
     it('shows dispatch management to dispatcher users', async () => {
       authenticatedAs('DISPATCHER')
       renderAt('/dashboard')
@@ -186,6 +287,30 @@ describe('App routing', () => {
       renderAt('/reports')
       expect(await screen.findByRole('heading', { level: 1, name: 'Customer dashboard' }))
         .toBeInTheDocument()
+=======
+    it.each([
+      ['CUSTOMER', '/customer/dashboard'],
+      ['MERCHANT', '/merchant/dashboard'],
+      ['COURIER', '/courier/dashboard'],
+      ['DISPATCHER', '/dispatcher/dashboard'],
+      ['ADMIN', '/admin/dashboard'],
+    ])('redirects %s from /dashboard to %s', (role, path) => {
+      authenticatedAs(role)
+      renderAt('/dashboard')
+      expect(currentPath()).toBe(path)
+    })
+
+    it.each([
+      ['CUSTOMER', '/admin/dashboard', '/customer/dashboard'],
+      ['MERCHANT', '/courier/dashboard', '/merchant/dashboard'],
+      ['COURIER', '/dispatcher/dashboard', '/courier/dashboard'],
+      ['DISPATCHER', '/admin/dashboard', '/dispatcher/dashboard'],
+      ['ADMIN', '/customer/dashboard', '/admin/dashboard'],
+    ])('sends %s away from %s to their own dashboard', (role, path, expected) => {
+      authenticatedAs(role)
+      renderAt(path)
+      expect(currentPath()).toBe(expected)
+>>>>>>> develop
     })
 
     it('handles an unrecognised role safely', () => {
@@ -193,6 +318,58 @@ describe('App routing', () => {
       renderAt('/dashboard')
 
       expect(heading('Dashboard not available')).toBeInTheDocument()
+    })
+  })
+
+  describe('accounts awaiting approval', () => {
+    it.each([
+      ['MERCHANT', '/dashboard'],
+      ['MERCHANT', '/merchant/dashboard'],
+      ['MERCHANT', '/login'],
+      ['COURIER', '/dashboard'],
+      ['COURIER', '/courier/dashboard'],
+      ['COURIER', '/register/courier'],
+    ])('send a pending %s from %s to the application status page', async (role, path) => {
+      authenticatedAs(role, 'PENDING_APPROVAL')
+      renderAt(path)
+
+      expect(await screen.findByRole('heading', { level: 1, name: 'Application pending' }))
+        .toBeInTheDocument()
+      expect(currentPath()).toBe('/application/status')
+      expect(screen.queryByText(/dashboard/i, { selector: 'h1' })).not.toBeInTheDocument()
+    })
+
+    it('let a pending account view its profile', () => {
+      authenticatedAs('MERCHANT', 'PENDING_APPROVAL')
+      renderAt('/profile')
+
+      expect(heading('Your profile')).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Application status' }))
+        .toHaveAttribute('href', '/application/status')
+      expect(screen.queryByRole('link', { name: 'Dashboard' })).not.toBeInTheDocument()
+    })
+
+    it('send an active customer away from the application status page', () => {
+      authenticatedAs('CUSTOMER')
+      renderAt('/application/status')
+      expect(currentPath()).toBe('/customer/dashboard')
+    })
+  })
+
+  describe('parcel tracking', () => {
+    it('explains that tracking is not available yet instead of faking a result', async () => {
+      mockAuth()
+      renderAt('/track/SD-2026-000123')
+
+      expect(await screen.findByText('Tracking coming soon')).toBeInTheDocument()
+      expect(screen.getByText(/Online parcel tracking is not available yet/)).toBeInTheDocument()
+    })
+
+    it('rejects a malformed tracking number in the URL', () => {
+      mockAuth()
+      renderAt('/track/x')
+      expect(screen.getByRole('alert'))
+        .toHaveTextContent('That does not look like a SwiftDrop tracking number.')
     })
   })
 

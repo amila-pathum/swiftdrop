@@ -6,6 +6,7 @@ import '@fontsource/inter/500.css'
 import '@fontsource/inter/600.css'
 import '@fontsource/inter/700.css'
 import './index.css'
+import './merchant.css'
 import App from './App.jsx'
 import { AuthProvider } from './context/AuthContext.jsx'
 
