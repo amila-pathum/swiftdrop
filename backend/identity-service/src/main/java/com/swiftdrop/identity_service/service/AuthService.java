@@ -7,11 +7,11 @@ import com.swiftdrop.identity_service.dto.RegisterRequest;
 import com.swiftdrop.identity_service.dto.UserResponse;
 import com.swiftdrop.identity_service.entity.Role;
 import com.swiftdrop.identity_service.entity.User;
-import com.swiftdrop.identity_service.entity.UserStatus;
 import com.swiftdrop.identity_service.repository.UserRepository;
 import com.swiftdrop.identity_service.exception.AccountNotActiveException;
 import com.swiftdrop.identity_service.exception.DuplicateEmailException;
 import com.swiftdrop.identity_service.exception.InvalidCredentialsException;
+import com.swiftdrop.identity_service.exception.UserNotFoundException;
 import com.swiftdrop.identity_service.security.JwtService;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -39,22 +39,46 @@ public class AuthService {
         this.loginCodes = loginCodes;
     }
 
+    /** Customer sign-up: an ACTIVE CUSTOMER that can be used straight away. */
     @Transactional
     public UserResponse register(RegisterRequest request) {
-        String email = request.email().trim().toLowerCase(Locale.ROOT);
-        String name = request.name().trim();
+        return createAccount(request, Role.CUSTOMER);
+    }
 
+    /**
+     * Merchant sign-up: creates only the identity account (MERCHANT, awaiting
+     * approval). The business application itself belongs to the Merchant Service.
+     */
+    @Transactional
+    public UserResponse registerMerchant(RegisterRequest request) {
+        return createAccount(request, Role.MERCHANT);
+    }
+
+    /**
+     * Courier sign-up: creates only the identity account (COURIER, awaiting
+     * approval). The courier application itself belongs to the Courier Service.
+     */
+    @Transactional
+    public UserResponse registerCourier(RegisterRequest request) {
+        return createAccount(request, Role.COURIER);
+    }
+
+    // The role is chosen by the endpoint, never read from the request.
+    private UserResponse createAccount(RegisterRequest request, Role role) {
+        String email = normalizeEmail(request.email());
         if (userRepository.existsByEmail(email)) {
             throw new DuplicateEmailException();
         }
 
         User user = new User(
-            name,
+            request.name().trim(),
             email,
             passwordEncoder.encode(request.password()),
-            Role.CUSTOMER,
-            UserStatus.ACTIVE
+            role,
+            role.initialStatus()
         );
+        user.updateProfile(user.getName(), blankToNull(request.phone()),
+            blankToNull(request.address()));
 
         return UserResponse.from(userRepository.save(user));
     }
@@ -82,8 +106,23 @@ public class AuthService {
         return issueToken(loginCodes.redeem(request.code(), request.verifier()));
     }
 
+    /**
+     * Signs the user out everywhere: every access token issued so far stops
+     * working at the Identity Service at once. Other services verify tokens
+     * without a database lookup, so there a token ends only when it expires.
+     */
+    @Transactional
+    public void logout(long userId) {
+        User user = userRepository.findById(userId).orElseThrow(UserNotFoundException::new);
+        user.invalidateTokens();
+        userRepository.save(user);
+    }
+
+    // ACTIVE and PENDING_APPROVAL accounts may sign in; a pending merchant or
+    // courier gets a token without role authority (see JwtAuthenticationFilter).
+    // Suspended and disabled accounts are refused.
     private LoginResponse issueToken(User user) {
-        if (user.getStatus() != UserStatus.ACTIVE) {
+        if (!user.getStatus().canSignIn()) {
             throw new AccountNotActiveException();
         }
 
@@ -94,5 +133,9 @@ public class AuthService {
 
     private String normalizeEmail(String email) {
         return email.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private static String blankToNull(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 }

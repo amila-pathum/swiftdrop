@@ -44,11 +44,15 @@ const submitButton = () => screen.getByRole('button', { name: /create account|cr
 function fill({
   name = 'Test Customer',
   email = 'customer@example.com',
+  phone = '077 123 4567',
+  address = '12 Galle Road, Colombo 03',
   password = 'password123',
   confirmPassword = password,
 } = {}) {
   fireEvent.change(field('Full name'), { target: { value: name } })
   fireEvent.change(field('Email'), { target: { value: email } })
+  fireEvent.change(field('Phone number'), { target: { value: phone } })
+  fireEvent.change(field('Address'), { target: { value: address } })
   fireEvent.change(field('Password'), { target: { value: password } })
   fireEvent.change(field('Confirm password'), { target: { value: confirmPassword } })
 }
@@ -64,15 +68,28 @@ describe('RegisterPage', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: 'Create a customer account' }))
       .toBeInTheDocument()
-    expect(screen.getByText(/Courier, dispatcher and admin accounts are created by SwiftDrop administrators/))
+    expect(screen.getByText(/Dispatcher and admin accounts are created by SwiftDrop administrators/))
       .toBeInTheDocument()
-    expect(screen.getByText(/Merchant sign-up is coming soon/)).toBeInTheDocument()
-    expect(screen.getAllByRole('textbox')).toHaveLength(2)
-    expect(screen.queryByLabelText(/phone/i)).not.toBeInTheDocument()
+    // Name, email, phone and address; no role selection of any kind.
+    expect(screen.getAllByRole('textbox')).toHaveLength(4)
+    expect(screen.getByLabelText('Phone number')).toBeInTheDocument()
+    expect(screen.getByLabelText('Address')).toBeInTheDocument()
+    expect(screen.queryByLabelText(/role/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
     expect(screen.queryByRole('radio')).not.toBeInTheDocument()
     expect(screen.queryByText(/google/i)).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Sign in' })).toHaveAttribute('href', '/login')
+  })
+
+  it('links to the merchant and courier applications', () => {
+    mockAuth()
+    renderRegister()
+
+    const tabs = screen.getByRole('navigation', { name: 'Account type' })
+    expect(tabs).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Merchant' })).toHaveAttribute('href', '/register/merchant')
+    expect(screen.getByRole('link', { name: 'Courier' })).toHaveAttribute('href', '/register/courier')
+    expect(screen.getByRole('link', { name: 'Customer' })).toHaveAttribute('aria-current', 'page')
   })
 
   describe('validation', () => {
@@ -92,6 +109,8 @@ describe('RegisterPage', () => {
 
       expect(screen.getByText('Enter your full name.')).toBeInTheDocument()
       expect(screen.getByText('Enter your email address.')).toBeInTheDocument()
+      expect(screen.getByText('Enter your phone number.')).toBeInTheDocument()
+      expect(screen.getByText('Enter your address.')).toBeInTheDocument()
       expect(screen.getByText('Enter a password.')).toBeInTheDocument()
       expect(screen.getByText('Confirm your password.')).toBeInTheDocument()
       expect(field('Full name')).toHaveFocus()
@@ -109,6 +128,32 @@ describe('RegisterPage', () => {
       expect(screen.getByText('Enter a valid email address.')).toBeInTheDocument()
       expect(field('Email')).toHaveFocus()
       expect(auth.register).not.toHaveBeenCalled()
+    })
+
+    it.each([
+      ['letters', 'call me'],
+      ['too few digits', '0771234'],
+      ['too many digits', '0'.repeat(16)],
+    ])('rejects a phone number with %s', (_label, phone) => {
+      const auth = submitWith({ phone })
+      expect(screen.getByText('Enter a valid phone number, for example 077 123 4567.'))
+        .toBeInTheDocument()
+      expect(field('Phone number')).toHaveFocus()
+      expect(auth.register).not.toHaveBeenCalled()
+    })
+
+    it('rejects a whitespace-only address', () => {
+      const auth = submitWith({ address: '   ' })
+      expect(screen.getByText('Enter your address.')).toBeInTheDocument()
+      expect(auth.register).not.toHaveBeenCalled()
+    })
+
+    it('re-validates as the user corrects the form', () => {
+      submitWith({ email: 'not-an-email' })
+      expect(screen.getByText('Enter a valid email address.')).toBeInTheDocument()
+
+      fireEvent.change(field('Email'), { target: { value: 'fixed@example.com' } })
+      expect(screen.queryByText('Enter a valid email address.')).not.toBeInTheDocument()
     })
 
     it('rejects a name over 100 characters', () => {
@@ -147,18 +192,28 @@ describe('RegisterPage', () => {
   })
 
   describe('submission', () => {
-    it('registers with name, email and password only and goes to login', async () => {
+    it('registers with trimmed details, never a role, and goes to login', async () => {
       const auth = mockAuth({ register: vi.fn().mockResolvedValue(CREATED_USER) })
       renderRegister()
-      fill({ name: '  Test Customer ', email: ' Customer@Example.com ' })
+      fill({
+        name: '  Test Customer ',
+        email: ' Customer@Example.com ',
+        phone: ' +94 77 123 4567 ',
+        address: ' 12 Galle Road ',
+      })
 
       await act(async () => {
         fireEvent.click(submitButton())
       })
 
       expect(auth.register).toHaveBeenCalledTimes(1)
-      expect(auth.register.mock.calls[0]).toEqual(
-        ['Test Customer', 'Customer@Example.com', 'password123'])
+      expect(auth.register.mock.calls[0]).toEqual([{
+        name: 'Test Customer',
+        email: 'Customer@Example.com',
+        phone: '+94 77 123 4567',
+        address: '12 Galle Road',
+        password: 'password123',
+      }])
       expect(auth.login).not.toHaveBeenCalled()
       expect(screen.getByText('login route for customer@example.com')).toBeInTheDocument()
     })
