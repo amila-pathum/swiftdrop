@@ -68,7 +68,7 @@ class EmailNotificationServiceTest {
 
         SimpleMailMessage message = captor.getValue();
         assertThat(message.getTo()).containsExactly("customer@example.com");
-        assertThat(message.getSubject()).contains("SD-123 is on the way (In Transit)");
+        assertThat(message.getSubject()).isEqualTo("SwiftDrop Update: Parcel SD-123 is now In Transit");
         assertThat(message.getText()).contains("SD-123");
         assertThat(message.getText()).contains("In Transit");
     }
@@ -127,7 +127,7 @@ class EmailNotificationServiceTest {
 
         SimpleMailMessage message = captor.getValue();
         assertThat(message.getTo()).containsExactly("fallback@example.com");
-        assertThat(message.getSubject()).contains("SD-456 has been delivered!");
+        assertThat(message.getSubject()).isEqualTo("SwiftDrop Update: Parcel SD-456 is now Delivered");
         assertThat(message.getText()).contains("Delivered");
     }
 
