@@ -10,6 +10,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -40,11 +42,13 @@ public class ParcelService {
         return saved;
     }
 
-    /** Returns all parcels created by the given customer, newest first. */
-    @Transactional(readOnly = true)
-    public List<Parcel> getMyParcels(UUID senderId) {
-        Objects.requireNonNull(senderId, "senderId is required");
-        return parcels.findBySenderIdOrderByCreatedAtDesc(senderId);
+    public List<Parcel> listParcels(ParcelStatus status) {
+        return status == null ? parcels.findAll()
+                : parcels.findByStatusOrderByCreatedAtAsc(status);
+    }
+
+    public Optional<Parcel> findParcel(UUID parcelId) {
+        return parcels.findById(parcelId);
     }
 
     /** Records the old and new status in the same transaction as the update. */
