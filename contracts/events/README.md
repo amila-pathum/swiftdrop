@@ -1,6 +1,6 @@
 # Event contracts
 
-Messages that services publish to RabbitMQ. None exist yet. Describe each event before it is first published, as a JSON Schema file named `<domain>.<event>.v<version>.schema.json`, for example `parcel.status-changed.v1.schema.json`.
+Messages that services publish to RabbitMQ. Describe each event before it is first published, as a JSON Schema file named `<domain>.<event>.v<version>.schema.json`, for example `parcel.status-changed.v1.schema.json`.
 
 Conventions:
 
@@ -71,3 +71,11 @@ The dead-letter exchange routes failed messages to:
 Consumers in other services must configure their own
 retry policies.
 
+# Parcel Assigned Event
+
+The Dispatch Service publishes `parcel.assigned` to the existing durable
+`swiftdrop.events` topic exchange after its assignment transaction commits.
+Its payload is defined in [parcel.assigned.v1.schema.json](./parcel.assigned.v1.schema.json).
+The current Dispatch implementation updates its own demo projection; Parcel
+Core has no assignment API yet, so this event does not imply that Parcel Core's
+canonical `assigned_courier_id` has changed.

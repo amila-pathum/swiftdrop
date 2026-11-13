@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Parcel Assigned",
+  "description": "Published after a dispatcher assigns or reassigns a courier in the Dispatch projection.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["eventId", "eventType", "occurredAt", "parcelId", "trackingNumber", "courierId", "assignedBy"],
+  "properties": {
+    "eventId": { "type": "string", "format": "uuid" },
+    "eventType": { "const": "ParcelAssigned" },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "parcelId": { "type": "string", "format": "uuid" },
+    "trackingNumber": { "type": "string" },
+    "courierId": { "type": "string", "format": "uuid" },
+    "previousCourierId": { "type": ["string", "null"], "format": "uuid" },
+    "assignedBy": { "type": "string" }
+  }
+}

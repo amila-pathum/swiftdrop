@@ -15,8 +15,10 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.swiftdrop.dispatch.repository.DispatchRepository;
 
 import java.time.Instant;
 import java.util.Base64;
@@ -45,6 +47,7 @@ class SecurityConfigTest {
     private static final byte[] OTHER_KEY = bytes(32, 100);
 
     @Autowired MockMvc mockMvc;
+    @MockitoBean DispatchRepository dispatchRepository;
 
     /** Test-only endpoint showing the convention for a protected, role-restricted endpoint. */
     @TestConfiguration
@@ -123,6 +126,14 @@ class SecurityConfigTest {
     void anotherRoleIsForbidden() throws Exception {
         mockMvc.perform(get("/test/security/merchant-only")
                 .header("Authorization", signed(identityToken("CUSTOMER"), KEY)))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.error").value("Access is denied"));
+    }
+
+    @Test
+    void dispatchEndpointsRejectNonDispatcherRoles() throws Exception {
+        mockMvc.perform(get("/api/dispatch/parcels/unassigned")
+                .header("Authorization", signed(identityToken("COURIER"), KEY)))
             .andExpect(status().isForbidden())
             .andExpect(jsonPath("$.error").value("Access is denied"));
     }
