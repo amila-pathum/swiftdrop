@@ -137,6 +137,29 @@ export const ENDPOINTS = Object.freeze({
     // PLANNED (Parcel Service, public). -> { trackingNumber, status,
     //   lastUpdatedAt, history: [{ status, occurredAt, note }] }; 404 if unknown.
   },
+
+  // ------------------------------------------------------------ Notification
+  notifications: {
+    method: 'GET',
+    path: '/api/notifications',
+    available: true,
+    auth: true,
+    // Notification Service. -> Array of NotificationResponse { id, userId, trackingNumber, title, message, read, createdAt }
+  },
+  unreadNotificationsCount: {
+    method: 'GET',
+    path: '/api/notifications/unread-count',
+    available: true,
+    auth: true,
+    // Notification Service. -> { count: number }
+  },
+  markNotificationAsRead: {
+    method: 'PATCH',
+    path: '/api/notifications/:id/read',
+    available: true,
+    auth: true,
+    // Notification Service. -> Updated NotificationResponse { id, ..., read: true }
+  },
 })
 
 /** Substitutes `:name` segments with URL-encoded values. */
