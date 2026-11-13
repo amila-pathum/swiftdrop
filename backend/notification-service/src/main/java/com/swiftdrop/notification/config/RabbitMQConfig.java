@@ -1,5 +1,8 @@
 package com.swiftdrop.notification.config;
 
+import org.springframework.context.annotation.Configuration;
+
+@Configuration(proxyBeanMethods = false)
 public class RabbitMQConfig {
 
         public static final String EXCHANGE = "swiftdrop.events";

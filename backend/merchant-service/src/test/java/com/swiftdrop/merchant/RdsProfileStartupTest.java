@@ -29,13 +29,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Starts the service with the real {@code rds} profile against a throwaway
- * PostgreSQL standing in for the service's own RDS database (merchant_db,
- * owned by merchant_user). The connection itself comes from the container
- * ({@code @ServiceConnection}), so this never contacts AWS; the DB_* values
- * below are what run-service.sh would map for this service, with a host that
- * cannot resolve. The container's URL replaces the profile's, including its
- * sslmode, so the profile file itself is checked separately.
+ * Tests the RDS profile using a temporary PostgreSQL container.
+ * Does not connect to the real AWS RDS database.
  */
 @SpringBootTest(properties = {
     "swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
@@ -54,102 +49,223 @@ class RdsProfileStartupTest {
 
     @Container
     @ServiceConnection
-    static final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:18")
-        .withDatabaseName(DATABASE)
-        .withUsername(USERNAME);
+    static final PostgreSQLContainer postgres =
+            new PostgreSQLContainer("postgres:18")
+                    .withDatabaseName(DATABASE)
+                    .withUsername(USERNAME);
 
-    @Autowired MockMvc mockMvc;
-    @Autowired JdbcTemplate jdbc;
-    @Autowired DataSource dataSource;
-    @Autowired Flyway flyway;
-    @Autowired EntityManagerFactory entityManagerFactory;
-    @Autowired Environment environment;
+    @Autowired
+    MockMvc mockMvc;
+
+    @Autowired
+    JdbcTemplate jdbc;
+
+    @Autowired
+    DataSource dataSource;
+
+    @Autowired
+    Flyway flyway;
+
+    @Autowired
+    EntityManagerFactory entityManagerFactory;
+
+    @Autowired
+    Environment environment;
 
     @Test
     void startsAndReportsHealthy() throws Exception {
+
         mockMvc.perform(get("/actuator/health"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.status").value("UP"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"));
     }
 
-    // The service has no migrations yet: Flyway only records its history in public.
+    /**
+     * Verify Flyway creates the three merchant migrations
+     * in the public schema only.
+     */
     @Test
     void flywayUsesOnlyThePublicSchema() {
+
         assertThat(jdbc.queryForList("""
-            SELECT schema_name FROM information_schema.schemata
-            WHERE schema_name NOT LIKE 'pg\\_%' AND schema_name <> 'information_schema'
+            SELECT schema_name
+            FROM information_schema.schemata
+            WHERE schema_name NOT LIKE 'pg\\_%'
+              AND schema_name <> 'information_schema'
             ORDER BY schema_name
-            """, String.class)).containsExactly("public");
-        assertThat(jdbc.queryForObject("SELECT current_schema()", String.class)).isEqualTo("public");
+            """, String.class))
+                .containsExactly("public");
+
+        assertThat(jdbc.queryForObject(
+                "SELECT current_schema()",
+                String.class))
+                .isEqualTo("public");
+
         assertThat(jdbc.queryForList(
-            "SELECT version || ':' || type FROM public.flyway_schema_history"
-                + " WHERE version IS NOT NULL ORDER BY installed_rank",
-            String.class)).containsExactly();
+                "SELECT version || ':' || type " +
+                "FROM public.flyway_schema_history " +
+                "WHERE version IS NOT NULL " +
+                "ORDER BY installed_rank",
+                String.class))
+                .containsExactly(
+                        "1:SQL",
+                        "2:SQL",
+                        "3:SQL"
+                );
+
         assertThat(jdbc.queryForList(
-            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name",
-            String.class)).containsExactly("flyway_schema_history");
+                "SELECT table_name " +
+                "FROM information_schema.tables " +
+                "WHERE table_schema = 'public' " +
+                "ORDER BY table_name",
+                String.class))
+                .containsExactly(
+                        "flyway_schema_history",
+                        "merchant_api_keys",
+                        "merchant_webhook_settings",
+                        "merchants"
+                );
     }
 
     @Test
     void flywayAndHibernateAreConfiguredForThePublicSchema() {
-        assertThat(flyway.getConfiguration().getDefaultSchema()).isEqualTo("public");
-        assertThat(flyway.getConfiguration().getSchemas()).containsExactly("public");
-        assertThat(flyway.getConfiguration().isBaselineOnMigrate()).isFalse();
+
+        assertThat(flyway.getConfiguration().getDefaultSchema())
+                .isEqualTo("public");
+
+        assertThat(flyway.getConfiguration().getSchemas())
+                .containsExactly("public");
+
+        assertThat(flyway.getConfiguration().isBaselineOnMigrate())
+                .isFalse();
+
         assertThat(entityManagerFactory.getProperties())
-            .containsEntry("hibernate.default_schema", "public")
-            .containsEntry("hibernate.hbm2ddl.auto", "validate");
+                .containsEntry(
+                        "hibernate.default_schema",
+                        "public"
+                )
+                .containsEntry(
+                        "hibernate.hbm2ddl.auto",
+                        "validate"
+                );
     }
 
-    // A database whose public schema already holds tables but no Flyway
-    // history must stop the migration instead of being baselined.
+    /**
+     * Flyway must reject a non-empty database without
+     * migration history.
+     */
     @Test
     void nonEmptyDatabaseWithoutFlywayHistoryIsRejected() {
-        jdbc.execute("CREATE DATABASE baseline_guard");
-        DataSource guard = new DriverManagerDataSource(
-            "jdbc:postgresql://" + postgres.getHost() + ":" + postgres.getMappedPort(5432) + "/baseline_guard",
-            postgres.getUsername(), postgres.getPassword());
-        new JdbcTemplate(guard).execute("CREATE TABLE created_outside_flyway (id int PRIMARY KEY)");
 
-        Flyway guarded = Flyway.configure().configuration(flyway.getConfiguration()).dataSource(guard).load();
+        jdbc.execute("CREATE DATABASE baseline_guard");
+
+        DataSource guard = new DriverManagerDataSource(
+                "jdbc:postgresql://" +
+                postgres.getHost() + ":" +
+                postgres.getMappedPort(5432) +
+                "/baseline_guard",
+                postgres.getUsername(),
+                postgres.getPassword()
+        );
+
+        new JdbcTemplate(guard).execute(
+                "CREATE TABLE created_outside_flyway " +
+                "(id int PRIMARY KEY)"
+        );
+
+        Flyway guarded = Flyway.configure()
+                .configuration(flyway.getConfiguration())
+                .dataSource(guard)
+                .load();
+
         assertThatThrownBy(guarded::migrate)
-            .isInstanceOf(FlywayException.class)
-            .hasMessageContaining("non-empty schema");
+                .isInstanceOf(FlywayException.class)
+                .hasMessageContaining("non-empty schema");
     }
 
     @Test
     void poolSettingsComeFromTheProfile() {
-        HikariDataSource hikari = (HikariDataSource) dataSource;
-        assertThat(hikari.getMaximumPoolSize()).isEqualTo(2);
-        assertThat(hikari.getMinimumIdle()).isZero();
-        assertThat(hikari.getIdleTimeout()).isEqualTo(120_000);
-        assertThat(hikari.getMaxLifetime()).isEqualTo(1_500_000);
-        assertThat(hikari.getConnectionTimeout()).isEqualTo(15_000);
+
+        HikariDataSource hikari =
+                (HikariDataSource) dataSource;
+
+        assertThat(hikari.getMaximumPoolSize())
+                .isEqualTo(2);
+
+        assertThat(hikari.getMinimumIdle())
+                .isZero();
+
+        assertThat(hikari.getIdleTimeout())
+                .isEqualTo(120_000);
+
+        assertThat(hikari.getMaxLifetime())
+                .isEqualTo(1_500_000);
+
+        assertThat(hikari.getConnectionTimeout())
+                .isEqualTo(15_000);
     }
 
-    // What the service would use on RDS: the container replaces only the connection.
     @Test
     void profileResolvesToTheServiceDatabaseAndUser() {
-        assertThat(environment.getProperty("spring.datasource.url"))
-            .isEqualTo("jdbc:postgresql://rds-host.invalid:5432/" + DATABASE + "?sslmode=require");
-        assertThat(environment.getProperty("spring.datasource.username")).isEqualTo(USERNAME);
+
+        assertThat(environment.getProperty(
+                "spring.datasource.url"))
+                .isEqualTo(
+                    "jdbc:postgresql://rds-host.invalid:5432/" +
+                    DATABASE + "?sslmode=require"
+                );
+
+        assertThat(environment.getProperty(
+                "spring.datasource.username"))
+                .isEqualTo(USERNAME);
     }
 
-    // The container's URL replaces the profile's, so check the profile file itself.
     @Test
-    void profileUsesEncryptedConnectionsAndThePublicSchema() throws Exception {
+    void profileUsesEncryptedConnectionsAndThePublicSchema()
+            throws Exception {
+
         Properties rds = new Properties();
-        try (var in = new ClassPathResource("application-rds.properties").getInputStream()) {
+
+        try (var in = new ClassPathResource(
+                "application-rds.properties").getInputStream()) {
             rds.load(in);
         }
-        assertThat(rds.getProperty("spring.datasource.url"))
-            .isEqualTo("jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}?sslmode=require");
-        assertThat(rds.getProperty("spring.datasource.username")).isEqualTo("${DB_USERNAME}");
-        assertThat(rds.getProperty("spring.datasource.password")).isEqualTo("${DB_PASSWORD}");
-        assertThat(rds.stringPropertyNames()).noneMatch(key -> key.contains("sslrootcert"));
-        assertThat(rds.getProperty("spring.flyway.default-schema")).isEqualTo("public");
-        assertThat(rds.getProperty("spring.flyway.schemas")).isEqualTo("public");
-        assertThat(rds.getProperty("spring.jpa.properties.hibernate.default_schema")).isEqualTo("public");
-        assertThat(rds.getProperty("spring.jpa.hibernate.ddl-auto")).isEqualTo("validate");
-        assertThat(rds.getProperty("spring.flyway.baseline-on-migrate")).isEqualTo("false");
+
+        assertThat(rds.getProperty(
+                "spring.datasource.url"))
+                .isEqualTo(
+                    "jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}?sslmode=require"
+                );
+
+        assertThat(rds.getProperty(
+                "spring.datasource.username"))
+                .isEqualTo("${DB_USERNAME}");
+
+        assertThat(rds.getProperty(
+                "spring.datasource.password"))
+                .isEqualTo("${DB_PASSWORD}");
+
+        assertThat(rds.stringPropertyNames())
+                .noneMatch(key -> key.contains("sslrootcert"));
+
+        assertThat(rds.getProperty(
+                "spring.flyway.default-schema"))
+                .isEqualTo("public");
+
+        assertThat(rds.getProperty(
+                "spring.flyway.schemas"))
+                .isEqualTo("public");
+
+        assertThat(rds.getProperty(
+                "spring.jpa.properties.hibernate.default_schema"))
+                .isEqualTo("public");
+
+        assertThat(rds.getProperty(
+                "spring.jpa.hibernate.ddl-auto"))
+                .isEqualTo("validate");
+
+        assertThat(rds.getProperty(
+                "spring.flyway.baseline-on-migrate"))
+                .isEqualTo("false");
     }
 }
