@@ -1,5 +1,6 @@
 package com.swiftdrop.parcel.service;
 
+import com.swiftdrop.parcel.dto.response.ParcelReceipt;
 import com.swiftdrop.parcel.entity.Parcel;
 import com.swiftdrop.parcel.entity.ParcelStatus;
 import com.swiftdrop.parcel.entity.ParcelStatusHistory;
@@ -10,6 +11,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -79,6 +81,38 @@ public class ParcelService {
         }
 
         return changeStatus(parcelId, ParcelStatus.CANCELLED, customerId, "Cancelled by customer");
+    }
+
+    /**
+     * Generates a downloadable PDF receipt for a delivered parcel owned by the customer.
+     */
+    @Transactional(readOnly = true)
+    public ParcelReceipt generateReceipt(UUID parcelId, UUID customerId) {
+        Objects.requireNonNull(parcelId, "parcelId is required");
+        Objects.requireNonNull(customerId, "customerId is required");
+
+        Parcel parcel = parcels.findById(parcelId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parcel not found"));
+
+        if (!customerId.equals(parcel.getSenderId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access is denied");
+        }
+
+        if (parcel.getStatus() != ParcelStatus.DELIVERED) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Receipt is only available for delivered parcels");
+        }
+
+        Instant deliveredAt = history.findByParcelIdOrderByChangedAtAsc(parcelId).stream()
+                .filter(h -> h.getNewStatus() == ParcelStatus.DELIVERED)
+                .map(ParcelStatusHistory::getChangedAt)
+                .reduce((first, second) -> second)
+                .orElse(parcel.getUpdatedAt());
+
+        byte[] pdfContent = PdfReceiptGenerator.generate(parcel, deliveredAt);
+        String filename = "receipt-" + parcel.getTrackingNumber() + ".pdf";
+
+        return new ParcelReceipt(filename, pdfContent);
     }
 
     /** Records the old and new status in the same transaction as the update. */

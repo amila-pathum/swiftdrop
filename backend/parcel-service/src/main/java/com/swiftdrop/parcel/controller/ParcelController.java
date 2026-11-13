@@ -2,12 +2,17 @@ package com.swiftdrop.parcel.controller;
 
 import com.swiftdrop.parcel.dto.request.CreateParcelRequest;
 import com.swiftdrop.parcel.dto.response.DispatchParcelResponse;
+import com.swiftdrop.parcel.dto.response.ParcelReceipt;
 import com.swiftdrop.parcel.dto.response.ParcelResponse;
 import com.swiftdrop.parcel.entity.ParcelStatus;
 import com.swiftdrop.parcel.service.ParcelCreationService;
 import com.swiftdrop.parcel.service.ParcelService;
 import jakarta.validation.Valid;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -70,6 +75,17 @@ public class ParcelController {
     public ParcelResponse cancelParcel(@PathVariable("id") UUID id,
                                        @AuthenticationPrincipal Jwt jwt) {
         return ParcelResponse.from(parcelService.cancelParcel(id, extractUserId(jwt)));
+    }
+
+    @GetMapping("/{id}/receipt")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<byte[]> getReceipt(@PathVariable("id") UUID id,
+                                            @AuthenticationPrincipal Jwt jwt) {
+        ParcelReceipt receipt = parcelService.generateReceipt(id, extractUserId(jwt));
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDisposition(ContentDisposition.attachment().filename(receipt.filename()).build());
+        return new ResponseEntity<>(receipt.content(), headers, HttpStatus.OK);
     }
 
     /** Parses and validates the JWT subject as a UUID. Shared by all endpoints. */
