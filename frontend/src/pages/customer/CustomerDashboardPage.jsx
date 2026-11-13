@@ -1,3 +1,6 @@
+import { ButtonLink } from '../../components/Button'
+import EmptyState from '../../components/EmptyState'
+import PageHeader from '../../components/PageHeader'
 import { useAuth } from '../../context/AuthContext'
 
 export default function CustomerDashboardPage() {
@@ -5,9 +8,15 @@ export default function CustomerDashboardPage() {
 
   return (
     <section>
-      <h1>Customer dashboard</h1>
-      <p>Welcome, {user?.name}.</p>
-      <p>Your deliveries and delivery requests will appear here.</p>
+      <PageHeader
+        title="Customer dashboard"
+        description={<>Welcome, {user?.name}.</>}
+        actions={<ButtonLink to="/track" variant="outline">Track a parcel</ButtonLink>}
+      />
+      <EmptyState
+        title="No deliveries yet"
+        description="Your deliveries and delivery requests will appear here."
+      />
     </section>
   )
 }

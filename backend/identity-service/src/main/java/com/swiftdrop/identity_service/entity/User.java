@@ -4,15 +4,9 @@ import jakarta.persistence.*;
 import java.time.Instant;
 
 @Entity
-@Table(
-    name = "users",
-    uniqueConstraints = {
-        @UniqueConstraint(
-            name = "uk_users_email",
-            columnNames = "email"
-        )
-    }
-)
+@Table(name = "users", uniqueConstraints = {
+        @UniqueConstraint(name = "uk_users_email", columnNames = "email")
+})
 public class User {
 
     @Id
@@ -43,11 +37,21 @@ public class User {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    @Column(name = "phone", length = 30)
+    private String phone;
+
+    @Column(name = "address", length = 500)
+    private String address;
+
+    // Carried in every access token; a token with an older version is refused.
+    @Column(name = "token_version", nullable = false)
+    private int tokenVersion;
+
     protected User() {
     }
 
     public User(String name, String email, String passwordHash,
-                Role role, UserStatus status) {
+            Role role, UserStatus status) {
         this.name = name;
         this.email = email;
         this.passwordHash = passwordHash;
@@ -101,5 +105,36 @@ public class User {
 
     public Instant getUpdatedAt() {
         return updatedAt;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public String getAddress() {
+        return address;
+    }
+
+    public void updateProfile(String name, String phone, String address) {
+        this.name = name;
+        this.phone = phone;
+        this.address = address;
+    }
+
+    public void updatePassword(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
+    public int getTokenVersion() {
+        return tokenVersion;
+    }
+
+    /** Invalidates every access token issued to this user so far. */
+    public void invalidateTokens() {
+        tokenVersion++;
+    }
+
+    public void changeStatus(UserStatus status) {
+        this.status = status;
     }
 }

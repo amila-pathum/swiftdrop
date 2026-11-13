@@ -9,7 +9,9 @@ spring:
             - id: identity-auth
               uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
               predicates:
-                - Path=/api/auth/register,/api/auth/login,/api/auth/google/exchange
+                # Registration (customer, merchant, courier), sign-in, logout and
+                # password reset. The Identity Service decides which are public.
+                - Path=/api/auth/**
             # Browser redirects of the Google sign-in flow. Redirects, query
             # strings and the short-lived session cookie pass through unchanged.
             - id: identity-google-sign-in
@@ -19,7 +21,9 @@ spring:
             - id: identity-users
               uri: ${IDENTITY_SERVICE_URL:http://localhost:8081}
               predicates:
-                - Path=/api/users/me
+                # /api/users/me and its sub-paths (profile, change-password), and
+                # account administration, which the Identity Service limits to ADMIN.
+                - Path=/api/users/**,/api/admin/users/**
             # One path prefix per service. A service owns everything under its prefix.
             # Notification Service is internal (backend calls and RabbitMQ) and has no route.
             - id: parcel-service

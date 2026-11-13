@@ -20,6 +20,18 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Authenticates requests carrying a SwiftDrop access token.
+ *
+ * <p>The token is only a pointer: the user is loaded again on every request and
+ * the token is refused when the account can no longer sign in, or when its
+ * email, role, status or token version differ from the token's (so a logout,
+ * password reset, activation or suspension takes effect here immediately).
+ *
+ * <p>Only ACTIVE accounts receive their {@code ROLE_<role>} authority. An
+ * account awaiting approval is authenticated but holds no authority, so it can
+ * reach only endpoints open to every signed-in user (its own profile).
+ */
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
@@ -49,20 +61,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         }
 
         try {
-            AuthenticatedUser claimsPrincipal = jwtService.parseToken(authorization.substring(7));
+            TokenClaims claims = jwtService.parseClaims(authorization.substring(7));
+            AuthenticatedUser claimsPrincipal = claims.principal();
             User user = userRepository.findById(claimsPrincipal.id())
-                .filter(candidate -> candidate.getStatus() == UserStatus.ACTIVE)
+                .filter(candidate -> candidate.getStatus().canSignIn())
                 .orElseThrow(() -> new JwtException("Account unavailable"));
             if (!user.getEmail().equals(claimsPrincipal.email())
-                    || user.getRole() != claimsPrincipal.role()) {
+                    || user.getRole() != claimsPrincipal.role()
+                    || user.getTokenVersion() != claims.tokenVersion()
+                    || (claims.status() != null && claims.status() != user.getStatus())) {
                 throw new JwtException("Stale token claims");
             }
 
             AuthenticatedUser principal = new AuthenticatedUser(
                 user.getId(), user.getEmail(), user.getRole());
+            List<SimpleGrantedAuthority> authorities = user.getStatus() == UserStatus.ACTIVE
+                ? List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
+                : List.of();
             var authentication = new UsernamePasswordAuthenticationToken(
-                principal, null,
-                List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name())));
+                principal, null, authorities);
             SecurityContextHolder.getContext().setAuthentication(authentication);
             filterChain.doFilter(request, response);
         } catch (JwtException | IllegalArgumentException exception) {

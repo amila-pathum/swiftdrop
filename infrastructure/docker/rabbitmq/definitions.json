@@ -1,0 +1,100 @@
+{
+    "exchanges": [
+        {
+            "name": "swiftdrop.events",
+            "vhost": "/",
+            "type": "topic",
+            "durable": true,
+            "auto_delete": false,
+            "internal": false,
+            "arguments": {}
+        },
+        {
+            "name": "swiftdrop.dlx",
+            "vhost": "/",
+            "type": "topic",
+            "durable": true,
+            "auto_delete": false,
+            "internal": false,
+            "arguments": {}
+        }
+    ],
+    "queues": [
+        {
+            "name": "notification.parcel-status-changed",
+            "vhost": "/",
+            "durable": true,
+            "auto_delete": false,
+            "arguments": {
+                "x-dead-letter-exchange": "swiftdrop.dlx",
+                "x-dead-letter-routing-key": "notification.failed"
+            }
+        },
+        {
+            "name": "webhook.parcel-status-changed",
+            "vhost": "/",
+            "durable": true,
+            "auto_delete": false,
+            "arguments": {
+                "x-dead-letter-exchange": "swiftdrop.dlx",
+                "x-dead-letter-routing-key": "notification.failed"
+            }
+        },
+        {
+            "name": "reports.parcel-status-changed",
+            "vhost": "/",
+            "durable": true,
+            "auto_delete": false,
+            "arguments": {
+                "x-dead-letter-exchange": "swiftdrop.dlx",
+                "x-dead-letter-routing-key": "notification.failed"
+            }
+        },
+        {
+            "name": "notification.dlq",
+            "vhost": "/",
+            "durable": true,
+            "auto_delete": false,
+            "arguments": {}
+        }
+    ],
+    "bindings": [
+        {
+            "source": "swiftdrop.events",
+            "vhost": "/",
+            "destination": "notification.parcel-status-changed",
+            "destination_type": "queue",
+            "routing_key": "parcel.status-changed",
+            "arguments": {}
+        },
+        {
+            "source": "swiftdrop.events",
+            "vhost": "/",
+            "destination": "webhook.parcel-status-changed",
+            "destination_type": "queue",
+            "routing_key": "parcel.status-changed",
+            "arguments": {}
+        },
+        {
+            "source": "swiftdrop.events",
+            "vhost": "/",
+            "destination": "reports.parcel-status-changed",
+            "destination_type": "queue",
+            "routing_key": "parcel.status-changed",
+            "arguments": {}
+        },
+        {
+            "source": "swiftdrop.dlx",
+            "vhost": "/",
+            "destination": "notification.dlq",
+            "destination_type": "queue",
+            "routing_key": "notification.failed",
+            "arguments": {}
+        }
+    ],
+    "vhosts": [
+        {
+            "name": "/"
+        }
+    ]
+}
