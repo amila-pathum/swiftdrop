@@ -5,7 +5,7 @@ import { dispatchService } from '../../services/dispatchService'
 
 const EMPTY_PAGE = { content: [], page: 0, totalPages: 0, totalElements: 0 }
 
-function ParcelTable({ parcels, onAssign, onDetails, emptyMessage }) {
+function ParcelTable({ parcels, onAssign, onCancel, onDetails, emptyMessage }) {
   if (parcels.length === 0) {
     return <p className="dispatch-empty">{emptyMessage}</p>
   }
@@ -39,9 +39,16 @@ function ParcelTable({ parcels, onAssign, onDetails, emptyMessage }) {
               <td>{new Date(parcel.createdAt).toLocaleDateString()}</td>
               <td>
                 {parcel.status === 'CREATED' && (
-                  <Button variant="secondary" onClick={() => onAssign(parcel)}>
-                    {parcel.courierId ? 'Reassign' : 'Assign'}
-                  </Button>
+                  <>
+                    <Button variant="secondary" onClick={() => onAssign(parcel)}>
+                      {parcel.courierId ? 'Reassign' : 'Assign'}
+                    </Button>
+                    {parcel.courierId && (
+                      <Button variant="secondary" onClick={() => onCancel(parcel)}>
+                        Cancel assignment
+                      </Button>
+                    )}
+                  </>
                 )}
               </td>
             </tr>
@@ -147,6 +154,16 @@ export default function DispatcherDashboardPage() {
     }
   }
 
+  const cancelAssignment = async (parcel) => {
+    try {
+      setError('')
+      await dispatchService.cancelAssignment(parcel.parcelId)
+      await refresh()
+    } catch (requestError) {
+      setError(requestError.message || 'Assignment could not be cancelled.')
+    }
+  }
+
   const submitUnassignedFilters = (event) => {
     event.preventDefault()
     setUnassignedPage(0)
@@ -181,15 +198,16 @@ export default function DispatcherDashboardPage() {
         {loading && couriers.length === 0 ? (
           <div className="dispatch-loading"><LoadingSpinner label="Loading courier workload" /></div>
         ) : couriers.length === 0 ? (
-          <p className="dispatch-empty">No courier profiles are available in the dispatch projection.</p>
+          <p className="dispatch-empty">No courier profiles were returned by courier service.</p>
         ) : (
           <div className="dispatch-courier-grid">
             {couriers.map((courier) => (
               <article className="dispatch-courier-card" key={courier.courierId}>
                 <div>
                   <strong>{courier.name}</strong>
-                  <span className={courier.available ? 'availability available' : 'availability unavailable'}>
-                    {courier.available ? 'Available' : 'Unavailable'}
+                  <span className={courier.active && courier.available
+                    ? 'availability available' : 'availability unavailable'}>
+                    {!courier.active ? 'Inactive' : courier.available ? 'Available' : 'Unavailable'}
                   </span>
                 </div>
                 <span className="workload-count">{courier.activeParcelCount}<small> active parcels</small></span>
@@ -228,7 +246,7 @@ export default function DispatcherDashboardPage() {
             <div className="dispatch-loading"><LoadingSpinner label="Loading unassigned parcels" /></div>
           ) : (
             <>
-              <ParcelTable parcels={unassigned.content} onAssign={openAssign}
+              <ParcelTable parcels={unassigned.content} onAssign={openAssign} onCancel={cancelAssignment}
                 onDetails={(id) => setSelectedParcel({ parcelId: id })}
                 emptyMessage="No unassigned parcels match these filters." />
               <Pagination result={unassigned} onPageChange={setUnassignedPage} />
@@ -260,7 +278,7 @@ export default function DispatcherDashboardPage() {
             <div className="dispatch-loading"><LoadingSpinner label="Loading parcels" /></div>
           ) : (
             <>
-              <ParcelTable parcels={parcels.content} onAssign={openAssign}
+              <ParcelTable parcels={parcels.content} onAssign={openAssign} onCancel={cancelAssignment}
                 onDetails={(id) => setSelectedParcel({ parcelId: id })}
                 emptyMessage="No parcels match these filters." />
               <Pagination result={parcels} onPageChange={setParcelPage} />
@@ -283,8 +301,10 @@ export default function DispatcherDashboardPage() {
                 onChange={(event) => setAssignmentCourier(event.target.value)}>
                 <option value="">Select a courier</option>
                 {couriers.map((courier) => (
-                  <option value={courier.courierId} key={courier.courierId}>
-                    {courier.name} · {courier.activeParcelCount} active · {courier.available ? 'Available' : 'Unavailable'}
+                  <option value={courier.courierId} key={courier.courierId}
+                    disabled={!courier.active || !courier.available}>
+                    {courier.name} · {courier.activeParcelCount} active · {
+                      !courier.active ? 'Inactive' : courier.available ? 'Available' : 'Unavailable'}
                   </option>
                 ))}
               </select>

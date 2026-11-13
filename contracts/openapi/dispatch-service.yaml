@@ -3,8 +3,9 @@ info:
   title: SwiftDrop Dispatch and Reports API
   version: 1.0.0
   description: |
-    Dispatcher/Admin APIs. Parcel and courier data currently comes from the
-    Dispatch-owned demo projection; see the service TODOs for integration points.
+    Dispatcher/Admin APIs. Parcel and courier data uses owner-service HTTP
+    clients when DISPATCH_DATA_SOURCE=http, or the explicitly selected Dispatch
+    demo projection fallback when DISPATCH_DATA_SOURCE=projection.
 servers:
   - url: http://localhost:8085
 security:
@@ -73,24 +74,39 @@ paths:
         '404': {$ref: '#/components/responses/NotFound'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
-  /api/dispatch/parcels/{parcelId}/assignment:
+  /api/dispatch/deliveries:
+    get:
+      tags: [Dispatch]
+      summary: Search delivery records by status and tracking number
+      parameters:
+        - {$ref: '#/components/parameters/page'}
+        - {$ref: '#/components/parameters/pageSize'}
+        - {name: status, in: query, schema: {type: string, enum: [PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, FAILED]}}
+        - {name: trackingNumber, in: query, schema: {type: string, maxLength: 80}}
+        - {$ref: '#/components/parameters/sort'}
+        - {$ref: '#/components/parameters/direction'}
+      responses:
+        '200': {$ref: '#/components/responses/ParcelPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/dispatch/assignments:
     post:
       tags: [Dispatch]
-      summary: Assign or reassign a courier before pickup
-      parameters:
-        - {$ref: '#/components/parameters/parcelId'}
+      summary: Assign or reassign a courier to a CREATED parcel
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [courierId]
+              required: [parcelId, courierId]
               properties:
+                parcelId: {type: string, format: uuid}
                 courierId: {type: string, format: uuid}
       responses:
         '200':
-          description: Assignment and audit record
+          description: Active assignment and audit record
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Assignment'}
@@ -99,10 +115,26 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
         '409':
-          description: Already assigned to that courier or parcel is not CREATED
+          description: Parcel is not CREATED, already assigned, or courier is unavailable
           content:
             application/json:
               schema: {$ref: '#/components/schemas/Error'}
+  /api/dispatch/assignments/{parcelId}/cancel:
+    post:
+      tags: [Dispatch]
+      summary: Cancel a parcel's active assignment before pickup
+      parameters:
+        - {$ref: '#/components/parameters/parcelId'}
+      responses:
+        '200':
+          description: Cancelled assignment record
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Assignment'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
   /api/dispatch/couriers:
     get:
       tags: [Dispatch]
@@ -119,8 +151,47 @@ paths:
                   properties:
                     courierId: {type: string, format: uuid}
                     name: {type: string}
+                    active: {type: boolean}
                     available: {type: boolean}
                     activeParcelCount: {type: integer}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/dispatch/couriers/{courierId}/parcels:
+    get:
+      tags: [Dispatch]
+      summary: List active assignments for a courier service consumer
+      parameters:
+        - {name: courierId, in: path, required: true, schema: {type: string, format: uuid}}
+      responses:
+        '200':
+          description: Active assigned parcels
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    parcelId: {type: string, format: uuid}
+                    trackingNumber: {type: [string, 'null']}
+                    status: {type: [string, 'null']}
+                    assignedAt: {type: string, format: date-time}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/dispatch/reports/summary:
+    get:
+      tags: [Reports]
+      summary: Event-based daily deliveries, outcomes, status counts and active courier workload
+      parameters:
+        - {$ref: '#/components/parameters/from'}
+        - {$ref: '#/components/parameters/to'}
+      responses:
+        '200':
+          description: Summary from uniquely stored parcel status events
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DispatchSummary'}
+        '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
   /api/dispatch/reports/status:
@@ -253,6 +324,11 @@ components:
       content:
         application/json:
           schema: {$ref: '#/components/schemas/Error'}
+    Conflict:
+      description: Request conflicts with the current assignment or parcel state
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
     ParcelPage:
       description: Paginated parcel rows
       content:
@@ -298,11 +374,13 @@ components:
     Assignment:
       type: object
       properties:
+        assignmentId: {type: string, format: uuid}
         parcelId: {type: string, format: uuid}
         courierId: {type: string, format: uuid}
         previousCourierId: {type: [string, 'null'], format: uuid}
         assignedBy: {type: string}
         assignedAt: {type: string, format: date-time}
+        state: {type: string, enum: [ACTIVE, COMPLETED, CANCELLED]}
     StatusReport:
       type: array
       items:
@@ -310,3 +388,25 @@ components:
         properties:
           status: {type: string}
           count: {type: integer}
+    DispatchSummary:
+      type: object
+      required: [deliveriesPerDay, successRate, countsByStatus, activeDeliveriesPerCourier]
+      properties:
+        deliveriesPerDay:
+          type: array
+          items:
+            type: object
+            properties:
+              date: {type: string, format: date}
+              delivered: {type: integer}
+              failed: {type: integer}
+              total: {type: integer}
+        successRate: {type: number, description: Percentage of DELIVERED events among DELIVERED and FAILED events}
+        countsByStatus: {$ref: '#/components/schemas/StatusReport'}
+        activeDeliveriesPerCourier:
+          type: array
+          items:
+            type: object
+            properties:
+              courierId: {type: string}
+              count: {type: integer}

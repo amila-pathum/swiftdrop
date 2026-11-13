@@ -2,6 +2,7 @@ package com.swiftdrop.dispatch.controller;
 
 import com.swiftdrop.dispatch.dto.request.AssignmentRequest;
 import com.swiftdrop.dispatch.dto.response.DispatchResponses.AssignmentResult;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.AssignedParcel;
 import com.swiftdrop.dispatch.dto.response.DispatchResponses.CourierWorkload;
 import com.swiftdrop.dispatch.dto.response.DispatchResponses.PageResult;
 import com.swiftdrop.dispatch.dto.response.DispatchResponses.ParcelDetail;
@@ -62,6 +63,17 @@ public class DispatchController {
             page, pageSize, sort, direction);
     }
 
+    @GetMapping("/deliveries")
+    public PageResult<ParcelRow> deliveries(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String trackingNumber,
+            @RequestParam(defaultValue = "0") @Min(0) int page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) int pageSize,
+            @RequestParam(defaultValue = "createdAt") String sort,
+            @RequestParam(defaultValue = "desc") String direction) {
+        return dispatch.deliveries(status, trackingNumber, page, pageSize, sort, direction);
+    }
+
     @GetMapping("/parcels/{parcelId}")
     public ParcelDetail detail(@PathVariable UUID parcelId) {
         return dispatch.detail(parcelId);
@@ -72,11 +84,21 @@ public class DispatchController {
         return dispatch.couriers();
     }
 
-    @PostMapping("/parcels/{parcelId}/assignment")
+    @GetMapping("/couriers/{courierId}/parcels")
+    public List<AssignedParcel> assignedParcels(@PathVariable UUID courierId) {
+        return dispatch.assignedParcels(courierId);
+    }
+
+    @PostMapping("/assignments")
     @ResponseStatus(HttpStatus.OK)
-    public AssignmentResult assign(@PathVariable UUID parcelId,
-            @Valid @RequestBody AssignmentRequest request,
+    public AssignmentResult assign(@Valid @RequestBody AssignmentRequest request,
             @AuthenticationPrincipal Jwt jwt) {
-        return dispatch.assign(parcelId, request.courierId(), jwt.getSubject());
+        return dispatch.assign(request.parcelId(), request.courierId(), jwt.getSubject());
+    }
+
+    @PostMapping("/assignments/{parcelId}/cancel")
+    public AssignmentResult cancelAssignment(@PathVariable UUID parcelId,
+            @AuthenticationPrincipal Jwt jwt) {
+        return dispatch.cancelAssignment(parcelId, jwt.getSubject());
     }
 }

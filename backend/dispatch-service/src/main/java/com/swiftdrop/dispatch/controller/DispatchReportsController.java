@@ -1,6 +1,7 @@
 package com.swiftdrop.dispatch.controller;
 
 import com.swiftdrop.dispatch.dto.response.DispatchResponses.CountByStatus;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.DispatchSummary;
 import com.swiftdrop.dispatch.dto.response.DispatchResponses.CourierPerformance;
 import com.swiftdrop.dispatch.dto.response.DispatchResponses.FailedDelivery;
 import com.swiftdrop.dispatch.dto.response.DispatchResponses.RouteRevenue;
@@ -28,6 +29,14 @@ public class DispatchReportsController {
 
     public DispatchReportsController(DispatchService dispatch) {
         this.dispatch = dispatch;
+    }
+
+    @GetMapping("/summary")
+    public DispatchSummary summary(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        ReportRange range = range(from, to);
+        return dispatch.reportSummary(range.from(), range.to());
     }
 
     @GetMapping("/status")

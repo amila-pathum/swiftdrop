@@ -1,6 +1,8 @@
 package com.swiftdrop.dispatch;
 
 import com.swiftdrop.dispatch.event.DispatchEventPublisher;
+import com.swiftdrop.dispatch.event.ParcelStatusChangedEvent;
+import com.swiftdrop.dispatch.service.DispatchService;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +46,7 @@ class DispatchServiceApplicationTests {
 
     @Autowired MockMvc mockMvc;
     @Autowired JdbcTemplate jdbc;
+    @Autowired DispatchService dispatch;
     @MockitoBean DispatchEventPublisher eventPublisher;
 
     private static final String PARCEL_ONE = "20000000-0000-4000-8000-000000000001";
@@ -57,8 +60,15 @@ class DispatchServiceApplicationTests {
     void resetDemoAssignment() {
         UUID parcelId = UUID.fromString(PARCEL_ONE);
         jdbc.update("DELETE FROM dispatch_assignments WHERE parcel_id = ?", parcelId);
+        jdbc.update("DELETE FROM dispatch_report_events");
+        jdbc.update("DELETE FROM dispatch_status_history WHERE changed_by = 'parcel-event'");
         jdbc.update("UPDATE dispatch_parcels SET status = 'CREATED', assigned_courier_id = NULL "
             + "WHERE parcel_id = ?", parcelId);
+        jdbc.update("UPDATE dispatch_parcels SET status = 'PICKED_UP', assigned_courier_id = ?, "
+                + "updated_at = now() - interval '1 day', delivered_at = NULL WHERE parcel_id = ?",
+            UUID.fromString(COURIER_ONE), UUID.fromString(PARCEL_PICKED_UP));
+        jdbc.update("UPDATE dispatch_assignments SET state = 'ACTIVE' WHERE parcel_id = ?",
+            UUID.fromString(PARCEL_PICKED_UP));
     }
 
     @Test
@@ -84,36 +94,78 @@ class DispatchServiceApplicationTests {
 
     @Test
     void assignmentIsAuditedAndCanBeReassignedBeforePickup() throws Exception {
-        mockMvc.perform(post("/api/dispatch/parcels/{id}/assignment", PARCEL_ONE)
+        mockMvc.perform(post("/api/dispatch/assignments")
                 .header("Authorization", token("DISPATCHER"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"courierId\":\"" + COURIER_ONE + "\"}"))
+                .content("{\"parcelId\":\"" + PARCEL_ONE + "\",\"courierId\":\"" + COURIER_ONE + "\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.courierId").value(COURIER_ONE))
             .andExpect(jsonPath("$.previousCourierId").doesNotExist());
-        mockMvc.perform(post("/api/dispatch/parcels/{id}/assignment", PARCEL_ONE)
+        mockMvc.perform(post("/api/dispatch/assignments")
                 .header("Authorization", token("DISPATCHER"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"courierId\":\"" + COURIER_TWO + "\"}"))
+                .content("{\"parcelId\":\"" + PARCEL_ONE + "\",\"courierId\":\"" + COURIER_TWO + "\"}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.previousCourierId").value(COURIER_ONE));
         org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
-            "SELECT count(*) FROM dispatch_assignments WHERE parcel_id = ?", Integer.class,
+            "SELECT count(*) FROM dispatch_assignments WHERE parcel_id = ? AND state = 'CANCELLED'", Integer.class,
             UUID.fromString(PARCEL_ONE)))
-            .isEqualTo(2);
+            .isEqualTo(1);
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM dispatch_assignments WHERE parcel_id = ? AND state = 'ACTIVE'", Integer.class,
+            UUID.fromString(PARCEL_ONE)))
+            .isEqualTo(1);
     }
 
     @Test
     void assignmentRejectsUnknownCourierAndParcelAlreadyPickedUp() throws Exception {
-        mockMvc.perform(post("/api/dispatch/parcels/{id}/assignment", PARCEL_ONE)
+        mockMvc.perform(post("/api/dispatch/assignments")
                 .header("Authorization", token("DISPATCHER"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"courierId\":\"99999999-0000-4000-8000-000000000001\"}"))
+                .content("{\"parcelId\":\"" + PARCEL_ONE
+                    + "\",\"courierId\":\"99999999-0000-4000-8000-000000000001\"}"))
             .andExpect(status().isBadRequest());
-        mockMvc.perform(post("/api/dispatch/parcels/{id}/assignment", PARCEL_PICKED_UP)
+        mockMvc.perform(post("/api/dispatch/assignments")
                 .header("Authorization", token("DISPATCHER"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"courierId\":\"" + COURIER_TWO + "\"}"))
+                .content("{\"parcelId\":\"" + PARCEL_PICKED_UP
+                    + "\",\"courierId\":\"" + COURIER_TWO + "\"}"))
+            .andExpect(status().isConflict());
+        jdbc.update("UPDATE dispatch_couriers SET available = FALSE WHERE courier_id = ?",
+            UUID.fromString(COURIER_TWO));
+        mockMvc.perform(post("/api/dispatch/assignments")
+                .header("Authorization", token("DISPATCHER"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"parcelId\":\"" + PARCEL_ONE + "\",\"courierId\":\"" + COURIER_TWO + "\"}"))
+            .andExpect(status().isConflict());
+        jdbc.update("UPDATE dispatch_couriers SET available = TRUE WHERE courier_id = ?",
+            UUID.fromString(COURIER_TWO));
+    }
+
+    @Test
+    void assignmentCanBeCancelledOnlyBeforePickup() throws Exception {
+        mockMvc.perform(post("/api/dispatch/assignments")
+                .header("Authorization", token("DISPATCHER"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"parcelId\":\"" + PARCEL_ONE + "\",\"courierId\":\"" + COURIER_ONE + "\"}"))
+            .andExpect(status().isOk());
+        mockMvc.perform(post("/api/dispatch/assignments/{parcelId}/cancel", PARCEL_ONE)
+                .header("Authorization", token("DISPATCHER")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.state").value("CANCELLED"));
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM dispatch_assignments WHERE parcel_id = ? AND state = 'CANCELLED'",
+            Integer.class, UUID.fromString(PARCEL_ONE))).isEqualTo(1);
+
+        mockMvc.perform(post("/api/dispatch/assignments")
+                .header("Authorization", token("DISPATCHER"))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"parcelId\":\"" + PARCEL_ONE + "\",\"courierId\":\"" + COURIER_ONE + "\"}"))
+            .andExpect(status().isOk());
+        jdbc.update("UPDATE dispatch_parcels SET status = 'PICKED_UP' WHERE parcel_id = ?",
+            UUID.fromString(PARCEL_ONE));
+        mockMvc.perform(post("/api/dispatch/assignments/{parcelId}/cancel", PARCEL_ONE)
+                .header("Authorization", token("DISPATCHER")))
             .andExpect(status().isConflict());
     }
 
@@ -121,10 +173,10 @@ class DispatchServiceApplicationTests {
     void reportEndpointsAggregateProjectionAndExportCsv() throws Exception {
         String period = "?from=" + java.time.LocalDate.now().minusDays(10)
             + "&to=" + java.time.LocalDate.now();
-        mockMvc.perform(post("/api/dispatch/parcels/{id}/assignment", PARCEL_ONE)
+        mockMvc.perform(post("/api/dispatch/assignments")
                 .header("Authorization", token("DISPATCHER"))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"courierId\":\"" + COURIER_ONE + "\"}"))
+                .content("{\"parcelId\":\"" + PARCEL_ONE + "\",\"courierId\":\"" + COURIER_ONE + "\"}"))
             .andExpect(status().isOk());
         mockMvc.perform(get("/api/dispatch/reports/status" + period)
                 .header("Authorization", token("ADMIN")))
@@ -139,7 +191,7 @@ class DispatchServiceApplicationTests {
         mockMvc.perform(get("/api/dispatch/reports/courier-performance" + period)
                 .header("Authorization", token("ADMIN")))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$[0].parcelsHandled").value(1))
+            .andExpect(jsonPath("$[0].parcelsHandled").value(4))
             .andExpect(jsonPath("$[0].failed").value(1))
             .andExpect(jsonPath("$[1].delivered").value(1));
         mockMvc.perform(get("/api/dispatch/reports/failed-deliveries" + period)
@@ -155,6 +207,45 @@ class DispatchServiceApplicationTests {
             .andExpect(status().isOk())
             .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
                 .content().contentTypeCompatibleWith("text/csv"));
+    }
+
+    @Test
+    void summaryUsesEventsAndCountsDuplicateIdsOnce() throws Exception {
+        Instant occurred = Instant.now();
+        UUID deliveredEventId = UUID.randomUUID();
+        dispatch.assign(UUID.fromString(PARCEL_ONE), UUID.fromString(COURIER_ONE), "42");
+        dispatch.applyStatusEvent(event(deliveredEventId, PARCEL_ONE, COURIER_ONE, "CREATED", "DELIVERED", occurred));
+        dispatch.applyStatusEvent(event(deliveredEventId, PARCEL_ONE, COURIER_ONE, "CREATED", "DELIVERED", occurred));
+        dispatch.applyStatusEvent(event(UUID.randomUUID(), PARCEL_PICKED_UP, COURIER_ONE,
+            "PICKED_UP", "FAILED", occurred.plusSeconds(1)));
+        dispatch.applyStatusEvent(event(UUID.randomUUID(), PARCEL_PICKED_UP, COURIER_TWO,
+            "FAILED", "IN_TRANSIT", occurred.plusSeconds(2)));
+
+        String reportDate = java.time.LocalDate.now(java.time.ZoneOffset.UTC).toString();
+        String period = "?from=" + reportDate + "&to=" + reportDate;
+        mockMvc.perform(get("/api/dispatch/reports/summary" + period)
+            .header("Authorization", token("ADMIN")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deliveriesPerDay[0].delivered").value(1))
+            .andExpect(jsonPath("$.deliveriesPerDay[0].failed").value(1))
+            .andExpect(jsonPath("$.deliveriesPerDay[0].total").value(2))
+            .andExpect(jsonPath("$.successRate").value(50.0))
+            .andExpect(jsonPath("$.countsByStatus[0].status").value("DELIVERED"))
+            .andExpect(jsonPath("$.countsByStatus[0].count").value(1))
+            .andExpect(jsonPath("$.activeDeliveriesPerCourier[0].count").value(1));
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+            "SELECT state FROM dispatch_assignments WHERE parcel_id = ? AND state = 'COMPLETED'",
+            String.class, UUID.fromString(PARCEL_ONE))).isEqualTo("COMPLETED");
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
+            "SELECT count(*) FROM dispatch_report_events WHERE event_id = ?", Integer.class, deliveredEventId))
+            .isEqualTo(1);
+    }
+
+    private static ParcelStatusChangedEvent event(UUID eventId, String parcelId, String courierId,
+            String oldStatus, String newStatus, Instant occurredAt) {
+        return new ParcelStatusChangedEvent(eventId, "ParcelStatusChanged", occurredAt,
+            "SD-EVENT-" + parcelId.substring(parcelId.length() - 4), parcelId, null, null,
+            "customer-1", courierId, oldStatus, newStatus);
     }
 
     @Test

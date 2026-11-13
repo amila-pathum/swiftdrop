@@ -1,5 +1,6 @@
 package com.swiftdrop.courier.config;
 
+import com.swiftdrop.courier.repository.CourierRepository;
 import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -15,6 +16,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -45,6 +47,7 @@ class SecurityConfigTest {
     private static final byte[] OTHER_KEY = bytes(32, 100);
 
     @Autowired MockMvc mockMvc;
+    @MockitoBean CourierRepository courierRepository;
 
     /** Test-only endpoint showing the convention for a protected, role-restricted endpoint. */
     @TestConfiguration

@@ -10,6 +10,11 @@ public class DispatchException extends RuntimeException {
         this.status = status;
     }
 
+    public DispatchException(HttpStatus status, String message, Throwable cause) {
+        super(message, cause);
+        this.status = status;
+    }
+
     public HttpStatus getStatus() {
         return status;
     }

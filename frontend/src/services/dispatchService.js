@@ -18,6 +18,9 @@ export const dispatchService = {
   getParcels: (params = {}) =>
     request(`/api/dispatch/parcels${queryString(params)}`, { auth: true }),
 
+  getDeliveries: (params = {}) =>
+    request(`/api/dispatch/deliveries${queryString(params)}`, { auth: true }),
+
   getParcel: (id) =>
     request(`/api/dispatch/parcels/${encodeURIComponent(id)}`, { auth: true }),
 
@@ -25,11 +28,23 @@ export const dispatchService = {
     request('/api/dispatch/couriers', { auth: true }),
 
   assignCourier: (parcelId, courierId) =>
-    request(`/api/dispatch/parcels/${encodeURIComponent(parcelId)}/assignment`, {
+    request('/api/dispatch/assignments', {
       method: 'POST',
-      body: { courierId },
+      body: { parcelId, courierId },
       auth: true,
     }),
+
+  cancelAssignment: (parcelId) =>
+    request(`/api/dispatch/assignments/${encodeURIComponent(parcelId)}/cancel`, {
+      method: 'POST',
+      auth: true,
+    }),
+
+  getCourierParcels: (courierId) =>
+    request(`/api/dispatch/couriers/${encodeURIComponent(courierId)}/parcels`, { auth: true }),
+
+  getSummary: (params = {}) =>
+    request(`/api/dispatch/reports/summary${queryString(params)}`, { auth: true }),
 
   getReport: (name, params = {}) =>
     request(`/api/dispatch/reports/${name}${queryString(params)}`, { auth: true }),

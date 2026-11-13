@@ -30,7 +30,7 @@ The exchange routes a copy of each event to all three durable queues using the r
 |---|---|---|
 | Notifications | `notification.parcel-status-changed` | Member 10 |
 | Webhooks | `webhook.parcel-status-changed` | Member 9 |
-| Reports | `reports.parcel-status-changed` | Member 7 |
+| Dispatch | `dispatch.parcel-status-changed` | Member 7 |
 
 Each consumer processes messages independently from its own queue.
 

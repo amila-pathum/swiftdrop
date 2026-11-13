@@ -1,4 +1,4 @@
-# Dispatch and Reports
+# Member 7 – Dispatch and Reports
 
 The Dispatch Service verifies Identity JWTs itself. Every endpoint under
 `/api/dispatch` requires `DISPATCHER` or `ADMIN`. See
@@ -29,36 +29,45 @@ when Docker is unavailable.
 
 ## Behavior
 
-- `GET /api/dispatch/parcels/unassigned` and `GET /api/dispatch/parcels` return
-  bounded, paginated results with filters and allow-listed sorting.
-- `POST /api/dispatch/parcels/{id}/assignment` locks the Dispatch projection
-  row, verifies the courier projection's `COURIER` role, and atomically records
-  the assignment and previous courier. Assignment changes are only accepted
-  while the projected status is `CREATED`.
+- `GET /api/dispatch/parcels/unassigned` returns CREATED Parcel Service results
+  excluding parcels with an ACTIVE Dispatch assignment.
+- `GET /api/dispatch/couriers` reads owner-service profiles and adds active
+  assignment counts from `dispatch_assignments`.
+- `POST /api/dispatch/assignments` requires a CREATED parcel and an active,
+  AVAILABLE courier. Reassignment closes the prior assignment as CANCELLED;
+  `POST /api/dispatch/assignments/{parcelId}/cancel` cancels before pickup.
+  Assignment rows record parcel, courier, dispatcher, timestamp and lifecycle
+  state (`ACTIVE`, `COMPLETED`, `CANCELLED`).
+- `GET /api/dispatch/deliveries` supports status and tracking-number filters.
+- `GET /api/dispatch/couriers/{courierId}/parcels` returns active assignments
+  for the courier service to consume.
 - `GET /api/dispatch/parcels/{id}` includes the projection's ordered status
-  timeline. The existing `reports.parcel-status-changed` RabbitMQ queue feeds
-  status events into that projection.
-- Reports aggregate in PostgreSQL for a required UTC date range (at most two
-  years). Status counts represent parcels entering each status; volume counts
-  completed deliveries by day/week. CSV uses the matching report endpoint plus
-  `.csv`.
+  timeline. The dedicated `dispatch.parcel-status-changed` RabbitMQ queue
+  stores each unique event in `dispatch_report_events` and completes an active
+  assignment on DELIVERED or FAILED.
+- `GET /api/dispatch/reports/summary` computes daily outcomes, success rate,
+  status counts and active courier deliveries exclusively from stored events.
+  Dates are UTC and the range is limited to two years.
 
-## Temporary ownership boundaries
+## Parcel and courier data sources
 
-Parcel and Courier currently have no read/assignment APIs, and Dispatch cannot
-read their databases. The migration therefore creates minimal Dispatch-owned
-demo projections; replacing those reads with the owners' APIs/events is marked
-with TODOs. Assignment transactions update only `dispatch_db` and publish
-`parcel.assigned` after commit to the existing `swiftdrop.events` exchange.
-They do **not** update Parcel Core's canonical `assigned_courier_id`. The
-assignment event is documented in
+`DISPATCH_DATA_SOURCE=http` selects the HTTP client for the owner APIs:
+`GET /api/parcels?status=CREATED`, `GET /api/parcels/{parcelId}`,
+`GET /api/couriers`, and `GET /api/couriers/{courierId}`. Dispatch forwards the
+authenticated JWT to those APIs. The explicit `projection` mode
+(`DISPATCH_DATA_SOURCE=projection`, the local default) uses the existing
+Dispatch-owned demo projection. HTTP failures are surfaced; they never silently
+switch to demo data.
+
+## Ownership boundaries
+
+Assignment transactions update only `dispatch_db` and publish `parcel.assigned`
+after commit to the existing `swiftdrop.events` exchange. They do **not**
+update Parcel Core's canonical `assigned_courier_id`. The assignment event is documented in
 [`contracts/events/parcel.assigned.v1.schema.json`](../../contracts/events/parcel.assigned.v1.schema.json).
 
 Parcel and courier IDs in the demo projection are UUIDs to match Parcel Core.
 The Identity JWT subject is stored as an opaque string in audit records because
-Identity currently issues numeric IDs. The existing status event has no
-failure reason, delivery timestamp, structured area, or zone fields. Demo
-failure reasons are seeded locally; live failures without a source reason are
-reported as unavailable. Fees are grouped by pickup/drop-off area using the
-parcel `charge`, not Pricing's zone/rule data. Replace these assumptions when
-Parcel, Courier and Pricing expose owner-controlled contracts.
+Identity currently issues numeric IDs. The status event has no failure reason, structured area, or zone fields. Legacy
+projection-based reports retain those limitations; the summary endpoint does
+not depend on parcel projection rows.

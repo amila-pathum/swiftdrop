@@ -10,7 +10,11 @@ const BASE_LINKS = [
 export default function Sidebar() {
   const { user } = useAuth()
   const links = ['DISPATCHER', 'ADMIN'].includes(user?.role)
-    ? [...BASE_LINKS, { to: '/dispatch', label: 'Dispatch' }, { to: '/reports', label: 'Reports' }]
+    ? [...BASE_LINKS,
+      { to: '/dispatch', label: 'Dispatch' },
+      { to: '/dispatch/deliveries', label: 'Ongoing deliveries' },
+      { to: '/dispatch/workload', label: 'Courier workload' },
+      { to: '/reports', label: 'Reports' }]
     : BASE_LINKS
 
   return (
@@ -18,7 +22,7 @@ export default function Sidebar() {
       <ul>
         {links.map(({ to, label }) => (
           <li key={to}>
-            <NavLink to={to}>{label}</NavLink>
+            <NavLink to={to} end={to === '/dispatch'}>{label}</NavLink>
           </li>
         ))}
       </ul>

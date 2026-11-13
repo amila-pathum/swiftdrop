@@ -12,6 +12,8 @@ import CourierDashboardPage from './pages/courier/CourierDashboardPage'
 import CustomerDashboardPage from './pages/customer/CustomerDashboardPage'
 import DispatcherDashboardPage from './pages/dispatcher/DispatcherDashboardPage'
 import DispatchReportsPage from './pages/dispatcher/DispatchReportsPage'
+import OngoingDeliveriesPage from './pages/dispatcher/OngoingDeliveriesPage'
+import CourierWorkloadPage from './pages/dispatcher/CourierWorkloadPage'
 import MerchantDashboardPage from './pages/merchant/MerchantDashboardPage'
 import NotAvailablePage from './pages/NotAvailablePage'
 import NotFoundPage from './pages/NotFoundPage'
@@ -57,6 +59,8 @@ function App() {
       <Route element={<ProtectedRoute allowedRoles={['DISPATCHER', 'ADMIN']} />}>
         <Route element={<AppLayout />}>
           <Route path="/dispatch" element={<DispatcherDashboardPage />} />
+          <Route path="/dispatch/deliveries" element={<OngoingDeliveriesPage />} />
+          <Route path="/dispatch/workload" element={<CourierWorkloadPage />} />
           <Route path="/reports" element={<DispatchReportsPage />} />
         </Route>
       </Route>

@@ -2,6 +2,7 @@ package com.swiftdrop.dispatch.dto.response;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
@@ -37,16 +38,21 @@ public final class DispatchResponses {
     public record CourierWorkload(
         UUID courierId,
         String name,
+        boolean active,
         boolean available,
         long activeParcelCount
     ) { }
 
+    public record CourierProfile(UUID courierId, String name, boolean active, boolean available) { }
+
     public record AssignmentResult(
+        UUID assignmentId,
         UUID parcelId,
         UUID courierId,
         UUID previousCourierId,
         String assignedBy,
-        Instant assignedAt
+        Instant assignedAt,
+        String state
     ) { }
 
     public record PageResult<T>(
@@ -81,4 +87,13 @@ public final class DispatchResponses {
         long parcelCount,
         BigDecimal totalFees
     ) { }
+    public record DeliveryByDay(LocalDate date, long delivered, long failed, long total) { }
+    public record ActiveDeliveriesByCourier(String courierId, long count) { }
+    public record DispatchSummary(
+        List<DeliveryByDay> deliveriesPerDay,
+        BigDecimal successRate,
+        List<CountByStatus> countsByStatus,
+        List<ActiveDeliveriesByCourier> activeDeliveriesPerCourier
+    ) { }
+    public record AssignedParcel(UUID parcelId, String trackingNumber, String status, Instant assignedAt) { }
 }

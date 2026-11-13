@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Objects;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -37,6 +39,15 @@ public class ParcelService {
         history.save(new ParcelStatusHistory(saved, null, ParcelStatus.CREATED,
                 saved.getCreatedBy(), "Parcel created"));
         return saved;
+    }
+
+    public List<Parcel> listParcels(ParcelStatus status) {
+        return status == null ? parcels.findAll()
+                : parcels.findByStatusOrderByCreatedAtAsc(status);
+    }
+
+    public Optional<Parcel> findParcel(UUID parcelId) {
+        return parcels.findById(parcelId);
     }
 
     /** Records the old and new status in the same transaction as the update. */
