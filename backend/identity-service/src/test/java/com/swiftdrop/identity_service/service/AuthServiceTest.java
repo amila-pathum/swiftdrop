@@ -171,4 +171,58 @@ class AuthServiceTest {
         ReflectionTestUtils.invokeMethod(user, "onCreate");
         return user;
     }
+
+    @Test
+    void merchantAndCourierAccountsStartAwaitingApproval() {
+        when(repository.existsByEmail(anyString())).thenReturn(false);
+        when(encoder.encode("password123")).thenReturn("encoded");
+        when(repository.save(any(User.class))).thenAnswer(call -> call.getArgument(0));
+
+        var merchant = authService.registerMerchant(
+            new RegisterRequest("Shop Owner", "shop@example.com", "password123", " 0112345678 ", " "));
+        var courier = authService.registerCourier(
+            new RegisterRequest("Rider", "rider@example.com", "password123"));
+
+        assertThat(merchant.role()).isEqualTo(Role.MERCHANT);
+        assertThat(merchant.status()).isEqualTo(UserStatus.PENDING_APPROVAL);
+        assertThat(merchant.phone()).isEqualTo("0112345678");
+        assertThat(merchant.address()).isNull();
+        assertThat(courier.role()).isEqualTo(Role.COURIER);
+        assertThat(courier.status()).isEqualTo(UserStatus.PENDING_APPROVAL);
+    }
+
+    @Test
+    void loginAllowsAnAccountAwaitingApproval() {
+        User pending = user(UserStatus.PENDING_APPROVAL);
+        when(repository.findByEmail("user@example.com")).thenReturn(Optional.of(pending));
+        when(encoder.matches("password123", "hash")).thenReturn(true);
+        when(jwtService.generateToken(pending)).thenReturn("signed-token");
+
+        var response = authService.login(new LoginRequest("user@example.com", "password123"));
+
+        assertThat(response.accessToken()).isEqualTo("signed-token");
+        assertThat(response.user().status()).isEqualTo(UserStatus.PENDING_APPROVAL);
+    }
+
+    @Test
+    void loginRejectsADisabledAccount() {
+        when(repository.findByEmail("user@example.com"))
+            .thenReturn(Optional.of(user(UserStatus.DISABLED)));
+        when(encoder.matches(anyString(), anyString())).thenReturn(true);
+
+        assertThatThrownBy(() -> authService.login(
+            new LoginRequest("user@example.com", "password123")))
+            .isInstanceOf(AccountNotActiveException.class);
+        verify(jwtService, never()).generateToken(any());
+    }
+
+    @Test
+    void logoutInvalidatesTheUsersTokens() {
+        when(repository.findById(1L)).thenReturn(Optional.of(activeUser));
+
+        authService.logout(1L);
+
+        assertThat(activeUser.getTokenVersion()).isEqualTo(1);
+        verify(repository).save(activeUser);
+    }
 }

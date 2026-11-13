@@ -14,10 +14,10 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-/** Starts the whole service against a throwaway PostgreSQL (needs Docker). */
 @SpringBootTest(properties = {
     "NOTIFICATION_DB_PASSWORD=unused-with-service-connection",
-    "swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+    "swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+    "management.health.rabbit.enabled=false"
 })
 @AutoConfigureMockMvc
 @Testcontainers(disabledWithoutDocker = true)

@@ -1,5 +1,7 @@
 package com.swiftdrop.courier.config;
 
+import org.springframework.security.core.GrantedAuthority;
+import java.util.List;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -36,7 +38,8 @@ import java.util.Objects;
  * {@code GET /actuator/health}. This service verifies the token itself with the
  * shared JWT_SECRET; it does not rely on the API Gateway having checked it.
  *
- * <p>The token's {@code role} claim becomes the authority {@code ROLE_<role>}, so
+ * <p>The token's {@code role} claim becomes the authority {@code ROLE_<role>} when
+ * its {@code status} claim is {@code ACTIVE} (accounts awaiting approval get none), so
  * endpoints declare who may call them with, for example,
  * {@code @PreAuthorize("hasRole('MERCHANT')")}. The caller's user id is the token
  * subject: {@code @AuthenticationPrincipal Jwt jwt}, then {@code jwt.getSubject()}.
@@ -119,7 +122,16 @@ public class SecurityConfig {
         roles.setAuthoritiesClaimName("role");
         roles.setAuthorityPrefix("ROLE_");
         JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
-        converter.setJwtGrantedAuthoritiesConverter(roles);
+        // Only ACTIVE accounts hold their role. A merchant or courier awaiting
+        // approval can sign in, but its token (status PENDING_APPROVAL) grants no
+        // authority, so every hasRole(...) check refuses it. Tokens issued before
+        // the claim existed have no status and were only ever given to ACTIVE accounts.
+        converter.setJwtGrantedAuthoritiesConverter(jwt -> {
+            String status = jwt.getClaimAsString("status");
+            return status == null || "ACTIVE".equals(status)
+                ? roles.convert(jwt)
+                : List.<GrantedAuthority>of();
+        });
         return converter;
     }
 

@@ -129,7 +129,8 @@ export default function Sidebar() {
   }
 
   return (
-    <nav className="sidebar" aria-label="Main navigation">
+    <nav id="app-sidebar" className={`sidebar${open ? ' sidebar-open' : ''}`}
+      aria-label="Main navigation">
       <ul>
           {
             DEFAULT_LINKS.map(({ to, label }) => (

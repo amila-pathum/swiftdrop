@@ -48,9 +48,16 @@ public class SecurityConfig {
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/register", "/api/auth/login",
-                    "/api/auth/google/exchange").permitAll()
+                // Public: registration, sign-in and password reset. Everything
+                // else, including /api/auth/logout, needs a valid token.
+                .requestMatchers(HttpMethod.POST,
+                    "/api/auth/register", "/api/auth/register/merchant",
+                    "/api/auth/register/courier", "/api/auth/login",
+                    "/api/auth/google/exchange", "/api/auth/password-reset/request",
+                    "/api/auth/password-reset/confirm").permitAll()
                 .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                // Account administration; also enforced on the controller.
+                .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .anyRequest().authenticated())
             .exceptionHandling(exceptions -> exceptions
                 .authenticationEntryPoint((request, response, exception) ->

@@ -114,7 +114,7 @@ describe('LoginPage', () => {
         fillAndSubmit('  user@example.com ', ' pass word1 ')
       })
 
-      expect(auth.login).toHaveBeenCalledWith('user@example.com', ' pass word1 ')
+      expect(auth.login).toHaveBeenCalledWith('user@example.com', ' pass word1 ', { remember: false })
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 
@@ -122,7 +122,7 @@ describe('LoginPage', () => {
       ['invalid credentials', new ApiError('Invalid email or password', { status: 401 }),
         'Invalid email or password.'],
       ['an inactive account', new ApiError('This account is not permitted to sign in', {
-        status: 403 }), 'This account is not permitted to sign in.'],
+        status: 403 }), 'This account has been suspended or disabled. Please contact SwiftDrop support.'],
       ['a network failure', new ApiError('offline', { kind: ApiErrorKind.NETWORK }),
         'SwiftDrop service is temporarily unavailable. Please try again shortly.'],
       ['an unavailable gateway', new ApiError('down', {
@@ -203,6 +203,52 @@ describe('LoginPage', () => {
       expect(screen.getByRole('status')).toHaveTextContent('Your account has been created')
       expect(emailInput()).toHaveValue('new@example.com')
       expect(passwordInput()).toHaveValue('')
+    })
+  })
+
+  describe('Phase 3 additions', () => {
+    it('passes "Remember me" to login', async () => {
+      const auth = mockAuth({ login: vi.fn().mockResolvedValue({}) })
+      renderLogin()
+
+      fireEvent.click(screen.getByLabelText('Remember me'))
+      await act(async () => {
+        fillAndSubmit('user@example.com', 'password123')
+      })
+
+      expect(auth.login).toHaveBeenCalledWith('user@example.com', 'password123', { remember: true })
+    })
+
+    it('links to password reset and every registration type', () => {
+      mockAuth()
+      renderLogin()
+
+      expect(screen.getByRole('link', { name: 'Forgot password?' }))
+        .toHaveAttribute('href', '/forgot-password')
+      expect(screen.getByRole('link', { name: 'Apply as a merchant' }))
+        .toHaveAttribute('href', '/register/merchant')
+      expect(screen.getByRole('link', { name: 'Apply as a courier' }))
+        .toHaveAttribute('href', '/register/courier')
+    })
+
+    it('toggles password visibility', () => {
+      mockAuth()
+      renderLogin()
+
+      const toggle = screen.getByRole('button', { name: 'Show password' })
+      expect(passwordInput()).toHaveAttribute('type', 'password')
+      fireEvent.click(toggle)
+      expect(passwordInput()).toHaveAttribute('type', 'text')
+      expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    })
+
+    it('is a single page for every role: no role selector', () => {
+      mockAuth()
+      renderLogin()
+
+      expect(screen.queryByRole('combobox')).not.toBeInTheDocument()
+      expect(screen.queryByRole('radio')).not.toBeInTheDocument()
+      expect(screen.queryByLabelText(/role/i)).not.toBeInTheDocument()
     })
   })
 })

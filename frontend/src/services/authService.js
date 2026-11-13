@@ -1,22 +1,42 @@
-import { ApiError, ApiErrorKind, apiClient } from './apiClient'
+import { ApiError, ApiErrorKind, callEndpoint } from './apiClient'
+import { ENDPOINTS } from './endpoints'
 import { saveSession } from './tokenStorage'
 
-// Endpoints exposed by the Identity Service through the API Gateway.
-const REGISTER_PATH = '/api/auth/register'
-const LOGIN_PATH = '/api/auth/login'
-const GOOGLE_EXCHANGE_PATH = '/api/auth/google/exchange'
-const CURRENT_USER_PATH = '/api/users/me'
+// Identity Service calls through the API Gateway. Endpoint paths and their
+// implementation status live in endpoints.js.
 
 /**
  * Creates a CUSTOMER account. The backend returns the new user, not a token.
+ * Public registration can never choose a role; the backend ignores one if sent.
+ * @param {{name: string, email: string, password: string, phone?: string, address?: string}} details
  * @returns {Promise<{id, name, email, role, status, createdAt}>}
  */
-export function register(name, email, password) {
-  return apiClient.post(REGISTER_PATH, { name, email, password })
+export function register({ name, email, password, phone, address }) {
+  return callEndpoint(ENDPOINTS.register, {
+    body: { name, email, password, phone, address },
+  })
+}
+
+const accountBody = ({ name, email, password, phone, address }) => ({
+  name, email, password, phone, address,
+})
+
+/**
+ * Creates the identity account of a merchant (role MERCHANT, status
+ * PENDING_APPROVAL). The business application is submitted separately to the
+ * Merchant Service; see applicationService.applyAsMerchant.
+ */
+export function registerMerchantAccount(details) {
+  return callEndpoint(ENDPOINTS.registerMerchant, { body: accountBody(details) })
+}
+
+/** As registerMerchantAccount, for a courier (role COURIER, status PENDING_APPROVAL). */
+export function registerCourierAccount(details) {
+  return callEndpoint(ENDPOINTS.registerCourier, { body: accountBody(details) })
 }
 
 // Checks a LoginResponse and stores its token. Shared by every sign-in method.
-function saveLoginResponse(response) {
+function saveLoginResponse(response, { persistent = false } = {}) {
   const valid = typeof response?.accessToken === 'string'
     && response.accessToken !== ''
     && response.tokenType?.toLowerCase?.() === 'bearer'
@@ -31,17 +51,18 @@ function saveLoginResponse(response) {
     })
   }
 
-  const expiresAt = saveSession(response.accessToken, response.expiresIn)
+  const expiresAt = saveSession(response.accessToken, response.expiresIn, undefined, { persistent })
   return { user: response.user, expiresAt }
 }
 
 /**
- * Signs in and stores the access token in sessionStorage.
- * The token itself is not returned; it is read from storage by the API client.
+ * Signs in and stores the access token (sessionStorage, or localStorage with
+ * `remember`). The token itself is not returned; the API client reads it.
  * @returns {Promise<{user: object, expiresAt: number}>}
  */
-export async function login(email, password) {
-  return saveLoginResponse(await apiClient.post(LOGIN_PATH, { email, password }))
+export async function login(email, password, { remember = false } = {}) {
+  const response = await callEndpoint(ENDPOINTS.login, { body: { email, password } })
+  return saveLoginResponse(response, { persistent: remember })
 }
 
 /**
@@ -50,7 +71,9 @@ export async function login(email, password) {
  * @returns {Promise<{user: object, expiresAt: number}>}
  */
 export async function exchangeGoogleCode(code, verifier) {
-  return saveLoginResponse(await apiClient.post(GOOGLE_EXCHANGE_PATH, { code, verifier }))
+  return saveLoginResponse(await callEndpoint(ENDPOINTS.googleExchange, {
+    body: { code, verifier },
+  }))
 }
 
 /**
@@ -58,5 +81,26 @@ export async function exchangeGoogleCode(code, verifier) {
  * @returns {Promise<{id, name, email, role, status, createdAt}>}
  */
 export function getCurrentUser() {
-  return apiClient.get(CURRENT_USER_PATH, { auth: true })
+  return callEndpoint(ENDPOINTS.currentUser)
+}
+
+/**
+ * Tells the backend to invalidate every access token of the signed-in user.
+ * The caller clears the local session whether or not this succeeds.
+ */
+export function logout() {
+  return callEndpoint(ENDPOINTS.logout)
+}
+
+/**
+ * NOT AVAILABLE YET: asks the Identity Service to email a password reset link.
+ * Rejects with NOT_IMPLEMENTED until SwiftDrop has email delivery.
+ */
+export function requestPasswordReset(email) {
+  return callEndpoint(ENDPOINTS.forgotPassword, { body: { email } })
+}
+
+/** Sets a new password using the token from a reset link. */
+export function confirmPasswordReset(token, newPassword) {
+  return callEndpoint(ENDPOINTS.confirmPasswordReset, { body: { token, newPassword } })
 }

@@ -1,3 +1,4 @@
+import PageHeader from '../components/PageHeader'
 import { useAuth } from '../context/AuthContext'
 
 function formatDate(value) {
@@ -13,7 +14,7 @@ export default function ProfilePage() {
 
   return (
     <section>
-      <h1>Your profile</h1>
+      <PageHeader title="Your profile" description="Your SwiftDrop account details." />
       <dl className="profile-details">
         <dt>Name</dt>
         <dd>{user.name}</dd>

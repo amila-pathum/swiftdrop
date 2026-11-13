@@ -4,6 +4,7 @@ import com.swiftdrop.identity_service.entity.Role;
 import com.swiftdrop.identity_service.entity.User;
 import com.swiftdrop.identity_service.entity.UserStatus;
 import com.swiftdrop.identity_service.repository.OAuthLoginCodeRepository;
+import com.swiftdrop.identity_service.repository.PasswordResetTokenRepository;
 import com.swiftdrop.identity_service.repository.UserIdentityRepository;
 import com.swiftdrop.identity_service.repository.UserRepository;
 import com.jayway.jsonpath.JsonPath;
@@ -55,6 +56,7 @@ class SecurityApiTest {
     @MockitoBean UserRepository userRepository;
     @MockitoBean UserIdentityRepository userIdentityRepository;
     @MockitoBean OAuthLoginCodeRepository oauthLoginCodeRepository;
+    @MockitoBean PasswordResetTokenRepository passwordResetTokenRepository;
 
     private User user;
 
@@ -253,18 +255,92 @@ class SecurityApiTest {
 
     @Test
     void loginRejectsInactiveAccount() throws Exception {
-        User pending = user(3L, "pending@example.com", Role.CUSTOMER,
-            UserStatus.PENDING_APPROVAL);
-        when(userRepository.findByEmail("pending@example.com")).thenReturn(Optional.of(pending));
+        User suspended = user(3L, "suspended@example.com", Role.CUSTOMER,
+            UserStatus.SUSPENDED);
+        when(userRepository.findByEmail("suspended@example.com"))
+            .thenReturn(Optional.of(suspended));
 
         mockMvc.perform(post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("""
-                    {"email":"pending@example.com","password":"password123"}
+                    {"email":"suspended@example.com","password":"password123"}
                     """))
             .andExpect(status().isForbidden())
             .andExpect(jsonPath("$.error").value("This account is not permitted to sign in"))
             .andExpect(jsonPath("$.accessToken").doesNotExist());
+    }
+
+    @Test
+    void pendingMerchantSignsInButIsDeniedMerchantResources() throws Exception {
+        User pending = user(4L, "pending@example.com", Role.MERCHANT,
+            UserStatus.PENDING_APPROVAL);
+        when(userRepository.findByEmail("pending@example.com")).thenReturn(Optional.of(pending));
+        when(userRepository.findById(4L)).thenReturn(Optional.of(pending));
+
+        String body = mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"pending@example.com","password":"password123"}
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.user.status").value("PENDING_APPROVAL"))
+            .andReturn().getResponse().getContentAsString();
+        String token = JsonPath.read(body, "$.accessToken");
+
+        mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.role").value("MERCHANT"));
+        mockMvc.perform(get("/test/rbac/merchant").header("Authorization", "Bearer " + token))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.error").value("Access is denied"));
+    }
+
+    @Test
+    void tokenIsRejectedOnceTheAccountStatusChanges() throws Exception {
+        User pending = user(4L, "pending@example.com", Role.MERCHANT,
+            UserStatus.PENDING_APPROVAL);
+        String pendingToken = jwtService.generateToken(pending);
+        User activated = user(4L, "pending@example.com", Role.MERCHANT, UserStatus.ACTIVE);
+        when(userRepository.findById(4L)).thenReturn(Optional.of(activated));
+
+        mockMvc.perform(get("/test/rbac/merchant")
+                .header("Authorization", "Bearer " + pendingToken))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void tokenIsRejectedAfterTheTokenVersionChanges() throws Exception {
+        String token = jwtService.generateToken(user);
+        user.invalidateTokens();
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + token))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.error").value("Invalid or expired access token"));
+    }
+
+    @Test
+    void adminEndpointsRejectEveryOtherRole() throws Exception {
+        for (Role role : new Role[] {Role.CUSTOMER, Role.MERCHANT, Role.COURIER, Role.DISPATCHER}) {
+            User caller = user(10L, role.name().toLowerCase() + "@example.com", role,
+                UserStatus.ACTIVE);
+            when(userRepository.findById(10L)).thenReturn(Optional.of(caller));
+
+            mockMvc.perform(post("/api/admin/users")
+                    .header("Authorization", "Bearer " + jwtService.generateToken(caller))
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""
+                        {"name":"X","email":"x@example.com","password":"long-password-123",
+                         "role":"ADMIN"}
+                        """))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("Access is denied"));
+        }
+        mockMvc.perform(post("/api/admin/users")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{}"))
+            .andExpect(status().isUnauthorized());
+        verify(userRepository, never()).save(any());
     }
 
     @Test

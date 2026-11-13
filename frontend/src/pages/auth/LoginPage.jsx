@@ -1,130 +1,110 @@
-import { useRef, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import Alert from '../../components/Alert'
+import AuthCard from '../../components/AuthCard'
 import Button from '../../components/Button'
+import Checkbox from '../../components/Checkbox'
 import FormField from '../../components/FormField'
 import GoogleSignInButton from '../../components/GoogleSignInButton'
 import { useAuth } from '../../context/AuthContext'
-import { ApiError } from '../../services/apiClient'
-import { isServiceUnavailable, SERVICE_UNAVAILABLE_MESSAGE, validateLogin } from './authForm'
+import { useForm } from '../../hooks/useForm'
+import { isGoogleLoginEnabled } from '../../services/config'
+import {
+  ACCOUNT_NOT_ACTIVE_MESSAGE,
+  describeError,
+  STORAGE_ERROR_MESSAGE,
+} from '../../services/errorMessages'
+import { validateLogin } from './authForm'
 
 function loginErrorMessage(error) {
-  if (isServiceUnavailable(error)) return SERVICE_UNAVAILABLE_MESSAGE
-  if (!(error instanceof ApiError)) {
-    return 'Unable to sign in. Check that your browser allows this site to store data.'
-  }
-  if (error.status === 401) return 'Invalid email or password.'
-  if (error.status === 403) return 'This account is not permitted to sign in.'
-  if (error.status === 400) return 'Check your email and password and try again.'
-  return 'Something went wrong. Please try again.'
+  return describeError(error, {
+    nonApi: STORAGE_ERROR_MESSAGE,
+    byStatus: {
+      401: 'Invalid email or password.',
+      403: ACCOUNT_NOT_ACTIVE_MESSAGE,
+      400: 'Check your email and password and try again.',
+    },
+  })
 }
 
+// One sign-in page for every role. After sign-in, PublicOnlyRoute sends the
+// user to the page they asked for, their dashboard, or their application status.
 export default function LoginPage() {
   const { login, sessionExpired, dismissSessionExpired } = useAuth()
   const location = useLocation()
   const registeredEmail = location.state?.registeredEmail
 
-  const [values, setValues] = useState({ email: registeredEmail ?? '', password: '' })
-  const [errors, setErrors] = useState({})
-  const [formError, setFormError] = useState(null)
-  const [attempted, setAttempted] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  // Guards against a second submit before the disabled state has rendered.
-  const submittingRef = useRef(false)
+  const form = useForm({
+    initialValues: { email: registeredEmail ?? '', password: '', remember: false },
+    validate: validateLogin,
+    idPrefix: 'login',
+  })
 
-  function handleChange(event) {
-    const next = { ...values, [event.target.name]: event.target.value }
-    setValues(next)
-    if (attempted) {
-      setErrors(validateLogin(next))
-    }
-  }
-
-  async function handleSubmit(event) {
-    event.preventDefault()
-    if (submittingRef.current) return
-
-    setAttempted(true)
-    const found = validateLogin(values)
-    setErrors(found)
-    const firstInvalid = Object.keys(found)[0]
-    if (firstInvalid) {
-      document.getElementById(`login-${firstInvalid}`)?.focus()
-      return
-    }
-
-    submittingRef.current = true
-    setSubmitting(true)
-    setFormError(null)
+  const onSubmit = form.handleSubmit(async ({ email, password, remember }) => {
     try {
-      await login(values.email.trim(), values.password)
+      await login(email.trim(), password, { remember })
       // PublicOnlyRoute now redirects to the requested page or the dashboard.
     } catch (error) {
-      setFormError(loginErrorMessage(error))
-      submittingRef.current = false
-      setSubmitting(false)
+      form.setFormError(loginErrorMessage(error))
     }
-  }
+  })
 
   return (
-    <div className="card auth-card">
-      <header className="card-header">
-        <h1 className="card-title">Sign in to SwiftDrop</h1>
-        <p className="card-subtitle">Book, manage and track deliveries across Sri Lanka.</p>
-      </header>
-
+    <AuthCard
+      title="Sign in to SwiftDrop"
+      subtitle="Book, manage and track deliveries across Sri Lanka."
+      footer={(
+        <>
+          <p className="card-footer-text">
+            New to SwiftDrop? <Link to="/register">Create account</Link>
+          </p>
+          <p className="card-footer-text card-footer-muted">
+            Business or courier? <Link to="/register/merchant">Apply as a merchant</Link>
+            {' · '}
+            <Link to="/register/courier">Apply as a courier</Link>
+          </p>
+        </>
+      )}
+    >
       {sessionExpired && (
-        <div className="alert alert-warning" role="alert">
-          <p>Your session has expired. Please sign in again.</p>
-          <button type="button" className="alert-dismiss" onClick={dismissSessionExpired}>
-            Dismiss
-          </button>
-        </div>
+        <Alert variant="warning" onDismiss={dismissSessionExpired}>
+          Your session has expired. Please sign in again.
+        </Alert>
       )}
-      {registeredEmail && !formError && (
-        <div className="alert alert-success" role="status">
-          <p>Your account has been created. Sign in to continue.</p>
-        </div>
+      {registeredEmail && !form.formError && (
+        <Alert variant="success">Your account has been created. Sign in to continue.</Alert>
       )}
-      {formError && (
-        <div className="alert alert-error" role="alert">
-          <p>{formError}</p>
-        </div>
-      )}
+      {form.formError && <Alert variant="error">{form.formError}</Alert>}
 
-      <form className="form" onSubmit={handleSubmit} noValidate>
+      <form className="form" onSubmit={onSubmit} noValidate>
+        <FormField {...form.field('email')} label="Email" type="email" autoComplete="email" />
         <FormField
-          id="login-email"
-          name="email"
-          label="Email"
-          type="email"
-          autoComplete="email"
-          value={values.email}
-          onChange={handleChange}
-          error={errors.email}
-        />
-        <FormField
-          id="login-password"
-          name="password"
+          {...form.field('password')}
           label="Password"
           type="password"
           revealable
           autoComplete="current-password"
-          value={values.password}
-          onChange={handleChange}
-          error={errors.password}
         />
-        <Button type="submit" fullWidth loading={submitting} loadingText="Signing in…">
+        <div className="form-row-between">
+          <Checkbox
+            id="login-remember"
+            name="remember"
+            label="Remember me"
+            checked={form.values.remember}
+            onChange={form.handleChange}
+          />
+          <Link to="/forgot-password" className="text-small">Forgot password?</Link>
+        </div>
+        <Button type="submit" fullWidth loading={form.submitting} loadingText="Signing in…">
           Sign in
         </Button>
       </form>
 
-      <div className="divider" role="separator"><span>or</span></div>
-
-      <GoogleSignInButton />
-
-      <p className="card-footer-text">
-        New to SwiftDrop? <Link to="/register">Create account</Link>
-      </p>
-    </div>
+      {isGoogleLoginEnabled() && (
+        <>
+          <div className="divider" role="separator"><span>or</span></div>
+          <GoogleSignInButton />
+        </>
+      )}
+    </AuthCard>
   )
 }
