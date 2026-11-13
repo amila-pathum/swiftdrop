@@ -7,10 +7,10 @@ import { ApiError, ApiErrorKind } from './apiClient'
 export const SERVICE_UNAVAILABLE_MESSAGE =
   'SwiftDrop service is temporarily unavailable. Please try again shortly.'
 export const GENERIC_ERROR_MESSAGE = 'Something went wrong. Please try again.'
-// Login returns 403 for accounts that are not ACTIVE, including merchants and
-// couriers whose applications have not been approved yet.
-export const ACCOUNT_NOT_ACTIVE_MESSAGE = 'This account is not active. If you applied as a '
-  + 'merchant or courier, your application may still be awaiting admin approval.'
+// Login returns 403 only for suspended or disabled accounts. Merchants and
+// couriers awaiting approval can sign in and see their application status.
+export const ACCOUNT_NOT_ACTIVE_MESSAGE = 'This account has been suspended or disabled. '
+  + 'Please contact SwiftDrop support.'
 export const STORAGE_ERROR_MESSAGE =
   'Unable to sign in. Check that your browser allows this site to store data.'
 

@@ -5,7 +5,12 @@ export const PUBLIC_ONLY_PATHS = Object.freeze([
   '/register/courier',
   '/forgot-password',
 ])
-const NOT_A_DESTINATION = [...PUBLIC_ONLY_PATHS, '/auth/google/callback', '/application/submitted']
+const NOT_A_DESTINATION = [
+  ...PUBLIC_ONLY_PATHS,
+  '/auth/google/callback',
+  '/application/submitted',
+  '/reset-password',
+]
 
 // Where to send a user who has just signed in: the page ProtectedRoute
 // redirected them away from, if any, otherwise /dashboard, which resolves to

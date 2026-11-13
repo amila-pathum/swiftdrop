@@ -173,7 +173,19 @@ export function AuthProvider({ children }) {
   // `details`: { name, email, password, phone, address }.
   const register = useCallback((details) => authService.register(details), [])
 
-  const logout = useCallback(() => endSession(false), [endSession])
+  // Ends the session here immediately and tells the backend to invalidate the
+  // user's tokens. The request is best effort: signing out never waits for it.
+  const logout = useCallback(() => {
+    if (getSession() !== null && !isSessionExpired()) {
+      try {
+        // Started before the token is cleared, so it still carries it.
+        Promise.resolve(authService.logout()).catch(() => {})
+      } catch {
+        // Signing out locally is what matters.
+      }
+    }
+    endSession(false)
+  }, [endSession])
 
   const dismissSessionExpired = useCallback(() => {
     setState((current) => (current.sessionExpired

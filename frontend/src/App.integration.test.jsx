@@ -12,6 +12,7 @@ vi.mock('./services/authService', () => ({
   register: vi.fn(),
   login: vi.fn(),
   getCurrentUser: vi.fn(),
+  logout: vi.fn(),
 }))
 
 const USER = {

@@ -17,6 +17,24 @@ export function register({ name, email, password, phone, address }) {
   })
 }
 
+const accountBody = ({ name, email, password, phone, address }) => ({
+  name, email, password, phone, address,
+})
+
+/**
+ * Creates the identity account of a merchant (role MERCHANT, status
+ * PENDING_APPROVAL). The business application is submitted separately to the
+ * Merchant Service; see applicationService.applyAsMerchant.
+ */
+export function registerMerchantAccount(details) {
+  return callEndpoint(ENDPOINTS.registerMerchant, { body: accountBody(details) })
+}
+
+/** As registerMerchantAccount, for a courier (role COURIER, status PENDING_APPROVAL). */
+export function registerCourierAccount(details) {
+  return callEndpoint(ENDPOINTS.registerCourier, { body: accountBody(details) })
+}
+
 // Checks a LoginResponse and stores its token. Shared by every sign-in method.
 function saveLoginResponse(response, { persistent = false } = {}) {
   const valid = typeof response?.accessToken === 'string'
@@ -67,9 +85,22 @@ export function getCurrentUser() {
 }
 
 /**
- * PLANNED: asks the Identity Service to email a password reset link.
- * Rejects with NOT_IMPLEMENTED until the endpoint exists.
+ * Tells the backend to invalidate every access token of the signed-in user.
+ * The caller clears the local session whether or not this succeeds.
+ */
+export function logout() {
+  return callEndpoint(ENDPOINTS.logout)
+}
+
+/**
+ * NOT AVAILABLE YET: asks the Identity Service to email a password reset link.
+ * Rejects with NOT_IMPLEMENTED until SwiftDrop has email delivery.
  */
 export function requestPasswordReset(email) {
   return callEndpoint(ENDPOINTS.forgotPassword, { body: { email } })
+}
+
+/** Sets a new password using the token from a reset link. */
+export function confirmPasswordReset(token, newPassword) {
+  return callEndpoint(ENDPOINTS.confirmPasswordReset, { body: { token, newPassword } })
 }

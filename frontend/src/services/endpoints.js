@@ -20,17 +20,38 @@ export const ENDPOINTS = Object.freeze({
     method: 'POST',
     path: '/api/auth/register',
     available: true,
-    // Body: { name, email, password, phone, address }
-    // Creates an ACTIVE CUSTOMER and returns the user (no token).
-    // NOTE: RegisterRequest currently accepts only name, email and password;
-    // phone and address are sent but ignored until the Identity Service adds them.
+    // Body: { name, email, password, phone?, address? }
+    // Creates an ACTIVE CUSTOMER -> 201 user (no token). 409 if the email is taken.
+  },
+  registerMerchant: {
+    method: 'POST',
+    path: '/api/auth/register/merchant',
+    available: true,
+    // Body: { name, email, password, phone?, address? } (the contact person).
+    // Creates only the identity account: MERCHANT, status PENDING_APPROVAL.
+    // The business application is a separate call to the Merchant Service.
+  },
+  registerCourier: {
+    method: 'POST',
+    path: '/api/auth/register/courier',
+    available: true,
+    // Body: { name, email, password, phone?, address? }.
+    // Creates only the identity account: COURIER, status PENDING_APPROVAL.
+    // The courier application is a separate call to the Courier Service.
   },
   login: {
     method: 'POST',
     path: '/api/auth/login',
     available: true,
     // Body: { email, password } -> LoginResponse { accessToken, tokenType, expiresIn, user }
-    // Non-ACTIVE accounts currently receive 403.
+    // ACTIVE and PENDING_APPROVAL accounts may sign in; SUSPENDED and DISABLED get 403.
+  },
+  logout: {
+    method: 'POST',
+    path: '/api/auth/logout',
+    available: true,
+    auth: true,
+    // -> 204. Invalidates every access token of the signed-in user.
   },
   googleExchange: {
     method: 'POST',
@@ -43,14 +64,22 @@ export const ENDPOINTS = Object.freeze({
     path: '/api/users/me',
     available: true,
     auth: true,
-    // -> { id, name, email, role, status, createdAt }
+    // -> { id, name, email, phone, address, role, status, createdAt }
   },
   forgotPassword: {
     method: 'POST',
     path: '/api/auth/password-reset/request',
     available: false,
-    // PLANNED (Identity Service). Body: { email } -> 202, always, so the
-    // response does not reveal whether the email is registered.
+    // NOT AVAILABLE YET: the endpoint exists but answers 501 until SwiftDrop
+    // has email delivery. Then: body { email } -> 202 whether or not the email
+    // is registered. Until then an administrator issues reset links.
+  },
+  confirmPasswordReset: {
+    method: 'POST',
+    path: '/api/auth/password-reset/confirm',
+    available: true,
+    // Body: { token, newPassword } -> { message }. 400 for an unknown, used or
+    // expired token. The token comes from a reset link: /reset-password#token=...
   },
 
   // ---------------------------------------------------------------- Merchant
@@ -58,20 +87,24 @@ export const ENDPOINTS = Object.freeze({
     method: 'POST',
     path: '/api/merchants/applications',
     available: false,
-    // PLANNED (Merchant Service, public). Body:
-    // { businessName, businessRegistrationNumber, businessEmail, businessPhone,
-    //   businessAddress, contactName, contactEmail, password }
-    // Creates a MERCHANT account in PENDING_APPROVAL status (login email =
-    // contactEmail) -> 201 { id, status: "PENDING", submittedAt }. 409 if the
-    // contact email or registration number is already used.
+    auth: true,
+    // PLANNED (Merchant Service). Called with the new merchant's own token,
+    // straight after registerMerchant + login; the user id is the token subject.
+    // Body: { businessName, businessRegistrationNumber, businessEmail,
+    //         businessPhone, businessAddress }
+    // -> 201 { id, status: "PENDING", submittedAt }. 409 if this user already
+    // applied or the registration number is already used.
+    // The caller's token has role MERCHANT and status PENDING_APPROVAL, so this
+    // endpoint must not require hasRole('MERCHANT'); read the "role" claim.
   },
   myMerchantApplication: {
     method: 'GET',
     path: '/api/merchants/me/application',
     available: false,
     auth: true,
-    // PLANNED (Merchant Service, role MERCHANT, any account status).
+    // PLANNED (Merchant Service; token role claim MERCHANT, any account status).
     // -> { status: "PENDING" | "APPROVED" | "REJECTED", submittedAt, reviewedAt, reviewNote }
+    // 404 when this user has not submitted an application.
   },
 
   // ----------------------------------------------------------------- Courier
@@ -79,19 +112,21 @@ export const ENDPOINTS = Object.freeze({
     method: 'POST',
     path: '/api/couriers/applications',
     available: false,
-    // PLANNED (Courier Service, public). Body:
-    // { name, email, phone, address, vehicleType, vehicleRegistrationNumber,
-    //   preferredArea, password }
-    // Creates a COURIER account in PENDING_APPROVAL status -> 201
-    // { id, status: "PENDING", submittedAt }. 409 if the email is already used.
+    auth: true,
+    // PLANNED (Courier Service). Called with the new courier's own token,
+    // straight after registerCourier + login; the user id is the token subject.
+    // Body: { vehicleType, vehicleRegistrationNumber, preferredArea }
+    // -> 201 { id, status: "PENDING", submittedAt }. 409 if this user already applied.
+    // The caller's token has role COURIER and status PENDING_APPROVAL, so this
+    // endpoint must not require hasRole('COURIER'); read the "role" claim.
   },
   myCourierApplication: {
     method: 'GET',
     path: '/api/couriers/me/application',
     available: false,
     auth: true,
-    // PLANNED (Courier Service, role COURIER, any account status). Same shape
-    // as myMerchantApplication.
+    // PLANNED (Courier Service; token role claim COURIER, any account status).
+    // Same shape as myMerchantApplication.
   },
 
   // ------------------------------------------------------------------ Parcel

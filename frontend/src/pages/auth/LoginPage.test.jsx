@@ -122,8 +122,7 @@ describe('LoginPage', () => {
       ['invalid credentials', new ApiError('Invalid email or password', { status: 401 }),
         'Invalid email or password.'],
       ['an inactive account', new ApiError('This account is not permitted to sign in', {
-        status: 403 }), 'This account is not active. If you applied as a merchant or courier, '
-        + 'your application may still be awaiting admin approval.'],
+        status: 403 }), 'This account has been suspended or disabled. Please contact SwiftDrop support.'],
       ['a network failure', new ApiError('offline', { kind: ApiErrorKind.NETWORK }),
         'SwiftDrop service is temporarily unavailable. Please try again shortly.'],
       ['an unavailable gateway', new ApiError('down', {

@@ -40,6 +40,13 @@ export function validateForgotPassword({ email }) {
   return collectErrors([['email', validateEmail(email)]])
 }
 
+export function validateNewPasswordForm({ password, confirmPassword }) {
+  return collectErrors([
+    ['password', validateNewPassword(password)],
+    ['confirmPassword', validatePasswordConfirmation(confirmPassword, password)],
+  ])
+}
+
 export function validateRegistration({ name, email, phone, address: addr, password, confirmPassword }) {
   return collectErrors([
     ['name', fullName(name)],

@@ -1,5 +1,7 @@
 package com.swiftdrop.parcel.config;
 
+import com.swiftdrop.parcel.service.ParcelService;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -45,6 +47,9 @@ class SecurityConfigTest {
     private static final byte[] OTHER_KEY = bytes(32, 100);
 
     @Autowired MockMvc mockMvc;
+
+    @MockitoBean ParcelService parcelService;
+    @MockitoBean com.swiftdrop.parcel.service.ParcelCreationService parcelCreationService;
 
     /** Test-only endpoint showing the convention for a protected, role-restricted endpoint. */
     @TestConfiguration
@@ -117,6 +122,19 @@ class SecurityConfigTest {
                 .header("Authorization", signed(identityToken("MERCHANT"), KEY)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.userId").value("42"));
+    }
+
+    @Test
+    void anAccountAwaitingApprovalIsAuthenticatedButHoldsNoRole() throws Exception {
+        for (String status : new String[] {"PENDING_APPROVAL", "SUSPENDED", "DISABLED"}) {
+            mockMvc.perform(get("/test/security/merchant-only").header("Authorization",
+                    signed(identityToken("MERCHANT").claim("status", status), KEY)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("Access is denied"));
+        }
+        mockMvc.perform(get("/test/security/merchant-only").header("Authorization",
+                signed(identityToken("MERCHANT").claim("status", "ACTIVE"), KEY)))
+            .andExpect(status().isOk());
     }
 
     @Test

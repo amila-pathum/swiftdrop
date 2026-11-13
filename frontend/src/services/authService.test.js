@@ -1,10 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, ApiErrorKind } from './apiClient'
 import {
+  confirmPasswordReset,
   exchangeGoogleCode,
   getCurrentUser,
   login,
+  logout,
   register,
+  registerCourierAccount,
+  registerMerchantAccount,
   requestPasswordReset,
 } from './authService'
 import { API_BASE_URL } from './config'
@@ -237,6 +241,46 @@ describe('authService', () => {
       const error = await requestPasswordReset('user@example.com').catch((e) => e)
       expect(error.kind).toBe('NOT_IMPLEMENTED')
       expect(fetchMock).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('Phase 4 endpoints', () => {
+    it.each([
+      [registerMerchantAccount, '/api/auth/register/merchant'],
+      [registerCourierAccount, '/api/auth/register/courier'],
+    ])('registers through %o without ever sending a role', async (register, path) => {
+      fetchMock.mockResolvedValue(jsonResponse(201, { ...USER, status: 'PENDING_APPROVAL' }))
+
+      await register({
+        name: 'N', email: 'n@example.com', password: 'password123', role: 'ADMIN', status: 'ACTIVE',
+      })
+
+      const [url, init] = fetchMock.mock.calls[0]
+      expect(url).toBe(`${API_BASE_URL}${path}`)
+      expect(JSON.parse(init.body)).toEqual({ name: 'N', email: 'n@example.com', password: 'password123' })
+    })
+
+    it('logs out with the stored token', async () => {
+      saveSession('token-1', 900)
+      fetchMock.mockResolvedValue(new Response(null, { status: 204 }))
+
+      await expect(logout()).resolves.toBeNull()
+
+      const [url, init] = fetchMock.mock.calls[0]
+      expect(url).toBe(`${API_BASE_URL}/api/auth/logout`)
+      expect(init.method).toBe('POST')
+      expect(init.headers.Authorization).toBe('Bearer token-1')
+    })
+
+    it('confirms a password reset without authentication', async () => {
+      fetchMock.mockResolvedValue(jsonResponse(200, { message: 'Password has been reset' }))
+
+      await confirmPasswordReset('one-time-token', 'new-password-456')
+
+      const [url, init] = fetchMock.mock.calls[0]
+      expect(url).toBe(`${API_BASE_URL}/api/auth/password-reset/confirm`)
+      expect(JSON.parse(init.body)).toEqual({ token: 'one-time-token', newPassword: 'new-password-456' })
+      expect(init.headers.Authorization).toBeUndefined()
     })
   })
 })

@@ -36,6 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest(properties = {
     "swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+    "management.health.rabbit.enabled=false",
     "spring.autoconfigure.exclude=org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration,org.springframework.boot.data.jpa.autoconfigure.JpaRepositoriesAutoConfiguration"
 })
 @AutoConfigureMockMvc
@@ -117,6 +118,19 @@ class SecurityConfigTest {
                 .header("Authorization", signed(identityToken("MERCHANT"), KEY)))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.userId").value("42"));
+    }
+
+    @Test
+    void anAccountAwaitingApprovalIsAuthenticatedButHoldsNoRole() throws Exception {
+        for (String status : new String[] {"PENDING_APPROVAL", "SUSPENDED", "DISABLED"}) {
+            mockMvc.perform(get("/test/security/merchant-only").header("Authorization",
+                    signed(identityToken("MERCHANT").claim("status", status), KEY)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("Access is denied"));
+        }
+        mockMvc.perform(get("/test/security/merchant-only").header("Authorization",
+                signed(identityToken("MERCHANT").claim("status", "ACTIVE"), KEY)))
+            .andExpect(status().isOk());
     }
 
     @Test

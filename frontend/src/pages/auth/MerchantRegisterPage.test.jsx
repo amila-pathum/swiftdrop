@@ -3,13 +3,18 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import MerchantRegisterPage from './MerchantRegisterPage'
 import { ApiError, ApiErrorKind } from '../../services/apiClient'
-import { submitMerchantApplication } from '../../services/applicationService'
+import { applyAsMerchant } from '../../services/applicationService'
 
-vi.mock('../../services/applicationService', () => ({ submitMerchantApplication: vi.fn() }))
+vi.mock('../../services/applicationService', () => ({ applyAsMerchant: vi.fn() }))
 
 function SubmittedProbe() {
   const { state } = useLocation()
-  return <p>submitted {state?.applicationType} for {state?.email}</p>
+  return (
+    <p>
+      {state?.applicationType} {state?.email} submitted={String(state?.applicationSubmitted)}
+      {' '}unavailable={String(state?.applicationUnavailable)}
+    </p>
+  )
 }
 
 function renderPage() {
@@ -80,7 +85,7 @@ describe('MerchantRegisterPage', () => {
         expect(screen.getByText(message)).toBeInTheDocument()
       }
       expect(screen.getByLabelText('Business name')).toHaveFocus()
-      expect(submitMerchantApplication).not.toHaveBeenCalled()
+      expect(applyAsMerchant).not.toHaveBeenCalled()
     })
 
     it.each([
@@ -95,18 +100,20 @@ describe('MerchantRegisterPage', () => {
       await submit()
 
       expect(screen.getByLabelText(label)).toHaveAccessibleDescription(expect.stringContaining(message))
-      expect(submitMerchantApplication).not.toHaveBeenCalled()
+      expect(applyAsMerchant).not.toHaveBeenCalled()
     })
   })
 
   describe('submission', () => {
-    it('submits trimmed details and shows the application submitted page', async () => {
-      submitMerchantApplication.mockResolvedValue({ id: 3, status: 'PENDING' })
+    it('creates the account, submits the application and shows the submitted page', async () => {
+      applyAsMerchant.mockResolvedValue({
+        user: { email: 'nimal@lankabooks.lk' }, applicationSubmitted: true, applicationError: null,
+      })
       renderPage()
       fill({ 'Business name': '  Lanka Books (Pvt) Ltd  ' })
       await submit()
 
-      expect(submitMerchantApplication).toHaveBeenCalledWith({
+      expect(applyAsMerchant).toHaveBeenCalledWith({
         businessName: 'Lanka Books (Pvt) Ltd',
         businessRegistrationNumber: 'PV 00123456',
         businessEmail: 'orders@lankabooks.lk',
@@ -117,38 +124,54 @@ describe('MerchantRegisterPage', () => {
         password: 'password123',
         confirmPassword: 'password123',
       })
-      expect(screen.getByText('submitted MERCHANT for nimal@lankabooks.lk')).toBeInTheDocument()
+      expect(screen.getByText('MERCHANT nimal@lankabooks.lk submitted=true unavailable=false'))
+        .toBeInTheDocument()
     })
 
-    it('does not pretend to succeed while the backend endpoint is planned', async () => {
-      submitMerchantApplication.mockRejectedValue(new ApiError('Not available', {
-        status: 501, kind: ApiErrorKind.NOT_IMPLEMENTED,
-      }))
+    it('reports an account created without a submitted application honestly', async () => {
+      applyAsMerchant.mockResolvedValue({
+        user: { email: 'nimal@lankabooks.lk' },
+        applicationSubmitted: false,
+        applicationError: new ApiError('Not available', {
+          status: 501, kind: ApiErrorKind.NOT_IMPLEMENTED,
+        }),
+      })
       renderPage()
       fill()
       await submit()
 
-      expect(screen.getByRole('alert')).toHaveTextContent('Merchant applications are not open yet')
-      expect(screen.getByRole('alert')).toHaveTextContent('Your details have not been submitted.')
-      expect(screen.queryByText(/^submitted/)).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'Submit application' })).toBeEnabled()
+      expect(screen.getByText('MERCHANT nimal@lankabooks.lk submitted=false unavailable=true'))
+        .toBeInTheDocument()
+    })
+
+    it('marks the contact email when it is already registered', async () => {
+      applyAsMerchant.mockRejectedValue(new ApiError('exists', { status: 409 }))
+      renderPage()
+      fill()
+      await submit()
+
+      expect(screen.getByLabelText("Contact person's email"))
+        .toHaveAccessibleDescription('This email is already registered. Sign in instead.')
+      expect(screen.getByLabelText("Contact person's email")).toHaveFocus()
+      expect(screen.queryByText(/submitted=/)).not.toBeInTheDocument()
     })
 
     it.each([
-      ['a duplicate', new ApiError('exists', { status: 409 }), /already exists/],
       ['invalid data', new ApiError('bad', { status: 400 }), /Some details are invalid/],
       ['a network failure', new ApiError('x', { kind: ApiErrorKind.NETWORK }), /temporarily unavailable/],
-    ])('explains %s', async (_label, error, message) => {
-      submitMerchantApplication.mockRejectedValue(error)
+    ])('stays on the form and explains %s', async (_label, error, message) => {
+      applyAsMerchant.mockRejectedValue(error)
       renderPage()
       fill()
       await submit()
 
       expect(screen.getByRole('alert')).toHaveTextContent(message)
+      expect(screen.queryByText(/submitted=/)).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Submit application' })).toBeEnabled()
     })
 
     it('shows a loading state and ignores duplicate submissions', async () => {
-      submitMerchantApplication.mockReturnValue(new Promise(() => {}))
+      applyAsMerchant.mockReturnValue(new Promise(() => {}))
       renderPage()
       fill()
       await submit()
@@ -158,7 +181,7 @@ describe('MerchantRegisterPage', () => {
       await act(async () => {
         fireEvent.submit(button.closest('form'))
       })
-      expect(submitMerchantApplication).toHaveBeenCalledTimes(1)
+      expect(applyAsMerchant).toHaveBeenCalledTimes(1)
     })
   })
 })

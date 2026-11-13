@@ -43,21 +43,54 @@ function NextSteps({ steps }) {
   )
 }
 
-/** After a merchant or courier application has been sent (not signed in). */
-export function ApplicationSubmittedView({ applicationType, email }) {
+const SERVICE_NAMES = { MERCHANT: 'Merchant Service', COURIER: 'Courier Service' }
+
+/**
+ * After merchant or courier sign-up (not signed in).
+ *
+ * `applicationSubmitted === false` means the account exists but the business
+ * application did not reach the Merchant / Courier Service; the page then says
+ * "Account created" and never claims the application was submitted.
+ * `applicationUnavailable` tells why: that service has no application endpoint yet.
+ */
+export function ApplicationSubmittedView({
+  applicationType, email, applicationSubmitted = true, applicationUnavailable = false,
+}) {
   // Reached without state (e.g. a reload): describe both application types.
   const name = APPLICATION_NAMES[applicationType] ?? 'merchant or courier'
+  const actions = (
+    <>
+      <ButtonLink to="/login" fullWidth>Sign in to check your status</ButtonLink>
+      <ButtonLink to="/" variant="ghost" fullWidth>Back to home</ButtonLink>
+    </>
+  )
+
+  if (!applicationSubmitted) {
+    return (
+      <StatusPanel tone="info" title="Account created" actions={actions}>
+        <p>
+          Your SwiftDrop {name} account has been created
+          {email ? <> for <strong>{email}</strong></> : null}.
+        </p>
+        <p className="status-panel-warning" role="alert">
+          {applicationUnavailable
+            ? `Your application details have not been submitted: ${name} applications are not `
+              + `open yet (the ${SERVICE_NAMES[applicationType] ?? 'owning service'} has not `
+              + 'published its application endpoint). You will be asked for them again when '
+              + 'applications open.'
+            : 'Your application details could not be submitted. Sign in later to complete '
+              + 'your application.'}
+        </p>
+        <p>
+          You can sign in now, but {name} features stay locked until your application has
+          been submitted and approved by a SwiftDrop administrator.
+        </p>
+      </StatusPanel>
+    )
+  }
+
   return (
-    <StatusPanel
-      tone="success"
-      title="Application submitted"
-      actions={(
-        <>
-          <ButtonLink to="/login" fullWidth>Sign in to check your status</ButtonLink>
-          <ButtonLink to="/" variant="ghost" fullWidth>Back to home</ButtonLink>
-        </>
-      )}
-    >
+    <StatusPanel tone="success" title="Application submitted" actions={actions}>
       <p>
         Thank you for applying for a SwiftDrop {name} account
         {email ? <> with <strong>{email}</strong></> : null}.
@@ -79,12 +112,12 @@ export function ApplicationPendingView({ applicationType, submittedAt, actions }
   return (
     <StatusPanel tone="pending" title="Application pending" actions={actions}>
       <p>
-        Your {name} application is awaiting review by a SwiftDrop administrator.
-        {submitted && <> It was submitted on {submitted}.</>}
+        Your {name} account is awaiting approval by a SwiftDrop administrator.
+        {submitted && <> Your application was submitted on {submitted}.</>}
       </p>
       <p>
         {name.charAt(0).toUpperCase() + name.slice(1)} features stay locked until your
-        application is approved. Check back here for the latest status.
+        account is approved. Check back here for the latest status.
       </p>
     </StatusPanel>
   )

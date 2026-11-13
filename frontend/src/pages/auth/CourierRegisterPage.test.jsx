@@ -3,16 +3,21 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import CourierRegisterPage from './CourierRegisterPage'
 import { ApiError, ApiErrorKind } from '../../services/apiClient'
-import { submitCourierApplication } from '../../services/applicationService'
+import { applyAsCourier } from '../../services/applicationService'
 
 vi.mock('../../services/applicationService', async (importOriginal) => ({
   ...(await importOriginal()),
-  submitCourierApplication: vi.fn(),
+  applyAsCourier: vi.fn(),
 }))
 
 function SubmittedProbe() {
   const { state } = useLocation()
-  return <p>submitted {state?.applicationType} for {state?.email}</p>
+  return (
+    <p>
+      {state?.applicationType} {state?.email} submitted={String(state?.applicationSubmitted)}
+      {' '}unavailable={String(state?.applicationUnavailable)}
+    </p>
+  )
 }
 
 function renderPage() {
@@ -85,7 +90,7 @@ describe('CourierRegisterPage', () => {
         expect(screen.getByText(message)).toBeInTheDocument()
       }
       expect(screen.getByLabelText('Full name')).toHaveFocus()
-      expect(submitCourierApplication).not.toHaveBeenCalled()
+      expect(applyAsCourier).not.toHaveBeenCalled()
     })
 
     it('rejects mismatched passwords', async () => {
@@ -95,7 +100,7 @@ describe('CourierRegisterPage', () => {
 
       expect(screen.getByText('Passwords do not match.')).toBeInTheDocument()
       expect(screen.getByLabelText('Confirm password')).toHaveFocus()
-      expect(submitCourierApplication).not.toHaveBeenCalled()
+      expect(applyAsCourier).not.toHaveBeenCalled()
     })
 
     it('rejects an over-long registration number', async () => {
@@ -108,44 +113,52 @@ describe('CourierRegisterPage', () => {
   })
 
   describe('submission', () => {
-    it('submits the application and shows the submitted page', async () => {
-      submitCourierApplication.mockResolvedValue({ id: 9, status: 'PENDING' })
+    it('creates the account, submits the application and shows the submitted page', async () => {
+      applyAsCourier.mockResolvedValue({
+        user: { email: 'kasun@example.com' }, applicationSubmitted: true, applicationError: null,
+      })
       renderPage()
       fill()
       await submit()
 
-      expect(submitCourierApplication).toHaveBeenCalledWith(expect.objectContaining({
+      expect(applyAsCourier).toHaveBeenCalledWith(expect.objectContaining({
         name: 'Kasun Silva',
         email: 'kasun@example.com',
+        phone: '+94 71 555 1234',
+        address: '8 Temple Road, Kandy',
         vehicleType: 'MOTORCYCLE',
         vehicleRegistrationNumber: 'WP BAA-1234',
         preferredArea: 'Kandy',
         password: 'password123',
       }))
-      expect(screen.getByText('submitted COURIER for kasun@example.com')).toBeInTheDocument()
+      expect(screen.getByText('COURIER kasun@example.com submitted=true unavailable=false'))
+        .toBeInTheDocument()
     })
 
-    it('does not pretend to succeed while the backend endpoint is planned', async () => {
-      submitCourierApplication.mockRejectedValue(new ApiError('n/a', {
-        status: 501, kind: ApiErrorKind.NOT_IMPLEMENTED,
-      }))
+    it('reports an account created without a submitted application honestly', async () => {
+      applyAsCourier.mockResolvedValue({
+        user: { email: 'kasun@example.com' },
+        applicationSubmitted: false,
+        applicationError: new ApiError('n/a', { status: 501, kind: ApiErrorKind.NOT_IMPLEMENTED }),
+      })
       renderPage()
       fill()
       await submit()
 
-      expect(screen.getByRole('alert')).toHaveTextContent('Courier applications are not open yet')
-      expect(screen.queryByText(/^submitted/)).not.toBeInTheDocument()
+      expect(screen.getByText('COURIER kasun@example.com submitted=false unavailable=true'))
+        .toBeInTheDocument()
     })
 
     it('marks the email when an account already exists', async () => {
-      submitCourierApplication.mockRejectedValue(new ApiError('exists', { status: 409 }))
+      applyAsCourier.mockRejectedValue(new ApiError('exists', { status: 409 }))
       renderPage()
       fill()
       await submit()
 
       expect(screen.getByLabelText('Email'))
-        .toHaveAccessibleDescription('An account or application already exists for this email.')
+        .toHaveAccessibleDescription('This email is already registered. Sign in instead.')
       expect(screen.getByLabelText('Email')).toHaveFocus()
+      expect(screen.queryByText(/submitted=/)).not.toBeInTheDocument()
     })
   })
 })

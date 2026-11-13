@@ -905,6 +905,15 @@ a.button {
   color: var(--color-text-secondary);
 }
 
+.status-panel-warning {
+  padding: 10px 12px;
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-control);
+  background-color: var(--color-warning-bg);
+  color: var(--color-warning);
+  text-align: left;
+}
+
 .status-panel-actions {
   display: flex;
   flex-direction: column;

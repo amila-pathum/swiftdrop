@@ -6,8 +6,8 @@ import FormField from '../../components/FormField'
 import FormSection from '../../components/FormSection'
 import RegistrationTypeTabs from '../../components/RegistrationTypeTabs'
 import { useForm } from '../../hooks/useForm'
-import { submitMerchantApplication } from '../../services/applicationService'
-import { describeError } from '../../services/errorMessages'
+import { applyAsMerchant } from '../../services/applicationService'
+import { describeError, isNotImplemented } from '../../services/errorMessages'
 import { validateMerchantRegistration } from './authForm'
 
 const EMPTY_FORM = {
@@ -21,9 +21,6 @@ const EMPTY_FORM = {
   password: '',
   confirmPassword: '',
 }
-
-const NOT_OPEN_MESSAGE = 'Merchant applications are not open yet: the Merchant Service has not '
-  + 'published its application endpoint. Your details have not been submitted.'
 
 const trimmed = (values) => Object.fromEntries(Object.entries(values).map(([key, value]) => [
   key, key === 'password' || key === 'confirmPassword' ? value : value.trim(),
@@ -41,17 +38,21 @@ export default function MerchantRegisterPage() {
   const onSubmit = form.handleSubmit(async (values) => {
     const details = trimmed(values)
     try {
-      await submitMerchantApplication(details)
+      const result = await applyAsMerchant(details)
       navigate('/application/submitted', {
-        state: { applicationType: 'MERCHANT', email: details.contactEmail },
+        state: {
+          applicationType: 'MERCHANT',
+          email: result.user?.email ?? details.contactEmail,
+          applicationSubmitted: result.applicationSubmitted,
+          applicationUnavailable: isNotImplemented(result.applicationError),
+        },
       })
     } catch (error) {
+      // Only account creation rejects; nothing was created.
       if (error?.status === 409) {
-        form.setFormError('An account or application already exists for this contact email or '
-          + 'business registration number. Sign in to check its status.')
+        form.setFieldError('contactEmail', 'This email is already registered. Sign in instead.')
       } else {
         form.setFormError(describeError(error, {
-          notImplemented: NOT_OPEN_MESSAGE,
           byStatus: { 400: 'Some details are invalid. Check the form and try again.' },
         }))
       }

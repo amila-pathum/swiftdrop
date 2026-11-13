@@ -21,10 +21,16 @@ describe('endpoint registry', () => {
   })
 
   it('marks only the implemented Identity endpoints as available', () => {
+    // Merchant, courier and parcel endpoints, and emailed reset links, are still planned.
     const available = Object.entries(ENDPOINTS)
       .filter(([, endpoint]) => endpoint.available)
       .map(([name]) => name)
-    expect(available.sort()).toEqual(['currentUser', 'googleExchange', 'login', 'register'])
+    expect(available.sort()).toEqual([
+      'confirmPasswordReset', 'currentUser', 'googleExchange', 'login', 'logout',
+      'register', 'registerCourier', 'registerMerchant',
+    ])
+    expect(available.every((name) => ENDPOINTS[name].path.startsWith('/api/auth/')
+      || ENDPOINTS[name].path === '/api/users/me')).toBe(true)
   })
 
   it.each(Object.entries(ENDPOINTS).filter(([, e]) => !e.available))(

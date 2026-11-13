@@ -10,6 +10,7 @@ vi.mock('../services/authService', () => ({
   login: vi.fn(),
   exchangeGoogleCode: vi.fn(),
   getCurrentUser: vi.fn(),
+  logout: vi.fn(),
 }))
 
 const USER = {
@@ -490,6 +491,55 @@ describe('AuthContext', () => {
 
       expect(authService.login)
         .toHaveBeenCalledWith('customer@example.com', 'password123', { remember: true })
+    })
+  })
+
+  describe('server-side logout', () => {
+    it('asks the backend to invalidate the tokens, then clears the session', async () => {
+      authService.logout.mockResolvedValue(null)
+      mockSuccessfulLogin()
+      const { result } = renderAuth()
+      await flush()
+      await act(async () => {
+        await result.current.login('customer@example.com', 'password123')
+      })
+
+      act(() => {
+        result.current.logout()
+      })
+
+      expect(authService.logout).toHaveBeenCalledTimes(1)
+      expect(result.current.status).toBe('anonymous')
+      expect(result.current.sessionExpired).toBe(false)
+      expect(getSession()).toBeNull()
+    })
+
+    it('still signs out when the backend cannot be reached', async () => {
+      authService.logout.mockRejectedValue(new ApiError('offline', { kind: ApiErrorKind.NETWORK }))
+      mockSuccessfulLogin()
+      const { result } = renderAuth()
+      await flush()
+      await act(async () => {
+        await result.current.login('customer@example.com', 'password123')
+      })
+
+      await act(async () => {
+        result.current.logout()
+      })
+
+      expect(result.current.status).toBe('anonymous')
+      expect(getSession()).toBeNull()
+    })
+
+    it('does not call the backend without a session', async () => {
+      const { result } = renderAuth()
+      await flush()
+
+      act(() => {
+        result.current.logout()
+      })
+
+      expect(authService.logout).not.toHaveBeenCalled()
     })
   })
 })

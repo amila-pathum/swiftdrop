@@ -6,8 +6,8 @@ import FormField from '../../components/FormField'
 import FormSection from '../../components/FormSection'
 import RegistrationTypeTabs from '../../components/RegistrationTypeTabs'
 import { useForm } from '../../hooks/useForm'
-import { submitCourierApplication, VEHICLE_TYPES } from '../../services/applicationService'
-import { describeError } from '../../services/errorMessages'
+import { applyAsCourier, VEHICLE_TYPES } from '../../services/applicationService'
+import { describeError, isNotImplemented } from '../../services/errorMessages'
 import { validateCourierRegistration } from './authForm'
 
 const EMPTY_FORM = {
@@ -21,9 +21,6 @@ const EMPTY_FORM = {
   password: '',
   confirmPassword: '',
 }
-
-const NOT_OPEN_MESSAGE = 'Courier applications are not open yet: the Courier Service has not '
-  + 'published its application endpoint. Your details have not been submitted.'
 
 const validate = (values) => validateCourierRegistration(values, VEHICLE_TYPES)
 
@@ -43,16 +40,21 @@ export default function CourierRegisterPage() {
       preferredArea: values.preferredArea.trim(),
     }
     try {
-      await submitCourierApplication(details)
+      const result = await applyAsCourier(details)
       navigate('/application/submitted', {
-        state: { applicationType: 'COURIER', email: details.email },
+        state: {
+          applicationType: 'COURIER',
+          email: result.user?.email ?? details.email,
+          applicationSubmitted: result.applicationSubmitted,
+          applicationUnavailable: isNotImplemented(result.applicationError),
+        },
       })
     } catch (error) {
+      // Only account creation rejects; nothing was created.
       if (error?.status === 409) {
-        form.setFieldError('email', 'An account or application already exists for this email.')
+        form.setFieldError('email', 'This email is already registered. Sign in instead.')
       } else {
         form.setFormError(describeError(error, {
-          notImplemented: NOT_OPEN_MESSAGE,
           byStatus: { 400: 'Some details are invalid. Check the form and try again.' },
         }))
       }

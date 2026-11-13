@@ -14,6 +14,7 @@ import GoogleCallbackPage from './pages/auth/GoogleCallbackPage'
 import LoginPage from './pages/auth/LoginPage'
 import MerchantRegisterPage from './pages/auth/MerchantRegisterPage'
 import RegisterPage from './pages/auth/RegisterPage'
+import ResetPasswordPage from './pages/auth/ResetPasswordPage'
 import CourierDashboardPage from './pages/courier/CourierDashboardPage'
 import CustomerDashboardPage from './pages/customer/CustomerDashboardPage'
 import DispatcherDashboardPage from './pages/dispatcher/DispatcherDashboardPage'
@@ -72,6 +73,8 @@ function App() {
         {/* Not public-only: it navigates on by itself once the code is exchanged. */}
         <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
         <Route path="/application/submitted" element={<ApplicationSubmittedPage />} />
+        {/* Opened from a reset link, signed in or not. */}
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
       </Route>
 
       {/* Any signed-in user, whatever their account status. */}

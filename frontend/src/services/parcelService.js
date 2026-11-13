@@ -1,5 +1,36 @@
-import { callEndpoint } from './apiClient'
+import { callEndpoint, request } from './apiClient'
 import { ENDPOINTS } from './endpoints'
+
+export const parcelService = {
+  createParcel: (parcelData) =>
+    request('/api/parcels', {
+      method: 'POST',
+      body: parcelData,
+      auth: true,
+    }),
+
+  getParcelById: (id) =>
+    request(`/api/parcels/${encodeURIComponent(id)}`, {
+      auth: true,
+    }),
+
+  getMyParcels: () =>
+    request('/api/parcels/my', {
+      auth: true,
+    }),
+
+  getParcelHistory: (id) =>
+    request(`/api/parcels/${encodeURIComponent(id)}/history`, {
+      auth: true,
+    }),
+
+  updateParcelStatus: (id, statusData) =>
+    request(`/api/parcels/${encodeURIComponent(id)}/status`, {
+      method: 'PATCH',
+      body: statusData,
+      auth: true,
+    }),
+}
 
 // Public parcel tracking. PLANNED in the Parcel Service (see endpoints.js);
 // rejects with NOT_IMPLEMENTED until it exists.
@@ -17,3 +48,4 @@ export function trackParcel(trackingNumber, { signal } = {}) {
     signal,
   })
 }
+

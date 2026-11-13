@@ -52,7 +52,7 @@ describe('ApplicationStatusPage', () => {
     await renderStatus()
 
     expect(title()).toHaveTextContent('Application pending')
-    expect(screen.getByText(/merchant application is awaiting review/)).toBeInTheDocument()
+    expect(screen.getByText(/merchant account is awaiting approval/)).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
@@ -62,7 +62,7 @@ describe('ApplicationStatusPage', () => {
     await renderStatus()
 
     expect(title()).toHaveTextContent('Application pending')
-    expect(screen.getByText(/It was submitted on/)).toBeInTheDocument()
+    expect(screen.getByText(/Your application was submitted on/)).toBeInTheDocument()
     expect(getMyApplication).toHaveBeenCalledWith('COURIER')
   })
 
@@ -138,6 +138,37 @@ describe('ApplicationStatusPage', () => {
 })
 
 describe('ApplicationSubmittedPage', () => {
+  function renderSubmitted(state) {
+    render(
+      <MemoryRouter initialEntries={[{ pathname: '/application/submitted', state }]}>
+        <ApplicationSubmittedPage />
+      </MemoryRouter>,
+    )
+  }
+
+  it('never claims the application was submitted when only the account was created', () => {
+    renderSubmitted({
+      applicationType: 'MERCHANT',
+      email: 'a@example.com',
+      applicationSubmitted: false,
+      applicationUnavailable: true,
+    })
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Account created' })).toBeInTheDocument()
+    expect(screen.queryByText('Application submitted')).not.toBeInTheDocument()
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'Your application details have not been submitted: merchant applications are not open yet')
+    expect(screen.getByRole('alert')).toHaveTextContent('Merchant Service')
+  })
+
+  it('says so when the application step failed for another reason', () => {
+    renderSubmitted({ applicationType: 'COURIER', applicationSubmitted: false })
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Account created' })).toBeInTheDocument()
+    expect(screen.getByRole('alert'))
+      .toHaveTextContent('Your application details could not be submitted.')
+  })
+
   it.each([
     ['MERCHANT', 'merchant'],
     ['COURIER', 'courier'],
