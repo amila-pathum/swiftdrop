@@ -6,6 +6,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import PublicOnlyRoute from './components/PublicOnlyRoute'
 import { useAuth } from './context/AuthContext'
 import AdminDashboardPage from './pages/admin/AdminDashboardPage'
+import MerchantApprovalsPage from './pages/admin/MerchantApprovalsPage'
 import ApplicationStatusPage from './pages/application/ApplicationStatusPage'
 import ApplicationSubmittedPage from './pages/application/ApplicationSubmittedPage'
 import CourierRegisterPage from './pages/auth/CourierRegisterPage'
@@ -19,6 +20,8 @@ import CourierDashboardPage from './pages/courier/CourierDashboardPage'
 import CustomerDashboardPage from './pages/customer/CustomerDashboardPage'
 import DispatcherDashboardPage from './pages/dispatcher/DispatcherDashboardPage'
 import MerchantDashboardPage from './pages/merchant/MerchantDashboardPage'
+import MerchantApiKeysPage from './pages/merchant/MerchantApiKeysPage'
+import MerchantWebhookPage from './pages/merchant/MerchantWebhookPage'
 import NotAvailablePage from './pages/NotAvailablePage'
 import NotFoundPage from './pages/NotFoundPage'
 import ProfilePage from './pages/ProfilePage'
@@ -88,16 +91,21 @@ function App() {
         </Route>
       </Route>
 
-      {/* Active accounts only; each dashboard limited to its own role. */}
-      <Route element={<ProtectedRoute />}>
+      {/* Merchant protected routes */}
+      <Route element={<ProtectedRoute allowedRoles={['MERCHANT']} />}>
         <Route element={<AppLayout />}>
-          {Object.entries(ROLE_PAGES).map(([role, page]) => (
-            <Route
-              key={role}
-              path={ROLE_DASHBOARDS[role]}
-              element={<ProtectedRoute allowedRoles={[role]}>{page}</ProtectedRoute>}
-            />
-          ))}
+          <Route path="/merchant/dashboard" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/merchant/api-keys" element={<MerchantApiKeysPage />} />
+          <Route path="/merchant/webhooks" element={<MerchantWebhookPage />} />
+          <Route path="/merchant/webhook" element={<Navigate to="/merchant/webhooks" replace />} />
+        </Route>
+      </Route>
+
+      {/* Admin protected routes */}
+      <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+        <Route element={<AppLayout />}>
+          <Route path="/admin/merchant-approvals" element={<MerchantApprovalsPage />} />
+          <Route path="/admin/approvals" element={<Navigate to="/admin/merchant-approvals" replace />} />
         </Route>
       </Route>
 
