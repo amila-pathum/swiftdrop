@@ -250,16 +250,22 @@ describe('App routing', () => {
       expect(screen.queryByText('Customer dashboard')).not.toBeInTheDocument()
     })
 
-    it.each([
-      ['COURIER', 'Courier dashboard'],
-      ['ADMIN', 'Admin dashboard'],
-    ])('shows a not-available page for %s', (role, title) => {
-      authenticatedAs(role)
+    it('shows a not-available page for COURIER', () => {
+      authenticatedAs('COURIER')
       renderAt('/dashboard')
 
-      expect(heading(title)).toBeInTheDocument()
+      expect(heading('Courier dashboard')).toBeInTheDocument()
       expect(screen.getByText(/future development phase/)).toBeInTheDocument()
       expect(screen.queryByText('Customer dashboard')).not.toBeInTheDocument()
+    })
+
+    it('shows dispatcher account management to ADMIN', () => {
+      authenticatedAs('ADMIN')
+      renderAt('/dashboard')
+
+      expect(heading('Admin dashboard')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Create dispatcher account' })).toBeInTheDocument()
+      expect(screen.getByLabelText('Role')).toHaveValue('DISPATCHER')
     })
 
     it('shows dispatch management to dispatcher users', async () => {

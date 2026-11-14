@@ -78,6 +78,28 @@ class AdminBootstrapTest {
     }
 
     @Test
+    void neverChangesAnExistingAdministrator() {
+        User admin = new User("Existing Admin", "admin@example.com", "existing-hash",
+            Role.ADMIN, UserStatus.ACTIVE);
+        when(repository.findByEmail("admin@example.com")).thenReturn(Optional.of(admin));
+
+        bootstrap("admin@example.com", "a-different-password").run(null);
+
+        verify(repository, never()).save(any());
+        assertThat(admin.getPasswordHash()).isEqualTo("existing-hash");
+    }
+
+    @Test
+    void doesNotCreateAnotherAdministratorUnderADifferentEmail() {
+        when(repository.findByEmail("new-admin@example.com")).thenReturn(Optional.empty());
+        when(repository.existsByRole(Role.ADMIN)).thenReturn(true);
+
+        bootstrap("new-admin@example.com", "a-long-password").run(null);
+
+        verify(repository, never()).save(any());
+    }
+
+    @Test
     void failsStartupWhenOnlyOneValueIsSet() {
         assertThatThrownBy(() -> bootstrap("admin@example.com", "").run(null))
             .isInstanceOf(IllegalStateException.class).hasMessageContaining("set together");

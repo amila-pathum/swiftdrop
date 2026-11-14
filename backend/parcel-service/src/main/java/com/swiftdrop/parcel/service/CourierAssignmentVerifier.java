@@ -3,13 +3,11 @@ package com.swiftdrop.parcel.service;
 import com.swiftdrop.parcel.entity.Parcel;
 import org.springframework.stereotype.Component;
 
-/**
- * Denies courier mutations until Courier Service defines how numeric Identity
- * user IDs map to UUID courier assignments. Never trust a caller-provided UUID.
- */
+/** Assignment stores an Identity user ID, never a Courier Service profile UUID. */
 @Component
 public class CourierAssignmentVerifier {
     public boolean isAssigned(Parcel parcel, Long identityUserId) {
-        return false;
+        return identityUserId != null && identityUserId > 0
+            && identityUserId.equals(parcel.getAssignedCourierId());
     }
 }

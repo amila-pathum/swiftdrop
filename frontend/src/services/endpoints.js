@@ -81,6 +81,14 @@ export const ENDPOINTS = Object.freeze({
     // Body: { token, newPassword } -> { message }. 400 for an unknown, used or
     // expired token. The token comes from a reset link: /reset-password#token=...
   },
+  createStaffUser: {
+    method: 'POST',
+    path: '/api/admin/users',
+    available: true,
+    auth: true,
+    // ADMIN only. Body: { name, email, password, role: "DISPATCHER" }
+    // -> 201 { id, name, email, role, status, createdAt }.
+  },
 
   // ---------------------------------------------------------------- Merchant
   merchantApplication: {

@@ -47,7 +47,7 @@ class ParcelStatusUpdateApiTest {
         p.setPickupAddress("Colombo"); p.setDeliveryAddress("Kandy");
         p.setWeight(new BigDecimal("1.250")); p.setCharge(new BigDecimal("450.00"));
         p.setSize("MEDIUM"); p.setParcelType("STANDARD");
-        p.setAssignedCourierId(UUID.randomUUID());
+        p.setAssignedCourierId(88L);
         return creation.createParcel(p).getId();
     }
 

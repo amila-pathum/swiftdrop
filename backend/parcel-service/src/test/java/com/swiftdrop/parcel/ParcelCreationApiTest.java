@@ -53,6 +53,58 @@ class ParcelCreationApiTest {
         """;
 
     @Test
+    void numericMerchantIdentityCreatesOwnParcelWithoutChangingCustomerAuthorization() throws Exception {
+        when(pricing.quote(any())).thenReturn(new BigDecimal("450.00"));
+        String number = "SD" + UUID.randomUUID().toString().replace("-", "");
+        when(tracking.generate()).thenReturn(number);
+        mvc.perform(post("/api/parcels/merchant").with(jwt().jwt(j -> j.subject("51"))
+                .authorities(new SimpleGrantedAuthority("ROLE_MERCHANT")))
+                .contentType(MediaType.APPLICATION_JSON).content(BODY))
+            .andExpect(status().isCreated());
+        var parcel = parcels.findByTrackingNumber(number).orElseThrow();
+        assertThat(parcel.getSenderId()).isEqualTo(51L);
+        assertThat(parcel.getCreatedBy()).isEqualTo(51L);
+        assertThat(parcel.getMerchantId()).isEqualTo(51L);
+        assertThat(history.findByParcelIdOrderByChangedAtAsc(parcel.getId()).getFirst().getChangedBy()).isEqualTo(51L);
+        mvc.perform(post("/api/parcels/merchant").with(jwt().jwt(j -> j.subject("42"))
+                .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
+                .contentType(MediaType.APPLICATION_JSON).content(BODY))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void assignmentRequiresStaffAndAssignedNumericCourierCanUpdate() throws Exception {
+        when(pricing.quote(any())).thenReturn(new BigDecimal("450.00"));
+        String number = "SD" + UUID.randomUUID().toString().replace("-", "");
+        when(tracking.generate()).thenReturn(number);
+        mvc.perform(post("/api/parcels").header("Authorization", customerToken(42L))
+                .contentType(MediaType.APPLICATION_JSON).content(BODY)).andExpect(status().isCreated());
+        var p = parcels.findByTrackingNumber(number).orElseThrow();
+        var path = "/api/parcels/" + p.getId() + "/courier";
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(path)
+                .header("Authorization", customerToken(42L)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"courierUserId\":88}")).andExpect(status().isForbidden());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(path)
+                .with(jwt().jwt(j -> j.subject("77").claim("role", "DISPATCHER"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_DISPATCHER")))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"courierUserId\":88}"))
+            .andExpect(status().isOk());
+        assertThat(parcels.findById(p.getId()).orElseThrow().getAssignedCourierId()).isEqualTo(88L);
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/parcels/" + p.getId() + "/status")
+                .with(jwt().jwt(j -> j.subject("88").claim("role", "COURIER"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_COURIER")))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"PICKED_UP\"}"))
+            .andExpect(status().isOk());
+        assertThat(history.findByParcelIdOrderByChangedAtAsc(p.getId()).getLast().getChangedBy()).isEqualTo(88L);
+        mvc.perform(get("/api/parcels/track/" + number)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("PICKED_UP"))
+            .andExpect(jsonPath("$.trackingHistory.length()").value(2))
+            .andExpect(jsonPath("$.senderId").doesNotExist())
+            .andExpect(jsonPath("$.merchantId").doesNotExist())
+            .andExpect(jsonPath("$.trackingHistory[0].changedBy").doesNotExist());
+    }
+
+    @Test
     void historyFailureRollsBackTheParcelInsert() {
         long before = parcels.count();
         long historyBefore = history.count();

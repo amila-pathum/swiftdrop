@@ -33,6 +33,20 @@ public class ParcelService {
         this.transitions = transitions;
     }
 
+    @Transactional
+    public Parcel assignCourier(UUID parcelId, Long courierUserId) {
+        if (courierUserId == null || courierUserId <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid courier user identifier");
+        }
+        Parcel parcel = parcels.findForStatusUpdateById(parcelId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parcel not found"));
+        if (parcel.getStatus() == ParcelStatus.DELIVERED || parcel.getStatus() == ParcelStatus.CANCELLED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot assign a closed parcel");
+        }
+        parcel.setAssignedCourierId(courierUserId);
+        return parcel;
+    }
+
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public PublicTrackingResponse track(String trackingNumber) {
         if (trackingNumber == null || !trackingNumber.matches("[A-Za-z0-9-]{6,40}")) {
@@ -46,7 +60,6 @@ public class ParcelService {
             .map(entry -> new TrackingEntry(
                 entry.getNewStatus(), null, null, entry.getChangedAt()))
             .toList();
-        // No public location, ETA or description is stored in the current schema.
         return new PublicTrackingResponse(
             parcel.getTrackingNumber(), parcel.getStatus(), parcel.getCreatedAt(),
             null, null, null, entries);
@@ -109,7 +122,7 @@ public class ParcelService {
      * Generates a downloadable PDF receipt for a delivered parcel owned by the customer.
      */
     @Transactional(readOnly = true)
-    public ParcelReceipt generateReceipt(UUID parcelId, UUID customerId) {
+    public ParcelReceipt generateReceipt(UUID parcelId, Long customerId) {
         Objects.requireNonNull(parcelId, "parcelId is required");
         Objects.requireNonNull(customerId, "customerId is required");
 

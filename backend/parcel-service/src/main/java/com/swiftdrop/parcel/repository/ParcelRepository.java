@@ -22,10 +22,10 @@ public interface ParcelRepository extends JpaRepository<Parcel, UUID> {
     Optional<Parcel> findByTrackingNumber(String trackingNumber);
     boolean existsByTrackingNumber(String trackingNumber);
     List<Parcel> findBySenderIdOrderByCreatedAtDesc(Long senderId);
-    List<Parcel> findByMerchantIdOrderByCreatedAtDesc(UUID merchantId);
+    List<Parcel> findByMerchantIdOrderByCreatedAtDesc(Long merchantId);
     List<Parcel> findByStatusOrderByCreatedAtAsc(ParcelStatus status);
 
     Page<Parcel> findBySenderId(Long senderId, Pageable pageable);
-    Page<Parcel> findByMerchantId(UUID merchantId, Pageable pageable);
+    Page<Parcel> findByMerchantId(Long merchantId, Pageable pageable);
     Page<Parcel> findByStatus(ParcelStatus status, Pageable pageable);
 }
