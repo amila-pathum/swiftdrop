@@ -61,7 +61,7 @@ public class ParcelController {
     @PreAuthorize("hasRole('CUSTOMER')")
     public ParcelResponse create(@Valid @RequestBody CreateParcelRequest request,
                                  @AuthenticationPrincipal Jwt jwt) {
-        return service.createCustomerParcel(request, parseUserId(jwt));
+        return service.createCustomerParcel(request, parseUserId(jwt), jwt.getTokenValue());
     }
 
     @PostMapping("/merchant")
@@ -69,7 +69,7 @@ public class ParcelController {
     @PreAuthorize("hasRole('MERCHANT')")
     public ParcelResponse createMerchant(@Valid @RequestBody CreateParcelRequest request,
             @AuthenticationPrincipal Jwt jwt) {
-        return service.createMerchantParcel(request, parseUserId(jwt));
+        return service.createMerchantParcel(request, parseUserId(jwt), jwt.getTokenValue());
     }
 
     @PatchMapping("/{id}/courier")

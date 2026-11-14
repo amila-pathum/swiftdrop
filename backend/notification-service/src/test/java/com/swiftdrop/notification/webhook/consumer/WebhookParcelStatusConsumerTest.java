@@ -73,6 +73,18 @@ class WebhookParcelStatusConsumerTest {
     }
 
     @Test
+    void customerCreationEventWithNullOldStatusIsAcceptedWithoutWebhook() throws Exception {
+        String event = EVENT
+            .replace("\"merchantId\": \"merchant-1\"", "\"merchantId\": null")
+            .replace("\"oldStatus\": \"IN_TRANSIT\"", "\"oldStatus\": null")
+            .replace("\"newStatus\": \"DELIVERED\"", "\"newStatus\": \"CREATED\"");
+
+        consumer.consume(bytes(event));
+
+        verifyNoInteractions(recorder);
+    }
+
+    @Test
     void unknownOptionalFieldsAreIgnored() throws Exception {
         String event = EVENT.replace(
                 "\"courierId\": null",
@@ -107,6 +119,10 @@ class WebhookParcelStatusConsumerTest {
                 EVENT.replace(
                         "\"newStatus\": \"DELIVERED\"",
                         "\"newStatus\": \"\""
+                ),
+                EVENT.replace(
+                        "\"oldStatus\": \"IN_TRANSIT\"",
+                        "\"oldStatus\": null"
                 )
         };
 
