@@ -15,6 +15,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -39,7 +40,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "jwt.expiration-ms=900000",
     "DB_PASSWORD=unused-with-service-connection",
     "swiftdrop.admin.bootstrap-email=Root.Admin@SwiftDrop.test",
-    "swiftdrop.admin.bootstrap-password=bootstrap-password-1"
+    "swiftdrop.admin.bootstrap-password=bootstrap-password-1",
+    "swiftdrop.rate-limit.max-attempts=10000",
+    "swiftdrop.rate-limit.window-seconds=1"
 })
 @AutoConfigureMockMvc
 @Testcontainers(disabledWithoutDocker = true)
@@ -58,6 +61,7 @@ class AccountLifecycleApiTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired PasswordEncoder passwordEncoder;
     @Autowired JwtService jwtService;
+    @Autowired com.swiftdrop.identity_service.security.RateLimiter rateLimiter;
 
     // ------------------------------------------------------------ registration
 
@@ -286,6 +290,10 @@ class AccountLifecycleApiTest {
         long customerId = registerCustomer(customerEmail);
         String dispatcherEmail = uniqueEmail("dispatcher");
         createStaff(adminToken(), dispatcherEmail, "DISPATCHER").andExpect(status().isCreated());
+        String merchantEmail = uniqueEmail("merchant");
+        register("/api/auth/register/merchant", body(merchantEmail)).andExpect(status().isCreated());
+        String courierEmail = uniqueEmail("courier");
+        register("/api/auth/register/courier", body(courierEmail)).andExpect(status().isCreated());
 
         // Anonymous: 401.
         createStaff(null, uniqueEmail("x"), "ADMIN").andExpect(status().isUnauthorized());
@@ -293,7 +301,8 @@ class AccountLifecycleApiTest {
 
         // Signed in without the ADMIN role: 403, and nothing is created or changed.
         for (String token : new String[] {
-            token(customerEmail, PASSWORD), token(dispatcherEmail, "staff-password-123")}) {
+            token(customerEmail, PASSWORD), token(dispatcherEmail, "staff-password-123"),
+            token(merchantEmail, PASSWORD), token(courierEmail, PASSWORD)}) {
             createStaff(token, uniqueEmail("x"), "ADMIN").andExpect(status().isForbidden());
             mockMvc.perform(get("/api/admin/users/" + customerId)
                     .header("Authorization", "Bearer " + token))
@@ -466,6 +475,203 @@ class AccountLifecycleApiTest {
         assertThat(jdbc.queryForObject(
             "SELECT count(*) FROM password_reset_tokens t JOIN users u ON u.id = t.user_id "
                 + "WHERE u.email = ?", Integer.class, email)).isZero();
+    }
+
+    // --------------------------------------------------- password change + token
+
+    @Test
+    void changePasswordInvalidatesOldTokenAndReturnsNewOne() throws Exception {
+        String email = uniqueEmail("customer");
+        registerCustomer(email);
+        String oldToken = token(email, PASSWORD);
+
+        String response = mockMvc.perform(MockMvcRequestBuilders.put("/api/users/me/change-password")
+                .header("Authorization", "Bearer " + oldToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"currentPassword":"%s","newPassword":"new-password-456",
+                     "confirmPassword":"new-password-456"}
+                    """.formatted(PASSWORD)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.accessToken").isString())
+            .andExpect(jsonPath("$.tokenType").value("Bearer"))
+            .andExpect(jsonPath("$.user.email").value(email))
+            .andReturn().getResponse().getContentAsString();
+        String newToken = JsonPath.read(response, "$.accessToken");
+
+        mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + oldToken))
+            .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + newToken))
+            .andExpect(status().isOk());
+        login(email, "new-password-456").andExpect(status().isOk());
+        login(email, PASSWORD).andExpect(status().isUnauthorized());
+    }
+
+    // ------------------------------------------------- applicant permissions
+
+    @Test
+    void pendingMerchantGetsApplicantAuthority() throws Exception {
+        String email = uniqueEmail("merchant");
+        register("/api/auth/register/merchant", body(email)).andExpect(status().isCreated());
+        String token = token(email, PASSWORD);
+
+        mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("PENDING_APPROVAL"));
+        mockMvc.perform(get("/api/admin/users/1").header("Authorization", "Bearer " + token))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void pendingCourierGetsApplicantAuthority() throws Exception {
+        String email = uniqueEmail("courier");
+        register("/api/auth/register/courier", body(email)).andExpect(status().isCreated());
+        String token = token(email, PASSWORD);
+
+        mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("PENDING_APPROVAL"));
+        mockMvc.perform(get("/api/admin/users/1").header("Authorization", "Bearer " + token))
+            .andExpect(status().isForbidden());
+    }
+
+    // ------------------------------------------------- activation / rejection
+
+    @Test
+    void activateSetsStatusToActiveAndInvalidatesOldTokens() throws Exception {
+        String email = uniqueEmail("merchant");
+        long id = idOf(register("/api/auth/register/merchant", body(email)));
+        String pendingToken = token(email, PASSWORD);
+
+        mockMvc.perform(post("/api/admin/users/" + id + "/activate")
+                .header("Authorization", "Bearer " + adminToken()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("ACTIVE"))
+            .andExpect(jsonPath("$.role").value("MERCHANT"));
+
+        mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + pendingToken))
+            .andExpect(status().isUnauthorized());
+
+        String activeToken = token(email, PASSWORD);
+        assertThat(claims(activeToken)).containsEntry("status", "ACTIVE");
+    }
+
+    @Test
+    void activateRejectsNonPendingAccounts() throws Exception {
+        String email = uniqueEmail("customer");
+        long id = registerCustomer(email);
+
+        mockMvc.perform(post("/api/admin/users/" + id + "/activate")
+                .header("Authorization", "Bearer " + adminToken()))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void activateRejectsNonMerchantCourierRoles() throws Exception {
+        String email = uniqueEmail("dispatcher");
+        createStaff(adminToken(), email, "DISPATCHER").andExpect(status().isCreated());
+        long id = jdbc.queryForObject("SELECT id FROM users WHERE email = ?", Long.class, email);
+
+        mockMvc.perform(post("/api/admin/users/" + id + "/activate")
+                .header("Authorization", "Bearer " + adminToken()))
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void rejectKeepsAccountPendingAndDoesNotDisableIt() throws Exception {
+        String email = uniqueEmail("courier");
+        long id = idOf(register("/api/auth/register/courier", body(email)));
+
+        mockMvc.perform(post("/api/admin/users/" + id + "/reject")
+                .header("Authorization", "Bearer " + adminToken()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("PENDING_APPROVAL"));
+
+        login(email, PASSWORD).andExpect(status().isOk());
+        mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + token(email, PASSWORD)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("PENDING_APPROVAL"));
+    }
+
+    @Test
+    void rejectRequiresAdmin() throws Exception {
+        String email = uniqueEmail("merchant");
+        long id = idOf(register("/api/auth/register/merchant", body(email)));
+
+        mockMvc.perform(post("/api/admin/users/" + id + "/reject"))
+            .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/admin/users/" + id + "/reject")
+                .header("Authorization", "Bearer " + token(email, PASSWORD)))
+            .andExpect(status().isForbidden());
+    }
+
+    // ------------------------------------------ admin password-reset restrictions
+
+    @Test
+    void adminCannotIssueResetTokenForAdminAccounts() throws Exception {
+        long adminId = jdbc.queryForObject(
+            "SELECT id FROM users WHERE email = ?", Long.class, ADMIN_EMAIL);
+
+        mockMvc.perform(post("/api/admin/users/" + adminId + "/password-reset")
+                .header("Authorization", "Bearer " + adminToken()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").exists());
+    }
+
+    // ----------------------------------------------- pending profile + password
+
+    @Test
+    void pendingMerchantCanUpdateOwnProfile() throws Exception {
+        String email = uniqueEmail("merchant");
+        register("/api/auth/register/merchant", body(email)).andExpect(status().isCreated());
+        String token = token(email, PASSWORD);
+
+        mockMvc.perform(MockMvcRequestBuilders.put("/api/users/me")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"name":"Updated Name","phone":"+94770000000"}
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.name").value("Updated Name"))
+            .andExpect(jsonPath("$.phone").value("+94770000000"));
+    }
+
+    @Test
+    void pendingCourierCanChangeOwnPassword() throws Exception {
+        String email = uniqueEmail("courier");
+        register("/api/auth/register/courier", body(email)).andExpect(status().isCreated());
+        String token = token(email, PASSWORD);
+
+        mockMvc.perform(MockMvcRequestBuilders.put("/api/users/me/change-password")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"currentPassword":"%s","newPassword":"new-password-456",
+                     "confirmPassword":"new-password-456"}
+                    """.formatted(PASSWORD)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.accessToken").isString());
+
+        login(email, "new-password-456").andExpect(status().isOk());
+    }
+
+    // ---------------------------------------------------- rate limiting
+
+    @Test
+    void loginIsRateLimitedPerEmail() throws Exception {
+        String email = uniqueEmail("ratelimited");
+        registerCustomer(email);
+
+        // Pre-exhaust the rate limiter bucket for this email.
+        String key = "login:" + email;
+        for (int i = 0; i < 10_000; i++) {
+            rateLimiter.isAllowed(key);
+        }
+
+        login(email, "wrong-password")
+            .andExpect(status().is(429))
+            .andExpect(jsonPath("$.error").value("Too many requests. Please try again later."));
     }
 
     // ------------------------------------------------------------------ helpers

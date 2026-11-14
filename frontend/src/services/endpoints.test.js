@@ -20,19 +20,31 @@ describe('endpoint registry', () => {
     vi.unstubAllGlobals()
   })
 
-  it('marks only the implemented Identity and Notification endpoints as available', () => {
-    // Merchant, courier and parcel endpoints, and emailed reset links, are still planned.
+  it('marks only implemented and routed endpoints as available', () => {
+    // Merchant applications use the existing registration/profile API.
     const available = Object.entries(ENDPOINTS)
       .filter(([, endpoint]) => endpoint.available)
       .map(([name]) => name)
     expect(available.sort()).toEqual([
-      'confirmPasswordReset', 'currentUser', 'googleExchange', 'login', 'logout',
-      'markNotificationAsRead', 'notifications',
-      'register', 'registerCourier', 'registerMerchant', 'unreadNotificationsCount',
+      'calculateQuote', 'confirmPasswordReset', 'createPricingRule', 'createStaffUser',
+      'createZone', 'currentUser', 'disablePricingRule', 'disableZone',
+      'getPricingRuleById', 'getPricingRules', 'getZoneById', 'getZones',
+      'googleExchange', 'login', 'logout', 'markNotificationAsRead',
+      'merchantApplication', 'myMerchantApplication', 'notifications',
+      'pricingQuote', 'register', 'registerCourier', 'registerMerchant',
+      'trackParcel', 'unreadNotificationsCount', 'updatePricingRule', 'updateZone',
     ])
     expect(available.every((name) => ENDPOINTS[name].path.startsWith('/api/auth/')
       || ENDPOINTS[name].path.startsWith('/api/notifications')
-      || ENDPOINTS[name].path === '/api/users/me')).toBe(true)
+      || ENDPOINTS[name].path.startsWith('/api/merchants/')
+      || ENDPOINTS[name].path === '/api/users/me'
+      || ENDPOINTS[name].path === '/api/admin/users'
+      || ENDPOINTS[name].path === '/api/zones'
+      || ENDPOINTS[name].path.startsWith('/api/zones/')
+      || ENDPOINTS[name].path === '/api/pricing/rules'
+      || ENDPOINTS[name].path.startsWith('/api/pricing/rules/')
+      || ENDPOINTS[name].path === '/api/pricing/quote'
+      || ENDPOINTS[name].path === '/api/parcels/track/:trackingNumber')).toBe(true)
   })
 
   it.each(Object.entries(ENDPOINTS).filter(([, e]) => !e.available))(

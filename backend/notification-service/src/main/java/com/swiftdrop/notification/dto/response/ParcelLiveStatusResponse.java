@@ -15,5 +15,8 @@ public record ParcelLiveStatusResponse(
     String status,
     Instant occurredAt
 ) {
+    public Instant getUpdatedAt() {
+        return occurredAt;
+    }
 }
 

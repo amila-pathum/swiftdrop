@@ -220,9 +220,12 @@ public class DispatchService {
         if (event == null || event.eventId() == null || event.occurredAt() == null
                 || !"ParcelStatusChanged".equals(event.eventType())
                 || !hasText(event.parcelId()) || !hasText(event.trackingNumber())
-                || !hasText(event.customerId()) || !hasText(event.oldStatus())
+                || !hasText(event.customerId())
                 || !hasText(event.newStatus())
-                || !VALID_EVENT_STATUSES.contains(event.newStatus())) {
+                || !VALID_EVENT_STATUSES.contains(event.newStatus())
+                || ("CREATED".equals(event.newStatus())
+                    ? event.oldStatus() != null
+                    : !hasText(event.oldStatus()))) {
             throw badRequest("Invalid parcel status event");
         }
         try {

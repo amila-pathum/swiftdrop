@@ -4,5 +4,5 @@ import com.swiftdrop.parcel.dto.request.CreateParcelRequest;
 import java.math.BigDecimal;
 
 public interface PricingClient {
-    BigDecimal quote(CreateParcelRequest request);
+    BigDecimal quote(CreateParcelRequest request, String accessToken);
 }

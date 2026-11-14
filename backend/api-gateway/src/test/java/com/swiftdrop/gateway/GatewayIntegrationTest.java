@@ -226,6 +226,16 @@ class GatewayIntegrationTest {
 
     @Test
     @Order(12)
+    void publicTrackingIsForwardedWithoutAuthorization() {
+        client.get().uri("/api/parcels/track/SD-123456").exchange()
+            .expectStatus().isOk().expectBody().jsonPath("$.proxied").isEqualTo(true);
+        assertThat(path.get()).isEqualTo("/api/parcels/track/SD-123456");
+        assertThat(method.get()).isEqualTo("GET");
+        assertThat(authorization.get()).isNull();
+    }
+
+    @Test
+    @Order(12)
     void notificationServiceIsNotExposed() {
         path.set(null);
         client.get().uri("/api/notifications/preferences").exchange()

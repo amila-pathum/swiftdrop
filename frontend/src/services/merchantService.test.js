@@ -37,6 +37,19 @@ describe('merchantService', () => {
     expect(init.headers.Authorization).toBe('Bearer test-token')
   })
 
+  it('registers business details using the current session without sending owner or approval fields', async () => {
+    const details = { businessName: 'Store', registrationNumber: 'BR-001', contactName: 'Owner',
+      email: 'owner@example.test', phone: '0771234567', address: 'Example Street' }
+    fetchMock.mockResolvedValue(jsonResponse(201, { id: 42, status: 'PENDING' }))
+    expect(await merchantService.registerMyMerchant({ ...details, userId: 999, status: 'APPROVED' }))
+      .toEqual({ id: 42, status: 'PENDING' })
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe(`${API_BASE_URL}/api/merchants/register`)
+    expect(init.method).toBe('POST')
+    expect(init.headers.Authorization).toBe('Bearer test-token')
+    expect(JSON.parse(init.body)).toEqual(details)
+  })
+
   it('getAllMerchants calls GET /api/merchants/admin without or with status query', async () => {
     fetchMock.mockImplementation(() => Promise.resolve(jsonResponse(200, [])))
 
@@ -140,7 +153,6 @@ describe('merchantService', () => {
     expect(url).toBe(`${API_BASE_URL}/api/merchants/me/webhook/rotate-secret`)
     expect(init.method).toBe('POST')
   })
-
   it('getMyDashboard calls GET /api/merchants/me/dashboard', async () => {
     const dashboardData = { totalOrders: 5, pendingOrders: 2, recentOrders: [] }
     fetchMock.mockResolvedValue(jsonResponse(200, dashboardData))

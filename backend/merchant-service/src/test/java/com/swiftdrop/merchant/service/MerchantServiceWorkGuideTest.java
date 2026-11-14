@@ -45,12 +45,15 @@ class MerchantServiceWorkGuideTest {
     @Mock
     private MerchantParcelClient parcelClient;
 
+    @Mock
+    private MerchantIdentityActivationClient identityActivation;
+
     private MerchantService merchantService;
     private MerchantApiKeyService apiKeyService;
 
     @BeforeEach
     void setUp() {
-        merchantService = new MerchantService(merchantRepository, parcelClient);
+        merchantService = new MerchantService(merchantRepository, parcelClient, identityActivation);
         apiKeyService = new MerchantApiKeyService(merchantRepository, apiKeyRepository);
     }
 
@@ -97,7 +100,7 @@ class MerchantServiceWorkGuideTest {
         pendingMerchant.setStatus(MerchantStatus.PENDING);
         pendingMerchant.setBusinessName("Test Corp");
 
-        when(merchantRepository.findById(20L)).thenReturn(Optional.of(pendingMerchant));
+        when(merchantRepository.findForReviewById(20L)).thenReturn(Optional.of(pendingMerchant));
         when(merchantRepository.save(any(Merchant.class))).thenAnswer(inv -> inv.getArgument(0));
 
         // Rejection without reason fails with 400 Bad Request
@@ -123,7 +126,7 @@ class MerchantServiceWorkGuideTest {
 
         // Approval of a pending merchant succeeds
         pendingMerchant.setStatus(MerchantStatus.PENDING);
-        MerchantResponse approved = merchantService.approveMerchant(20L, 999L);
+        MerchantResponse approved = merchantService.approveMerchant(20L, 999L, "Bearer admin-token");
         assertThat(approved.status()).isEqualTo(MerchantStatus.APPROVED);
         assertThat(pendingMerchant.getReviewedBy()).isEqualTo(999L);
         assertThat(pendingMerchant.getReviewedAt()).isNotNull();

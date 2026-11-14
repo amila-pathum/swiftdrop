@@ -21,7 +21,7 @@ public record ParcelDetailsResponse(
     String parcelType,
     BigDecimal charge,
     ParcelStatus status,
-    UUID merchantId,
+    Long merchantId,
     String merchantOrderReference,
     Instant createdAt,
     Instant updatedAt

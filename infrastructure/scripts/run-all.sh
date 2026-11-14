@@ -4,7 +4,7 @@
 #
 # Local Docker PostgreSQL (default; also starts docker compose):
 #   infrastructure/scripts/run-all.sh
-# AWS RDS (database settings from .env.rds; Docker is not started):
+# AWS RDS (databases from .env.rds; local RabbitMQ is started when needed):
 #   DB_PROFILE=rds infrastructure/scripts/run-all.sh
 # Only some parts (names as in backend/, plus "frontend"):
 #   infrastructure/scripts/run-all.sh identity-service parcel-service api-gateway frontend
@@ -13,6 +13,14 @@
 #   SKIP_DOCKER=1   do not run "docker compose up" in local mode
 #   START_DELAY=3   seconds between starting two services (default 3)
 set -euo pipefail
+
+# Git Bash has no setsid; supervise its native Windows process trees instead.
+windows_shell=0
+session_launcher=()
+case "${OSTYPE:-}" in
+  msys*|mingw*|cygwin*) windows_shell=1 ;;
+  *) command -v setsid >/dev/null || { echo "setsid is required on this platform." >&2; exit 1; }; session_launcher=(setsid) ;;
+esac
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 run_service="$root/infrastructure/scripts/run-service.sh"
@@ -36,24 +44,6 @@ for part in "${parts[@]}"; do
 		exit 1
 	}
 done
-# Git Bash has no setsid. Bash job control gives each background job its own
-# process group; taskkill additionally stops native Windows descendants.
-windows_shell=0
-case "$(uname -s)" in MINGW*|MSYS*) windows_shell=1 ;; esac
-if ((windows_shell)); then
-    command -v taskkill.exe >/dev/null || { echo "taskkill.exe is required." >&2; exit 1; }
-    set -m
-elif ! command -v setsid >/dev/null; then
-    echo "setsid is required on this platform; use Linux/WSL or Git Bash." >&2
-    exit 1
-fi
-launch() {
-    if ((windows_shell)); then
-        exec "$@"
-    else
-        exec setsid "$@"
-    fi
-}
 command -v curl >/dev/null || { echo "curl is required." >&2; exit 1; }
 if [[ ",${SPRING_PROFILES_ACTIVE-}," == *,rds,* ]]; then
 	echo "Unset SPRING_PROFILES_ACTIVE and use DB_PROFILE=rds instead." >&2
@@ -88,7 +78,8 @@ health_url() {
 }
 port_in_use() {
 	if ((windows_shell)); then
-        netstat.exe -ano -p tcp | awk -v port=":$1" '$2 ~ (port "$") && $4 == "LISTENING" { found=1 }
+        netstat.exe -ano -p tcp 2>/dev/null | awk -v port="$1" '
+            $1 == "TCP" && $2 ~ (":" port "$") && $4 == "LISTENING" { found=1 }
             END { exit !found }'
     else
         ss -ltnH "sport = :$1" 2>/dev/null | grep -q .
@@ -100,7 +91,11 @@ for part in "${parts[@]}"; do
 	port="$(port_of "$part")"
 	if port_in_use "$port"; then
 		echo "Port $port ($part) is already in use. Stop whatever runs there first, for example:" >&2
-		echo "  ss -ltnp 'sport = :$port'" >&2
+		if ((windows_shell)); then
+            echo "  netstat -ano | findstr :$port" >&2
+        else
+            echo "  ss -ltnp 'sport = :$port'" >&2
+        fi
 		exit 1
 	fi
 done
@@ -121,6 +116,31 @@ elif [[ "${SKIP_DOCKER:-}" != 1 ]]; then
 	}
 fi
 
+# RDS supplies PostgreSQL only; Notification still requires RabbitMQ.
+if [[ "$profile" == rds && " ${parts[*]} " == *" notification-service "* ]]; then
+    broker_settings() (
+        local preset_host="${RABBITMQ_HOST-}" preset_port="${RABBITMQ_PORT-}"
+        [[ ! -f "$root/.env" ]] || source "$root/.env"
+        printf '%s %s\n' "${preset_host:-${RABBITMQ_HOST:-localhost}}" "${preset_port:-${RABBITMQ_PORT:-5672}}"
+    )
+    read -r broker_host broker_port < <(broker_settings)
+    case "$broker_host" in
+        localhost|127.0.0.1|::1)
+            if ! port_in_use "$broker_port"; then
+                if [[ "${SKIP_DOCKER:-}" == 1 ]]; then
+                    echo "RabbitMQ is required on $broker_host:$broker_port. Start it before using SKIP_DOCKER=1." >&2
+                    exit 1
+                fi
+                command -v docker >/dev/null || { echo "Notification requires RabbitMQ. Install/start Docker Desktop, or configure RABBITMQ_HOST for an existing broker." >&2; exit 1; }
+                docker info >/dev/null 2>&1 || { echo "Docker Desktop is not ready. Start it, wait for the engine, then rerun this command. RDS mode still needs RabbitMQ for notifications." >&2; exit 1; }
+                echo "Starting RabbitMQ only (databases remain on RDS) ..."
+                (cd "$root" && docker compose up -d --wait rabbitmq) || { echo "RabbitMQ failed to start; check Docker Desktop and logs: docker compose logs rabbitmq" >&2; exit 1; }
+            fi
+            ;;
+        *) echo "Using configured RabbitMQ broker: $broker_host:$broker_port" ;;
+    esac
+fi
+
 # ---- Start ----
 mkdir -p "$logs"
 pids=()
@@ -132,16 +152,20 @@ stop_all() {
 	trap - INT TERM EXIT
 	echo
 	echo "Stopping everything ..."
-	local pid winpid
+	local pid
     if ((windows_shell)); then
+        local winpid
         for pid in "${pids[@]}"; do
-            # MSYS PID and Windows PID may differ. Resolve only jobs we launched.
-            winpid="$(ps -p "$pid" | awk 'NR==1 { for(i=1;i<=NF;i++) if($i=="WINPID") col=i }
-                NR>1 && col { print $col; exit }')"
+            # MSYS PIDs differ from the native Windows PIDs taskkill expects.
+            winpid="$(ps -p "$pid" 2>/dev/null | awk 'NR == 1 { for (i=1; i<=NF; i++) if ($i == "WINPID") col=i } NR > 1 && col { print $col; exit }')" || true
             if [[ "$winpid" =~ ^[0-9]+$ ]]; then
-                MSYS_NO_PATHCONV=1 taskkill.exe /PID "$winpid" /T /F >/dev/null 2>&1 || true
+                MSYS2_ARG_CONV_EXCL='*' taskkill.exe /PID "$winpid" /T /F >/dev/null 2>&1 || true
             fi
+            kill -TERM "$pid" 2>/dev/null || true
         done
+        for pid in "${pids[@]}"; do wait "$pid" 2>/dev/null || true; done
+        echo "Stopped."
+        return 0
     fi
 	for pid in "${pids[@]}"; do
 		kill -TERM -- "-$pid" 2>/dev/null || true
@@ -168,12 +192,12 @@ start_part() {
 			echo "  installing frontend dependencies (npm install) ..."
 			(cd "$root/frontend" && npm install) >>"$log" 2>&1
 		fi
-		(cd "$root/frontend" && launch npm run dev) >>"$log" 2>&1 &
+		(cd "$root/frontend" && exec "${session_launcher[@]}" npm run dev) >>"$log" 2>&1 &
 	elif [[ "$part" == api-gateway ]]; then
 		# The gateway has no database, so it always runs without DB_PROFILE.
-		launch env -u DB_PROFILE bash "$run_service" "$part" >>"$log" 2>&1 &
+		env -u DB_PROFILE "${session_launcher[@]}" bash "$run_service" "$part" >>"$log" 2>&1 &
 	else
-		DB_PROFILE="$profile" launch bash "$run_service" "$part" >>"$log" 2>&1 &
+		DB_PROFILE="$profile" "${session_launcher[@]}" bash "$run_service" "$part" >>"$log" 2>&1 &
 	fi
 	pids+=("$!")
 	names+=("$part")

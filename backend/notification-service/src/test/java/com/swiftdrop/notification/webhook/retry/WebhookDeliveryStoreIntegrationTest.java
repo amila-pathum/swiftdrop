@@ -38,6 +38,27 @@ class WebhookDeliveryStoreIntegrationTest {
     private UUID enqueue(UUID event) {
         return store.enqueue(event,"m1","SD-TEST","SHOP-1","DELIVERED",payload,now);
     }
+    @Test void historyAndRetryAreIsolatedAndKeepAttemptNumbers() throws Exception {
+        UUID id = enqueue(UUID.randomUUID());
+        assertTrue(store.history("other", false, 0, 20).items().isEmpty());
+        assertTrue(store.detail("other", id).isEmpty());
+        assertFalse(store.retry("m1", id, now)); // Pending cannot be manually retried.
+        var processor = mock(WebhookDeliveryProcessor.class);
+        when(processor.attempt(any())).thenReturn(new WebhookDeliveryProcessor.Outcome(
+                "FAILED", now, null, 500, "HTTP_ERROR"));
+        store.processOne(id, now, processor);
+        assertFalse(store.retry("other", id, now));
+        assertTrue(store.retry("m1", id, now));
+        assertFalse(store.retry("m1", id, now)); // Repeated click cannot enqueue again.
+        when(processor.attempt(any())).thenReturn(new WebhookDeliveryProcessor.Outcome(
+                "DELIVERED", now, null, 204, null));
+        store.processOne(id, now, processor);
+        assertEquals(List.of(1,2), store.attempts("m1", id).stream()
+                .map(WebhookDeliveryStore.Attempt::attemptNumber).toList());
+        assertTrue(store.attempts("other", id).isEmpty());
+        assertFalse(store.retry("m1", id, now));
+        assertEquals(0, store.history("m1", true, 0, 20).total());
+    }
     @Test void duplicateEventCreatesOnlyOneDelivery() {
         UUID event=UUID.randomUUID();
         assertEquals(enqueue(event),enqueue(event));

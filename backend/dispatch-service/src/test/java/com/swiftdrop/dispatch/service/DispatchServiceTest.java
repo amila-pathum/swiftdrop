@@ -4,6 +4,7 @@ import com.swiftdrop.dispatch.client.DispatchDataClient;
 import com.swiftdrop.dispatch.dto.response.DispatchResponses.CourierProfile;
 import com.swiftdrop.dispatch.dto.response.DispatchResponses.ParcelRow;
 import com.swiftdrop.dispatch.event.ParcelAssignedEvent;
+import com.swiftdrop.dispatch.event.ParcelStatusChangedEvent;
 import com.swiftdrop.dispatch.exception.DispatchException;
 import com.swiftdrop.dispatch.repository.DispatchRepository;
 import org.junit.jupiter.api.Test;
@@ -29,6 +30,28 @@ class DispatchServiceTest {
     private final DispatchService service = new DispatchService(repository, events, dataClient);
     private final UUID parcelId = UUID.randomUUID();
     private final UUID courierId = UUID.randomUUID();
+
+    @Test
+    void acceptsCreationEventWithNullOldStatus() {
+        var event = new ParcelStatusChangedEvent(UUID.randomUUID(), "ParcelStatusChanged",
+            Instant.now(), "SD-CREATED-1", parcelId.toString(), null, null,
+            "42", null, null, "CREATED");
+
+        service.applyStatusEvent(event);
+
+        verify(repository).applyStatusEvent(event);
+    }
+
+    @Test
+    void rejectsNullOldStatusForNonCreationEvent() {
+        var event = new ParcelStatusChangedEvent(UUID.randomUUID(), "ParcelStatusChanged",
+            Instant.now(), "SD-INVALID-1", parcelId.toString(), null, null,
+            "42", null, null, "PICKED_UP");
+
+        assertThatThrownBy(() -> service.applyStatusEvent(event))
+            .isInstanceOf(DispatchException.class);
+        verify(repository, never()).applyStatusEvent(event);
+    }
 
     @Test
     void rejectsDoubleAssignmentToSameCourier() {
