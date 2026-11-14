@@ -24,8 +24,9 @@ public class PricingRuleController {
     }
 
     @GetMapping
-    public List<PricingRuleResponse> getActivePricingRules() {
-        return pricingRuleService.getActivePricingRules()
+    @PreAuthorize("!#includeInactive or hasRole('ADMIN')")
+    public List<PricingRuleResponse> getActivePricingRules(@RequestParam(defaultValue = "false") boolean includeInactive) {
+        return (includeInactive ? pricingRuleService.getAllPricingRules() : pricingRuleService.getActivePricingRules())
                 .stream()
                 .map(PricingRuleResponse::from)
                 .toList();
@@ -73,5 +74,11 @@ public class PricingRuleController {
     public PricingRuleResponse disablePricingRule(@PathVariable UUID id) {
         return PricingRuleResponse.from(
                 pricingRuleService.disablePricingRule(id));
+    }
+
+    @PatchMapping("/{id}/enable")
+    @PreAuthorize("hasRole('ADMIN')")
+    public PricingRuleResponse enablePricingRule(@PathVariable UUID id) {
+        return PricingRuleResponse.from(pricingRuleService.enablePricingRule(id));
     }
 }

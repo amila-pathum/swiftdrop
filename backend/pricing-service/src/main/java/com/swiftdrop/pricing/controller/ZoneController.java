@@ -23,8 +23,9 @@ public class ZoneController {
     }
 
     @GetMapping
-    public List<ZoneResponse> getActiveZones() {
-        return zoneService.getActiveZones()
+    @PreAuthorize("!#includeInactive or hasRole('ADMIN')")
+    public List<ZoneResponse> getActiveZones(@RequestParam(defaultValue = "false") boolean includeInactive) {
+        return (includeInactive ? zoneService.getAllZones() : zoneService.getActiveZones())
                 .stream()
                 .map(ZoneResponse::from)
                 .toList();
@@ -70,5 +71,11 @@ public class ZoneController {
     @PreAuthorize("hasRole('ADMIN')")
     public ZoneResponse disableZone(@PathVariable UUID id) {
         return ZoneResponse.from(zoneService.disableZone(id));
+    }
+
+    @PatchMapping("/{id}/enable")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ZoneResponse enableZone(@PathVariable UUID id) {
+        return ZoneResponse.from(zoneService.enableZone(id));
     }
 }

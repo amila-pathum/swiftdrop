@@ -35,9 +35,10 @@ export default function ZoneManagementPage() {
   const [zoneToDisable, setZoneToDisable] = useState(null)
   const [disabling, setDisabling] = useState(false)
   const [disableError, setDisableError] = useState(null)
+  const [enabling, setEnabling] = useState(null)
 
   const loadZones = useCallback((options) => {
-    return pricingService.getZones(options)
+    return pricingService.getZones({ ...options, includeInactive: true })
       .then((data) => {
         setZones(Array.isArray(data) ? data : [])
         setError(null)
@@ -127,6 +128,7 @@ export default function ZoneManagementPage() {
       resetForm()
       loadZones()
     } catch (err) {
+      setFormErrors(err.fields || {})
       setSubmitError(err.message || 'Failed to create zone. Please try again.')
     } finally {
       setSubmitting(false)
@@ -195,6 +197,7 @@ export default function ZoneManagementPage() {
       setEditingZone(null)
       loadZones()
     } catch (err) {
+      setEditFormErrors(err.fields || {})
       setUpdateError(err.message || 'Failed to update zone. Please try again.')
     } finally {
       setUpdating(false)
@@ -230,6 +233,21 @@ export default function ZoneManagementPage() {
       setDisableError(err.message || 'Failed to disable zone. Please try again.')
     } finally {
       setDisabling(false)
+    }
+  }
+
+  const handleEnable = async (zone) => {
+    if (enabling) return
+    setEnabling(zone.id)
+    setSuccessMessage('')
+    try {
+      await pricingService.enableZone(zone.id)
+      setSuccessMessage('Zone enabled.')
+      await loadZones()
+    } catch (err) {
+      setError(err.message || 'Unable to enable this zone.')
+    } finally {
+      setEnabling(null)
     }
   }
 
@@ -378,6 +396,12 @@ export default function ZoneManagementPage() {
                           >
                             Edit
                           </button>
+                          {!zone.active && (
+                            <button type="button" className="action-link action-link-primary"
+                              disabled={enabling !== null} onClick={() => handleEnable(zone)}>
+                              {enabling === zone.id ? 'Enabling…' : 'Enable'}
+                            </button>
+                          )}
                           {zone.active && (
                             <button
                               type="button"

@@ -246,6 +246,9 @@ export const ENDPOINTS = Object.freeze({
     auth: true,
     // Admin only. Body: { name, city, district } -> Zone
   },
+  enableZone: {
+    method: 'PATCH', path: '/api/zones/:id/enable', available: true, auth: true,
+  },
   disableZone: {
     method: 'PATCH',
     path: '/api/zones/:id/disable',
@@ -281,6 +284,9 @@ export const ENDPOINTS = Object.freeze({
     auth: true,
     // Admin only. Body: { baseFee, pricePerKg, expressMultiplier } -> PricingRule
   },
+  enablePricingRule: {
+    method: 'PATCH', path: '/api/pricing/rules/:id/enable', available: true, auth: true,
+  },
   disablePricingRule: {
     method: 'PATCH',
     path: '/api/pricing/rules/:id/disable',
@@ -294,7 +300,7 @@ export const ENDPOINTS = Object.freeze({
     available: true,
     auth: true,
     // Body: { pickupCity, deliveryCity, weight, serviceType }
-    // -> { charge, currency, breakdown }
+    // -> { amount, currency, breakdown }
   },
 })
 

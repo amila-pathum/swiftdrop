@@ -5,11 +5,15 @@ import com.swiftdrop.pricing.entity.Zone;
 import com.swiftdrop.pricing.repository.PricingRuleRepository;
 import com.swiftdrop.pricing.repository.ZoneRepository;
 import org.springframework.stereotype.Service;
+import com.swiftdrop.pricing.exception.ZoneNotFoundException;
+import com.swiftdrop.pricing.exception.PricingRuleNotFoundException;
+import com.swiftdrop.pricing.exception.PricingConflictException;
 
 import java.util.List;
 import java.util.UUID;
 
 @Service
+@org.springframework.transaction.annotation.Transactional
 public class PricingRuleService {
 
     private final PricingRuleRepository pricingRuleRepository;
@@ -22,6 +26,10 @@ public class PricingRuleService {
         this.zoneRepository = zoneRepository;
     }
 
+    public List<PricingRule> getAllPricingRules() {
+        return pricingRuleRepository.findAll();
+    }
+
     public List<PricingRule> getActivePricingRules() {
         return pricingRuleRepository.findByActiveTrue();
     }
@@ -29,7 +37,7 @@ public class PricingRuleService {
     public PricingRule getPricingRuleById(UUID id) {
         return pricingRuleRepository.findById(id)
                 .orElseThrow(() ->
-                        new RuntimeException("Pricing rule not found"));
+                        new PricingRuleNotFoundException("Pricing rule not found: " + id));
     }
 
     public PricingRule createPricingRule(UUID zoneId, PricingRule pricingRule) {
@@ -37,10 +45,10 @@ public class PricingRuleService {
         Zone zone = zoneRepository.findById(zoneId)
                 .filter(Zone::isActive)
                 .orElseThrow(() ->
-                        new RuntimeException("Active zone not found"));
+                        new ZoneNotFoundException(zoneId));
 
         if (pricingRuleRepository.existsByZone_IdAndActiveTrue(zoneId)) {
-            throw new IllegalArgumentException(
+            throw new PricingConflictException(
                     "An active pricing rule already exists for this zone");
         }
 
@@ -74,8 +82,19 @@ public class PricingRuleService {
     return pricingRuleRepository
             .findByZone_IdAndActiveTrue(zoneId)
             .orElseThrow(() ->
-                    new RuntimeException(
-                            "No active pricing rule found for this zone"));
+                    new PricingRuleNotFoundException(
+                            "No active pricing rule for zone " + zoneId));
     }
     
+    public PricingRule enablePricingRule(UUID id) {
+        PricingRule rule = getPricingRuleById(id);
+        if (!rule.getZone().isActive()) {
+            throw new PricingConflictException("Enable the zone before enabling its pricing rule");
+        }
+        if (!rule.isActive() && pricingRuleRepository.existsByZone_IdAndActiveTrue(rule.getZone().getId())) {
+            throw new PricingConflictException("An active pricing rule already exists for this zone");
+        }
+        rule.setActive(true);
+        return pricingRuleRepository.save(rule);
+    }
 }

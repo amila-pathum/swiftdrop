@@ -31,8 +31,10 @@ export async function getDeliveryQuote({
 
 export const pricingService = {
   // Zones
-  getZones: (options) =>
-    callEndpoint(ENDPOINTS.getZones, options),
+  getZones: ({ includeInactive = false, ...options } = {}) =>
+    callEndpoint({ ...ENDPOINTS.getZones,
+      path: ENDPOINTS.getZones.path + (includeInactive ? '?includeInactive=true' : ''),
+    }, options),
 
   getZoneById: (id, options) =>
     callEndpoint(ENDPOINTS.getZoneById, { ...options, params: { id } }),
@@ -43,12 +45,17 @@ export const pricingService = {
   updateZone: (id, data, options) =>
     callEndpoint(ENDPOINTS.updateZone, { ...options, params: { id }, body: data }),
 
+  enableZone: (id, options) =>
+    callEndpoint(ENDPOINTS.enableZone, { ...options, params: { id } }),
+
   disableZone: (id, options) =>
     callEndpoint(ENDPOINTS.disableZone, { ...options, params: { id } }),
 
   // Pricing Rules
-  getPricingRules: (options) =>
-    callEndpoint(ENDPOINTS.getPricingRules, options),
+  getPricingRules: ({ includeInactive = false, ...options } = {}) =>
+    callEndpoint({ ...ENDPOINTS.getPricingRules,
+      path: ENDPOINTS.getPricingRules.path + (includeInactive ? '?includeInactive=true' : ''),
+    }, options),
 
   getPricingRuleById: (id, options) =>
     callEndpoint(ENDPOINTS.getPricingRuleById, { ...options, params: { id } }),
@@ -58,6 +65,9 @@ export const pricingService = {
 
   updatePricingRule: (id, data, options) =>
     callEndpoint(ENDPOINTS.updatePricingRule, { ...options, params: { id }, body: data }),
+
+  enablePricingRule: (id, options) =>
+    callEndpoint(ENDPOINTS.enablePricingRule, { ...options, params: { id } }),
 
   disablePricingRule: (id, options) =>
     callEndpoint(ENDPOINTS.disablePricingRule, { ...options, params: { id } }),

@@ -9,18 +9,18 @@ import java.math.BigDecimal;
 
 public record QuoteRequest(
 
-        @NotBlank
+        @NotBlank(message = "Pickup city is required")
         String pickupCity,
 
-        @NotBlank
+        @NotBlank(message = "Delivery city is required")
         String deliveryCity,
 
-        @NotNull
-        @DecimalMin("0.001")
+        @NotNull(message = "Weight is required")
+        @DecimalMin(value = "0.001", message = "Weight must be greater than zero (minimum 0.001 kg)")
         @Digits(integer = 7, fraction = 3)
         BigDecimal weight,
 
-        @NotBlank
+        @NotBlank(message = "Service type is required")
         String serviceType
 
 ) {

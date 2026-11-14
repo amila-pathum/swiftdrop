@@ -10,6 +10,8 @@ import com.swiftdrop.pricing.strategy.PricingContext;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.Locale;
 import java.util.Map;
 
 @Service
@@ -29,9 +31,13 @@ public class PricingQuoteService {
     }
 
     public QuoteResponse calculateQuote(QuoteRequest request) {
+        String serviceType = request.serviceType() == null ? ""
+                : request.serviceType().trim().toUpperCase(Locale.ROOT);
+        if (!serviceType.equals("STANDARD") && !serviceType.equals("EXPRESS")) {
+            throw new IllegalArgumentException("Service type must be STANDARD or EXPRESS");
+        }
 
-        Zone pickupZone =
-                zoneService.getZoneByCity(request.pickupCity());
+        zoneService.getZoneByCity(request.pickupCity());
 
         Zone deliveryZone =
                 zoneService.getZoneByCity(request.deliveryCity());
@@ -40,32 +46,22 @@ public class PricingQuoteService {
                 pricingRuleService.getActivePricingRuleByZoneId(
                         deliveryZone.getId());
 
-        String serviceType = request.serviceType()
-                .trim()
-                .toUpperCase();
-
-        if (!serviceType.equals("STANDARD")
-                && !serviceType.equals("EXPRESS")) {
-            throw new IllegalArgumentException(
-                    "Unknown service type: " + request.serviceType());
-        }
-
         PricingContext context = new PricingContext(
                 request.weight(),
                 pricingRule,
                 serviceType.equals("EXPRESS")
         );
 
-        BigDecimal amount = pricingCalculator.calculate(context);
+        BigDecimal amount = pricingCalculator.calculate(context).setScale(2, RoundingMode.HALF_UP);
 
-        BigDecimal baseFee = pricingRule.getBaseFee();
+        BigDecimal baseFee = pricingRule.getBaseFee().setScale(2, RoundingMode.HALF_UP);
 
         BigDecimal weightFee = request.weight()
-                .multiply(pricingRule.getPricePerKg());
+                .multiply(pricingRule.getPricePerKg()).setScale(2, RoundingMode.HALF_UP);
 
         BigDecimal expressFee = amount
                 .subtract(baseFee)
-                .subtract(weightFee);
+                .subtract(weightFee).setScale(2, RoundingMode.HALF_UP);
 
         return new QuoteResponse(
                 amount,

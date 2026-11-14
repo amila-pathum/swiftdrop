@@ -87,6 +87,7 @@ export default function PricingRuleManagementPage() {
   const [ruleToDisable, setRuleToDisable] = useState(null)
   const [disabling, setDisabling] = useState(false)
   const [disableError, setDisableError] = useState(null)
+  const [enabling, setEnabling] = useState(null)
 
   // Try Pricing Quote state
   const [quoteForm, setQuoteForm] = useState(INITIAL_QUOTE_FORM_VALUES)
@@ -96,7 +97,7 @@ export default function PricingRuleManagementPage() {
   const [quoteResult, setQuoteResult] = useState(null)
 
   const loadRules = useCallback((options) => {
-    return pricingService.getPricingRules(options)
+    return pricingService.getPricingRules({ ...options, includeInactive: true })
       .then((data) => {
         setRules(Array.isArray(data) ? data : [])
         setError(null)
@@ -235,6 +236,7 @@ export default function PricingRuleManagementPage() {
       resetForm()
       loadRules()
     } catch (err) {
+      setFormErrors(err.fields || {})
       setSubmitError(err.message || 'Failed to create pricing rule. Please try again.')
     } finally {
       setSubmitting(false)
@@ -336,6 +338,7 @@ export default function PricingRuleManagementPage() {
       setEditingRule(null)
       loadRules()
     } catch (err) {
+      setEditFormErrors(err.fields || {})
       setUpdateError(err.message || 'Failed to update pricing rule. Please try again.')
     } finally {
       setUpdating(false)
@@ -453,12 +456,28 @@ export default function PricingRuleManagementPage() {
       setQuoteResult(data)
     } catch (err) {
       setQuoteResult(null)
+      setQuoteErrors(err.fields || {})
       setQuoteError(
         err.message ||
           'Failed to calculate quote. Please verify that active delivery zones and pricing rules exist for these cities.'
       )
     } finally {
       setQuoteLoading(false)
+    }
+  }
+
+  const handleEnable = async (rule) => {
+    if (enabling) return
+    setEnabling(rule.id)
+    setSuccessMessage('')
+    try {
+      await pricingService.enablePricingRule(rule.id)
+      setSuccessMessage('Pricing rule enabled.')
+      await loadRules()
+    } catch (err) {
+      setError(err.message || 'Unable to enable this rule.')
+    } finally {
+      setEnabling(null)
     }
   }
 
@@ -609,6 +628,12 @@ export default function PricingRuleManagementPage() {
                           >
                             Edit
                           </button>
+                          {!rule.active && (
+                            <button type="button" className="action-link action-link-primary"
+                              disabled={enabling !== null} onClick={() => handleEnable(rule)}>
+                              {enabling === rule.id ? 'Enabling…' : 'Enable'}
+                            </button>
+                          )}
                           {rule.active && (
                             <button
                               type="button"
@@ -789,7 +814,7 @@ export default function PricingRuleManagementPage() {
                       marginTop: '4px',
                     }}
                   >
-                    {formatMoney(quoteResult.charge, quoteResult.currency)}
+                    {formatMoney(quoteResult.amount, quoteResult.currency)}
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>

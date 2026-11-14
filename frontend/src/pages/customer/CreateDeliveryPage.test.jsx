@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { parcelService } from '../../services/parcelService'
@@ -57,9 +57,16 @@ describe('CreateDeliveryPage', () => {
       deliveryCity: 'Kandy',
       weight: '2.5',
       serviceType: 'STANDARD',
-    })
+    }, { signal: expect.any(AbortSignal) })
+    fireEvent.change(screen.getByLabelText(/^Weight \(kg\)/), { target: { value: '3' } })
+    expect(screen.getByRole('button', { name: 'Continue →' })).toBeDisabled()
+    fireEvent.change(screen.getByLabelText(/^Weight \(kg\)/), { target: { value: '2.5' } })
+    expect(screen.getByRole('button', { name: 'Continue →' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Get Estimate' }))
+    await screen.findByText(/Estimated fee/)
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Continue →' })).toBeEnabled())
     fireEvent.click(screen.getByRole('button', { name: 'Continue →' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm Delivery' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Confirm Delivery' }))
 
     expect(parcelService.createParcel).toHaveBeenCalledWith({
       receiverName: 'Nimal',

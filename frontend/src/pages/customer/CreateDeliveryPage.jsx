@@ -6,7 +6,7 @@ import DeliveryStepper from '../../components/delivery/DeliveryStepper'
 import FormField from '../../components/FormField'
 import { parcelService } from '../../services/parcelService'
 import CopyTrackingNumberButton from '../../components/CopyTrackingNumberButton'
-import { getDeliveryQuote } from '../../services/pricingService'
+import FeeEstimate from '../../components/pricing/FeeEstimate'
 import './createDelivery.css'
 
 const DISTRICTS = [
@@ -73,22 +73,8 @@ export default function CreateDeliveryPage() {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [createdParcel, setCreatedParcel] = useState(null)
-  const [quoteState, setQuoteState] = useState({
-    status: 'idle', quote: null, signature: null, error: '',
-  })
-  const quoteRequest = useRef(0)
+  const [validQuote, setQuote] = useState(null)
   const submittingRef = useRef(false)
-  const pricingSignature = JSON.stringify([
-    values.pickup.pickupCity,
-    values.receiver.deliveryCity,
-    values.parcel.weight,
-    values.parcel.serviceType,
-  ])
-  const validQuote = quoteState.status === 'success'
-    && quoteState.signature === pricingSignature ? quoteState.quote : null
-  const quoting = quoteState.status === 'loading' && quoteState.signature === pricingSignature
-  const quoteError = quoteState.status === 'error'
-    && quoteState.signature === pricingSignature ? quoteState.error : ''
   const currency = (amount) => new Intl.NumberFormat('en-LK', {
     style: 'currency', currency: 'LKR',
   }).format(Number(amount))
@@ -123,39 +109,6 @@ export default function CreateDeliveryPage() {
     setErrors({})
     setSubmitError('')
     setStep(target)
-  }
-  const estimate = async () => {
-    const found = validate(2, values)
-    setErrors(found)
-    if (Object.keys(found).length > 0) {
-      setQuoteState({
-        status: 'error', quote: null, signature: pricingSignature,
-        error: 'Complete the parcel details before requesting an estimate.',
-      })
-      return
-    }
-    const requestId = ++quoteRequest.current
-    setQuoteState({ status: 'loading', quote: null, signature: pricingSignature, error: '' })
-    try {
-      const quote = await getDeliveryQuote({
-        pickupCity: values.pickup.pickupCity,
-        deliveryCity: values.receiver.deliveryCity,
-        weight: values.parcel.weight,
-        serviceType: values.parcel.serviceType,
-      })
-      if (requestId === quoteRequest.current) {
-        setQuoteState({
-          status: 'success', quote, signature: pricingSignature, error: '',
-        })
-      }
-    } catch (error) {
-      if (requestId === quoteRequest.current) {
-        setQuoteState({
-          status: 'error', quote: null, signature: pricingSignature,
-          error: error?.message || 'Unable to estimate the delivery fee.',
-        })
-      }
-    }
   }
   const submit = async () => {
     if (submittingRef.current || !validQuote) return
@@ -196,7 +149,7 @@ export default function CreateDeliveryPage() {
     setErrors({})
     setSubmitError('')
     setCreatedParcel(null)
-    setQuoteState({ status: 'idle', quote: null, signature: null, error: '' })
+    setQuote(null)
   }
 
   if (createdParcel) {
@@ -305,19 +258,6 @@ export default function CreateDeliveryPage() {
                   ],
                 })} />
               </div>
-              <div className="delivery-estimate-placeholder" aria-live="polite">
-                {validQuote ? (
-                  <span>
-                    <strong>Estimated fee {currency(validQuote.amount)}</strong>
-                    {' · '}{values.pickup.pickupCity} → {values.receiver.deliveryCity},
-                    {' '}{values.parcel.weight} kg
-                  </span>
-                ) : <span>Get an estimate to see your delivery fee before confirming.</span>}
-                <Button onClick={estimate} disabled={quoting}>
-                  {quoting ? 'Calculating…' : validQuote ? 'Recalculate Estimate' : 'Get Estimate'}
-                </Button>
-              </div>
-              {quoteError && <p className="form-error" role="alert">{quoteError}</p>}
             </>}
           </div>
         </section>
@@ -342,24 +282,15 @@ export default function CreateDeliveryPage() {
             <p>{values.parcel.size}</p>
             <p>{values.parcel.serviceType === 'EXPRESS' ? 'Express' : 'Standard'} service</p>
           </Summary>
-          {validQuote ? (
-            <section className="delivery-summary">
-              <header><strong>Estimated delivery fee</strong></header>
-              <div>
-                <p>Base fee: {currency(validQuote.breakdown.baseFee)}</p>
-                <p>Weight fee: {currency(validQuote.breakdown.weightFee)}</p>
-                <p>Express fee: {currency(validQuote.breakdown.expressFee)}</p>
-                <strong>Total: {currency(validQuote.amount)}</strong>
-                <p>The server recalculates the final charge when you confirm.</p>
-              </div>
-            </section>
-          ) : (
-            <div className="delivery-estimate-placeholder">
-              Your estimate has changed. Return to Parcel details to request a new estimate.
-            </div>
-          )}
+
         </div>
       )}
+
+      <div hidden={step < 2}>
+        <FeeEstimate pickupCity={values.pickup.pickupCity}
+          deliveryCity={values.receiver.deliveryCity} weight={values.parcel.weight}
+          serviceType={values.parcel.serviceType} onQuote={setQuote} />
+      </div>
 
       <div className="delivery-navigation">
         <Button variant="outline" onClick={previous} disabled={step === 0}>Back</Button>
