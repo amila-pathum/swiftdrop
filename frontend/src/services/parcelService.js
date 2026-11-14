@@ -11,14 +11,16 @@ export const parcelService = {
       auth: true,
     }),
 
-  getParcelById: (id) =>
+  getParcelById: (id, signal) =>
     request(`/api/parcels/${encodeURIComponent(id)}`, {
       auth: true,
+      signal,
     }),
 
-  getMyParcels: () =>
-    request('/api/parcels/my', {
+  getMyParcels: (page = 0, size = 100, signal) =>
+    request(`/api/parcels/my?page=${encodeURIComponent(page)}&size=${encodeURIComponent(size)}`, {
       auth: true,
+      signal,
     }),
 
   getMerchantParcels: (page = 0, size = 10, signal) =>
@@ -27,9 +29,10 @@ export const parcelService = {
       signal,
     }),
 
-  getParcelHistory: (id) =>
+  getParcelHistory: (id, signal) =>
     request(`/api/parcels/${encodeURIComponent(id)}/history`, {
       auth: true,
+      signal,
     }),
 
   updateParcelStatus: (id, statusData) =>

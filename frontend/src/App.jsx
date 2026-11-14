@@ -22,6 +22,7 @@ import CourierDashboardPage from './pages/courier/CourierDashboardPage'
 import CustomerDashboardPage from './pages/customer/CustomerDashboardPage'
 import CreateDeliveryPage from './pages/customer/CreateDeliveryPage'
 import DeliveryHistoryPage from './pages/customer/DeliveryHistoryPage'
+import DeliveryDetailsPage from './pages/customer/DeliveryDetailsPage'
 import ChangePasswordPage from './pages/customer/ChangePasswordPage'
 import DispatcherDashboardPage from './pages/dispatcher/DispatcherDashboardPage'
 import DispatchReportsPage from './pages/dispatcher/DispatchReportsPage'
@@ -131,6 +132,7 @@ function App() {
       <Route element={<ProtectedRoute allowedRoles={['CUSTOMER']} />}>
         <Route element={<AppLayout />}>
           <Route path="/customer/deliveries" element={<DeliveryHistoryPage />} />
+          <Route path="/customer/deliveries/:id" element={<DeliveryDetailsPage />} />
           <Route path="/customer/change-password" element={<ChangePasswordPage />} />
         </Route>
       </Route>
