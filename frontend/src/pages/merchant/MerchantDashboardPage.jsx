@@ -254,7 +254,11 @@ export default function MerchantDashboardPage() {
           {/* Order Statistics Grid */}
           <section aria-label="Order statistics">
             <div className="stats-grid">
-              <div className="stat-card stat-card-blue">
+              <Link
+                to="/merchant/orders"
+                className="stat-card stat-card-blue stat-card-link"
+                title="View all orders in Orders page"
+              >
                 <span className="stat-label">Total Orders</span>
                 <span className="stat-value">
                   {dashboardData != null ? dashboardData.totalOrders.toLocaleString() : '—'}
@@ -264,25 +268,37 @@ export default function MerchantDashboardPage() {
                     ? `${dashboardData.totalOrders} total registered deliveries`
                     : 'Unavailable (Parcel Service pending)'}
                 </span>
-              </div>
+              </Link>
 
-              <div className="stat-card stat-card-amber">
+              <Link
+                to="/merchant/orders?status=PENDING"
+                className="stat-card stat-card-amber stat-card-link"
+                title="View pending orders awaiting pickup"
+              >
                 <span className="stat-label">Pending Orders</span>
                 <span className="stat-value">
                   {dashboardData != null ? dashboardData.pendingOrders.toLocaleString() : '—'}
                 </span>
                 <span className="stat-subtext">Awaiting pickup</span>
-              </div>
+              </Link>
 
-              <div className="stat-card stat-card-blue">
+              <Link
+                to="/merchant/orders?status=IN_TRANSIT"
+                className="stat-card stat-card-blue stat-card-link"
+                title="View in transit orders"
+              >
                 <span className="stat-label">In Transit Orders</span>
                 <span className="stat-value">
                   {dashboardData != null ? dashboardData.inTransitOrders.toLocaleString() : '—'}
                 </span>
                 <span className="stat-subtext">On the way to customers</span>
-              </div>
+              </Link>
 
-              <div className="stat-card stat-card-green">
+              <Link
+                to="/merchant/orders?status=DELIVERED"
+                className="stat-card stat-card-green stat-card-link"
+                title="View delivered orders"
+              >
                 <span className="stat-label">Delivered Orders</span>
                 <span className="stat-value">
                   {dashboardData != null ? dashboardData.deliveredOrders.toLocaleString() : '—'}
@@ -292,7 +308,7 @@ export default function MerchantDashboardPage() {
                     ? `${Math.round((dashboardData.deliveredOrders / dashboardData.totalOrders) * 100)}% of all orders`
                     : 'Delivered'}
                 </span>
-              </div>
+              </Link>
             </div>
           </section>
 
@@ -302,9 +318,20 @@ export default function MerchantDashboardPage() {
               <div className="card-table-title">
                 Recent orders <span className="card-table-subtitle">Latest {dashboardData?.recentOrders?.length || 4} orders</span>
               </div>
-              <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
+              <Link
+                to="/merchant/orders"
+                style={{
+                  fontSize: '13px',
+                  color: '#2563eb',
+                  textDecoration: 'none',
+                  fontWeight: 500,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                }}
+              >
                 View all orders →
-              </span>
+              </Link>
             </div>
 
             <div className="table-wrapper">
@@ -316,6 +343,7 @@ export default function MerchantDashboardPage() {
                     <th scope="col">Destination</th>
                     <th scope="col">Status</th>
                     <th scope="col">Date</th>
+                    <th scope="col" style={{ textAlign: 'right' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -325,19 +353,9 @@ export default function MerchantDashboardPage() {
                         <td>
                           <button
                             type="button"
-                            className="action-link action-link-primary"
-                            style={{
-                              background: 'none',
-                              border: 'none',
-                              padding: 0,
-                              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
-                              fontSize: '13px',
-                              fontWeight: 600,
-                              cursor: 'pointer',
-                              textAlign: 'left',
-                            }}
+                            className="tracking-link"
                             onClick={() => setSelectedOrder(order)}
-                            title="Click to view status history"
+                            title="Click to view details"
                           >
                             {order.trackingNumber}
                           </button>
@@ -346,18 +364,27 @@ export default function MerchantDashboardPage() {
                         <td>{order.destination || '—'}</td>
                         <td>{renderStatusBadge(order.status)}</td>
                         <td>{formatDate(order.createdAt)}</td>
+                        <td style={{ textAlign: 'right' }}>
+                          <Link
+                            to={`/merchant/orders?tracking=${encodeURIComponent(order.trackingNumber)}`}
+                            state={{ selectedOrder: order, from: 'overview' }}
+                            className="btn-details"
+                          >
+                            Details
+                          </Link>
+                        </td>
                       </tr>
                     ))
                   ) : dashboardData != null ? (
                     <tr>
-                      <td colSpan="5" className="table-empty-state">
+                      <td colSpan="6" className="table-empty-state">
                         <p className="table-empty-title">No orders found</p>
                         <p>You haven't placed any parcel orders yet. Use our API to create your first order.</p>
                       </td>
                     </tr>
                   ) : (
                     <tr>
-                      <td colSpan="5" className="table-empty-state">
+                      <td colSpan="6" className="table-empty-state">
                         <p className="table-empty-title">Order data currently unavailable</p>
                         <p>Order statistics and real-time delivery tracking will appear here once the Parcel Service integration is ready.</p>
                       </td>
@@ -502,7 +529,14 @@ export default function MerchantDashboardPage() {
                     )}
                   </div>
                 </div>
-                <div className="modal-footer">
+                <div className="modal-footer" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Link
+                    to={`/merchant/orders?tracking=${encodeURIComponent(selectedOrder.trackingNumber)}`}
+                    state={{ selectedOrder, from: 'overview' }}
+                    style={{ fontSize: '13px', color: '#2563eb', textDecoration: 'none', fontWeight: 500 }}
+                  >
+                    View full order page →
+                  </Link>
                   <Button variant="secondary" onClick={() => setSelectedOrder(null)}>
                     Close
                   </Button>

@@ -109,8 +109,15 @@ describe('MerchantDashboardPage', () => {
     expect(screen.getByText('Delivered Orders')).toBeInTheDocument()
     expect(screen.getByText('Unavailable (Parcel Service pending)')).toBeInTheDocument()
 
+    // Order statistics links to orders page with filters
+    expect(screen.getByRole('link', { name: /Total Orders/i })).toHaveAttribute('href', '/merchant/orders')
+    expect(screen.getByRole('link', { name: /Pending Orders/i })).toHaveAttribute('href', '/merchant/orders?status=PENDING')
+    expect(screen.getByRole('link', { name: /In Transit Orders/i })).toHaveAttribute('href', '/merchant/orders?status=IN_TRANSIT')
+    expect(screen.getByRole('link', { name: /Delivered Orders/i })).toHaveAttribute('href', '/merchant/orders?status=DELIVERED')
+
     // Recent orders empty state
     expect(screen.getByText('Order data currently unavailable')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'View all orders →' })).toHaveAttribute('href', '/merchant/orders')
 
     // Workflow links
     expect(screen.getByRole('link', { name: 'Manage API keys →' })).toHaveAttribute('href', '/merchant/api-keys')
@@ -243,6 +250,20 @@ describe('MerchantDashboardPage', () => {
     // Close modal
     fireEvent.click(screen.getByRole('button', { name: 'Close' }))
     expect(screen.queryByRole('heading', { name: 'Order Status History' })).not.toBeInTheDocument()
+  })
+
+  it('links Details button on recent orders row to full order details page', async () => {
+    merchantService.getMyMerchant.mockResolvedValue(MOCK_MERCHANT)
+    merchantService.getMyDashboard.mockResolvedValue(MOCK_DASHBOARD_DATA)
+    renderPage()
+
+    await waitFor(() => {
+      expect(screen.getByText('SD-20261112-0841')).toBeInTheDocument()
+    })
+
+    const detailsLinks = screen.getAllByRole('link', { name: 'Details' })
+    expect(detailsLinks.length).toBe(2)
+    expect(detailsLinks[0]).toHaveAttribute('href', '/merchant/orders?tracking=SD-20261112-0841')
   })
 })
 
