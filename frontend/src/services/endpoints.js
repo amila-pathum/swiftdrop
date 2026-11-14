@@ -130,6 +130,14 @@ export const ENDPOINTS = Object.freeze({
   },
 
   // ------------------------------------------------------------------ Parcel
+  pricingQuote: {
+    method: 'POST',
+    path: '/api/pricing/quote',
+    available: true,
+    auth: true,
+    // Body: { pickupCity, deliveryCity, weight, serviceType: 'STANDARD' | 'EXPRESS' }
+    // -> { amount, currency: 'LKR', breakdown: { baseFee, weightFee, expressFee } }
+  },
   trackParcel: {
     method: 'GET',
     path: '/api/parcels/track/:trackingNumber',
