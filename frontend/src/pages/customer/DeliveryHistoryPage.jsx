@@ -59,7 +59,7 @@ const SAMPLE_PARCELS = [
     receiverName: 'Kamal Silva',
     createdAt: '2026-11-05T10:10:00Z',
     charge: 350,
-    status: 'DELIVERED',
+    status: 'CREATED',
   },
 ]
 
@@ -149,9 +149,9 @@ const STATUS_CONFIG = {
 }
 
 const DATE_FILTER_OPTIONS = [
-  { value: 'ALL',    label: 'Any date' },
-  { value: 'TODAY',  label: 'Today' },
-  { value: '7DAYS',  label: 'Last 7 days' },
+  { value: 'ALL', label: 'Any date' },
+  { value: 'TODAY', label: 'Today' },
+  { value: '7DAYS', label: 'Last 7 days' },
   { value: '30DAYS', label: 'Last 30 days' },
 ]
 
@@ -182,19 +182,19 @@ function matchesDateFilter(createdAt, filter) {
 }
 
 export default function DeliveryHistoryPage() {
-  const [parcels, setParcels]         = useState([])
-  const [loading, setLoading]         = useState(true)
-  const [error, setError]             = useState(null)
+  const [parcels, setParcels] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  const [search, setSearch]               = useState('')
-  const [statusFilter, setStatusFilter]   = useState('ALL')
-  const [dateFilter, setDateFilter]       = useState('ALL')
-  const [page, setPage]                   = useState(1)
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('ALL')
+  const [dateFilter, setDateFilter] = useState('ALL')
+  const [page, setPage] = useState(1)
 
-  const [cancelling, setCancelling]       = useState({})
-  const [downloading, setDownloading]     = useState({})
+  const [cancelling, setCancelling] = useState({})
+  const [downloading, setDownloading] = useState({})
   const [actionSuccess, setActionSuccess] = useState('')
-  const [actionError, setActionError]     = useState(null)
+  const [actionError, setActionError] = useState(null)
   const [assistantMessage, setAssistantMessage] = useState(false)
 
   const loadParcels = useCallback(() => {
@@ -244,7 +244,7 @@ export default function DeliveryHistoryPage() {
   }, [filtered, page])
 
   const showFrom = filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
-  const showTo   = Math.min(page * PAGE_SIZE, filtered.length)
+  const showTo = Math.min(page * PAGE_SIZE, filtered.length)
 
   const handleCancel = async (parcel) => {
     if (cancelling[parcel.id]) return
