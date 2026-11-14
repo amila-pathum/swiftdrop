@@ -43,7 +43,8 @@ export const ENDPOINTS = Object.freeze({
     method: 'POST',
     path: '/api/auth/login',
     available: true,
-    // Body: { email, password } -> LoginResponse { accessToken, tokenType, expiresIn, user }
+    // Body: { email, password, rememberMe? } -> LoginResponse { accessToken,
+    // tokenType, expiresIn, refreshToken, refreshExpiresIn, user }
     // ACTIVE and PENDING_APPROVAL accounts may sign in; SUSPENDED and DISABLED get 403.
   },
   logout: {
@@ -51,7 +52,16 @@ export const ENDPOINTS = Object.freeze({
     path: '/api/auth/logout',
     available: true,
     auth: true,
-    // -> 204. Invalidates every access token of the signed-in user.
+    // -> 204. Invalidates every access and refresh token of the signed-in user.
+  },
+  refresh: {
+    method: 'POST',
+    path: '/api/auth/refresh',
+    available: true,
+    // Body: { refreshToken } -> LoginResponse with a new access token and a
+    // new refresh token; the old refresh token cannot be used again. 401 when
+    // the refresh token is unknown, used, expired or revoked. Called only by
+    // apiClient.refreshSession.
   },
   googleExchange: {
     method: 'POST',
@@ -88,6 +98,39 @@ export const ENDPOINTS = Object.freeze({
     auth: true,
     // ADMIN only. Body: { name, email, password, role: "DISPATCHER" }
     // -> 201 { id, name, email, role, status, createdAt }.
+  },
+  listAdminUsers: {
+    method: 'GET',
+    path: '/api/admin/users',
+    available: true,
+    auth: true,
+    // ADMIN only. Query: search, q, role, status, page (0-based), size, sort
+    // -> Page<UserResponse> { content:[{id,name,email,phone,address,role,status,createdAt}],
+    //    totalPages, totalElements, number, size }
+  },
+  getAdminUser: {
+    method: 'GET',
+    path: '/api/admin/users/:id',
+    available: true,
+    auth: true,
+    // ADMIN only. -> UserResponse
+  },
+  changeUserRole: {
+    method: 'PATCH',
+    path: '/api/admin/users/:id/role',
+    available: true,
+    auth: true,
+    // ADMIN only. Body: { role: "CUSTOMER"|"MERCHANT"|"COURIER"|"DISPATCHER"|"ADMIN" }
+    // -> Updated UserResponse. Admin cannot change their own role (403).
+  },
+  changeUserStatus: {
+    method: 'PATCH',
+    path: '/api/admin/users/:id/status',
+    available: true,
+    auth: true,
+    // ADMIN only. Body: { status: "ACTIVE"|"SUSPENDED"|"DISABLED" }
+    // -> Updated UserResponse. Invalidates all existing tokens for the user.
+    // Admin cannot change their own status (403).
   },
 
   // ---------------------------------------------------------------- Merchant

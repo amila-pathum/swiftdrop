@@ -71,7 +71,7 @@ const ROLE_LINKS = {
   MERCHANT: [],
   COURIER: [],
   DISPATCHER: [],
-  ADMIN: [],
+  ADMIN: [{ to: '/admin/users', label: 'User Management' }],
 }
 
 /**

@@ -1,7 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, ApiErrorKind, apiClient, request } from './apiClient'
+import {
+  ApiError,
+  ApiErrorKind,
+  apiClient,
+  onUnauthorized,
+  refreshSession,
+  request,
+} from './apiClient'
 import { API_BASE_URL } from './config'
-import { saveSession } from './tokenStorage'
+import { clearSession, getSession, saveSession } from './tokenStorage'
 
 function jsonResponse(status, body) {
   return new Response(body === undefined ? null : JSON.stringify(body), {
@@ -172,6 +179,276 @@ describe('apiClient', () => {
       fetchMock.mockRejectedValue(abort)
 
       await expect(apiClient.get('/api/example')).rejects.toBe(abort)
+    })
+  })
+
+  describe('refresh tokens', () => {
+    const REFRESH_URL = `${API_BASE_URL}/api/auth/refresh`
+    const refreshed = (n = 2) => ({
+      accessToken: `access-${n}`,
+      tokenType: 'Bearer',
+      expiresIn: 900,
+      refreshToken: `refresh-${n}`,
+      refreshExpiresIn: 86_400,
+      user: { id: 1, role: 'CUSTOMER' },
+    })
+    let unauthorized
+    let unsubscribe
+
+    // An access token that has already expired, with a usable refresh token.
+    const saveExpiredSession = ({ persistent = false } = {}) => saveSession('access-1', 900,
+      Date.now() - 901_000, {
+        persistent, refreshToken: 'refresh-1', refreshExpiresInSeconds: 86_400,
+      })
+    const saveValidSession = () => saveSession('access-1', 900, undefined, {
+      refreshToken: 'refresh-1', refreshExpiresInSeconds: 86_400,
+    })
+    const urls = () => fetchMock.mock.calls.map(([url]) => url)
+    const authHeaders = () => fetchMock.mock.calls
+      .filter(([url]) => url !== REFRESH_URL)
+      .map(([, init]) => init.headers.Authorization)
+
+    beforeEach(() => {
+      localStorage.clear()
+      unauthorized = vi.fn()
+      unsubscribe = onUnauthorized(unauthorized)
+    })
+
+    afterEach(() => {
+      unsubscribe()
+    })
+
+    it('renews an expired access token before an authenticated request', async () => {
+      saveExpiredSession()
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse(200, refreshed()))
+        .mockResolvedValueOnce(jsonResponse(200, { ok: true }))
+
+      await expect(apiClient.get('/api/example', { auth: true })).resolves.toEqual({ ok: true })
+
+      expect(urls()).toEqual([REFRESH_URL, `${API_BASE_URL}/api/example`])
+      const [, refreshInit] = fetchMock.mock.calls[0]
+      expect(refreshInit.method).toBe('POST')
+      expect(refreshInit.headers.Authorization).toBeUndefined()
+      expect(JSON.parse(refreshInit.body)).toEqual({ refreshToken: 'refresh-1' })
+      expect(authHeaders()).toEqual(['Bearer access-2'])
+      expect(getSession()).toMatchObject({ accessToken: 'access-2', refreshToken: 'refresh-2' })
+      expect(unauthorized).not.toHaveBeenCalled()
+    })
+
+    it('retries a request rejected with 401 once, with the renewed token', async () => {
+      saveValidSession()
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse(401, { error: 'Invalid or expired access token' }))
+        .mockResolvedValueOnce(jsonResponse(200, refreshed()))
+        .mockResolvedValueOnce(jsonResponse(200, { ok: true }))
+
+      await expect(apiClient.post('/api/example', { a: 1 }, { auth: true }))
+        .resolves.toEqual({ ok: true })
+
+      expect(authHeaders()).toEqual(['Bearer access-1', 'Bearer access-2'])
+      expect(fetchMock.mock.calls[2][1].body).toBe('{"a":1}')
+      expect(unauthorized).not.toHaveBeenCalled()
+    })
+
+    it('gives up after one retry and reports the session as unusable', async () => {
+      saveValidSession()
+      fetchMock
+        .mockResolvedValueOnce(jsonResponse(401, { error: 'Invalid or expired access token' }))
+        .mockResolvedValueOnce(jsonResponse(200, refreshed()))
+        .mockResolvedValueOnce(jsonResponse(401, { error: 'Invalid or expired access token' }))
+
+      const error = await apiClient.get('/api/example', { auth: true }).catch((e) => e)
+
+      expect(error.status).toBe(401)
+      expect(fetchMock).toHaveBeenCalledTimes(3)
+      expect(unauthorized).toHaveBeenCalledTimes(1)
+    })
+
+    it('shares one refresh between concurrent requests', async () => {
+      saveExpiredSession()
+      fetchMock.mockImplementation(async (url) => (url === REFRESH_URL
+        ? jsonResponse(200, refreshed())
+        : jsonResponse(200, { ok: true })))
+
+      await Promise.all([
+        apiClient.get('/api/a', { auth: true }),
+        apiClient.get('/api/b', { auth: true }),
+        apiClient.get('/api/c', { auth: true }),
+      ])
+
+      expect(urls().filter((url) => url === REFRESH_URL)).toHaveLength(1)
+      expect(authHeaders()).toEqual(['Bearer access-2', 'Bearer access-2', 'Bearer access-2'])
+    })
+
+    it('ends the session when the server refuses the refresh token', async () => {
+      saveExpiredSession()
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(401, { error: 'Session has expired. Please sign in again' }))
+
+      const error = await apiClient.get('/api/example', { auth: true }).catch((e) => e)
+
+      expect(error).toBeInstanceOf(ApiError)
+      expect(error.status).toBe(401)
+      expect(error.kind).toBe(ApiErrorKind.UNAUTHENTICATED)
+      expect(urls()).toEqual([REFRESH_URL])
+      expect(unauthorized).toHaveBeenCalledTimes(1)
+    })
+
+    it('keeps the session when the refresh cannot reach the server', async () => {
+      saveExpiredSession()
+      fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+
+      const error = await apiClient.get('/api/example', { auth: true }).catch((e) => e)
+
+      expect(error.kind).toBe(ApiErrorKind.NETWORK)
+      expect(unauthorized).not.toHaveBeenCalled()
+      expect(getSession()).toMatchObject({ refreshToken: 'refresh-1' })
+    })
+
+    it('does not refresh without a refresh token', async () => {
+      saveSession('access-1', 900, Date.now() - 901_000)
+
+      const error = await apiClient.get('/api/example', { auth: true }).catch((e) => e)
+
+      expect(error.kind).toBe(ApiErrorKind.UNAUTHENTICATED)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('does not refresh with an expired refresh token', async () => {
+      saveSession('access-1', 900, Date.now() - 90_000_000, {
+        refreshToken: 'refresh-1', refreshExpiresInSeconds: 86_400,
+      })
+
+      const error = await apiClient.get('/api/example', { auth: true }).catch((e) => e)
+
+      expect(error.kind).toBe(ApiErrorKind.UNAUTHENTICATED)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('keeps a remembered session in localStorage', async () => {
+      saveExpiredSession({ persistent: true })
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, refreshed()))
+
+      await refreshSession()
+
+      expect(localStorage.getItem('swiftdrop.refreshToken')).toBe('refresh-2')
+      expect(sessionStorage.getItem('swiftdrop.refreshToken')).toBeNull()
+    })
+
+    it('never restores a session that was signed out during the refresh', async () => {
+      saveExpiredSession()
+      let respond
+      fetchMock.mockReturnValueOnce(new Promise((resolve) => {
+        respond = resolve
+      }))
+
+      const pending = refreshSession()
+      clearSession()
+      respond(jsonResponse(200, refreshed()))
+
+      await expect(pending).resolves.toMatchObject({ accessToken: 'access-2' })
+      expect(getSession()).toBeNull()
+    })
+
+    it('uses the token another tab renewed first', async () => {
+      saveExpiredSession({ persistent: true })
+      fetchMock.mockImplementationOnce(async () => {
+        saveSession('access-other-tab', 900, undefined, {
+          persistent: true, refreshToken: 'refresh-other-tab', refreshExpiresInSeconds: 86_400,
+        })
+        return jsonResponse(401, { error: 'Session has expired. Please sign in again' })
+      })
+
+      await expect(refreshSession()).resolves.toMatchObject({ accessToken: 'access-other-tab' })
+      expect(unauthorized).not.toHaveBeenCalled()
+    })
+
+    describe('across tabs', () => {
+      // A minimal Web Locks stand-in: one holder at a time, in request order.
+      function installLocks() {
+        let tail = Promise.resolve()
+        const request = vi.fn((name, callback) => {
+          const run = tail.then(() => callback())
+          tail = run.catch(() => {})
+          return run
+        })
+        vi.stubGlobal('navigator', { ...globalThis.navigator, locks: { request } })
+        return request
+      }
+
+      it('refreshes while holding the shared refresh lock', async () => {
+        const request = installLocks()
+        saveExpiredSession({ persistent: true })
+        fetchMock.mockResolvedValueOnce(jsonResponse(200, refreshed()))
+
+        await expect(refreshSession()).resolves.toMatchObject({ accessToken: 'access-2' })
+        expect(request).toHaveBeenCalledWith('swiftdrop.refresh', expect.any(Function))
+        expect(fetchMock).toHaveBeenCalledTimes(1)
+      })
+
+      it('never sends a refresh token another tab already used', async () => {
+        installLocks()
+        saveExpiredSession({ persistent: true })
+        // Another tab holds the lock and renews the shared session first.
+        let release
+        const otherTab = navigator.locks.request('swiftdrop.refresh', () => new Promise((resolve) => {
+          release = () => {
+            saveSession('access-other-tab', 900, undefined, {
+              persistent: true, refreshToken: 'refresh-other-tab', refreshExpiresInSeconds: 86_400,
+            })
+            resolve()
+          }
+        }))
+
+        const pending = refreshSession()
+        await Promise.resolve()
+        release()
+        await otherTab
+
+        await expect(pending).resolves.toMatchObject({ accessToken: 'access-other-tab' })
+        expect(fetchMock).not.toHaveBeenCalled()
+        expect(unauthorized).not.toHaveBeenCalled()
+      })
+
+      it('sends the newest token when the other tab only renewed earlier', async () => {
+        installLocks()
+        saveExpiredSession({ persistent: true })
+        fetchMock.mockResolvedValueOnce(jsonResponse(200, refreshed()))
+
+        await refreshSession()
+
+        expect(JSON.parse(fetchMock.mock.calls[0][1].body))
+          .toEqual({ refreshToken: 'refresh-1' })
+      })
+
+      it('lets tabs take turns: the second refresh uses the first one\'s new token', async () => {
+        installLocks()
+        saveExpiredSession({ persistent: true })
+        fetchMock
+          .mockResolvedValueOnce(jsonResponse(200, refreshed(2)))
+          .mockResolvedValueOnce(jsonResponse(200, refreshed(3)))
+
+        await refreshSession()
+        // The renewed access token expires; the next refresh must send refresh-2.
+        saveSession('access-2', 1, Date.now() - 5_000, {
+          persistent: true, refreshToken: 'refresh-2', refreshExpiresInSeconds: 86_400,
+        })
+        await refreshSession()
+
+        expect(fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body).refreshToken))
+          .toEqual(['refresh-1', 'refresh-2'])
+      })
+    })
+
+    it('rejects an incomplete refresh response without storing it', async () => {
+      saveExpiredSession()
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, { ...refreshed(), refreshToken: '' }))
+
+      const error = await refreshSession().catch((e) => e)
+
+      expect(error.kind).toBe(ApiErrorKind.INVALID_RESPONSE)
+      expect(getSession()).toMatchObject({ accessToken: 'access-1', refreshToken: 'refresh-1' })
     })
   })
 })

@@ -6,6 +6,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import PublicOnlyRoute from './components/PublicOnlyRoute'
 import { useAuth } from './context/AuthContext'
 import AdminDashboardPage from './pages/admin/AdminDashboardPage'
+import AdminUserManagementPage from './pages/admin/AdminUserManagementPage'
 import MerchantApprovalsPage from './pages/admin/MerchantApprovalsPage'
 import ZoneManagementPage from './pages/admin/ZoneManagementPage'
 import PricingRuleManagementPage from './pages/admin/PricingRuleManagementPage'
@@ -142,6 +143,7 @@ function App() {
       {/* Admin protected routes */}
       <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
         <Route element={<AppLayout />}>
+          <Route path="/admin/users" element={<AdminUserManagementPage />} />
           <Route path="/admin/merchant-approvals" element={<MerchantApprovalsPage />} />
           <Route path="/admin/approvals" element={<Navigate to="/admin/merchant-approvals" replace />} />
           <Route path="/admin/zones" element={<ZoneManagementPage />} />

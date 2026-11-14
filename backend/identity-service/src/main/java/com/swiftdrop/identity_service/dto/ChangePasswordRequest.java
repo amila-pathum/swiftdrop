@@ -12,8 +12,15 @@ public record ChangePasswordRequest(
     String newPassword,
 
     String confirmPassword,
-    String confirmNewPassword
+    String confirmNewPassword,
+
+    // Lifetime of the new refresh token, as at sign-in. Optional.
+    Boolean rememberMe
 ) {
+    public boolean persistent() {
+        return Boolean.TRUE.equals(rememberMe);
+    }
+
     @Override
     public String confirmPassword() {
         return confirmPassword != null ? confirmPassword : confirmNewPassword;

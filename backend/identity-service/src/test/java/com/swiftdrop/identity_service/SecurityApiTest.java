@@ -1,10 +1,12 @@
 package com.swiftdrop.identity_service;
 
+import com.swiftdrop.identity_service.entity.RefreshToken;
 import com.swiftdrop.identity_service.entity.Role;
 import com.swiftdrop.identity_service.entity.User;
 import com.swiftdrop.identity_service.entity.UserStatus;
 import com.swiftdrop.identity_service.repository.OAuthLoginCodeRepository;
 import com.swiftdrop.identity_service.repository.PasswordResetTokenRepository;
+import com.swiftdrop.identity_service.repository.RefreshTokenRepository;
 import com.swiftdrop.identity_service.repository.UserIdentityRepository;
 import com.swiftdrop.identity_service.repository.UserRepository;
 import com.jayway.jsonpath.JsonPath;
@@ -57,6 +59,7 @@ class SecurityApiTest {
     @MockitoBean UserIdentityRepository userIdentityRepository;
     @MockitoBean OAuthLoginCodeRepository oauthLoginCodeRepository;
     @MockitoBean PasswordResetTokenRepository passwordResetTokenRepository;
+    @MockitoBean RefreshTokenRepository refreshTokenRepository;
 
     private User user;
 
@@ -183,12 +186,115 @@ class SecurityApiTest {
             .andExpect(jsonPath("$.tokenType").value("Bearer"))
             .andExpect(jsonPath("$.expiresIn").value(900))
             .andExpect(jsonPath("$.accessToken").isNotEmpty())
+            .andExpect(jsonPath("$.refreshToken").isNotEmpty())
+            .andExpect(jsonPath("$.refreshExpiresIn").value(86_400))
             .andExpect(jsonPath("$.user.role").value("CUSTOMER"))
             .andExpect(jsonPath("$.user.passwordHash").doesNotExist())
             .andReturn().getResponse().getContentAsString();
 
         AuthenticatedUser claims = jwtService.parseToken(JsonPath.read(body, "$.accessToken"));
         assertThat(claims).isEqualTo(new AuthenticatedUser(1L, "user@example.com", Role.CUSTOMER));
+        verify(refreshTokenRepository).save(any(RefreshToken.class));
+    }
+
+    @Test
+    void loginWithRememberMeReturnsALongerLivedRefreshToken() throws Exception {
+        when(userRepository.findByEmail("user@example.com")).thenReturn(Optional.of(user));
+
+        mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"email":"user@example.com","password":"password123","rememberMe":true}
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.refreshExpiresIn").value(2_592_000));
+    }
+
+    @Test
+    void refreshIsPublicAndReturnsNewTokens() throws Exception {
+        RefreshToken stored = new RefreshToken("hash", user, "family", false,
+            Instant.now(), Instant.now().plusSeconds(3_600));
+        when(refreshTokenRepository.markUsed(any(), any())).thenReturn(1);
+        when(refreshTokenRepository.findByTokenHash(any())).thenReturn(Optional.of(stored));
+
+        String body = mockMvc.perform(post("/api/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"some-refresh-token\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.tokenType").value("Bearer"))
+            .andExpect(jsonPath("$.expiresIn").value(900))
+            .andExpect(jsonPath("$.refreshToken").isNotEmpty())
+            .andExpect(jsonPath("$.user.role").value("CUSTOMER"))
+            .andReturn().getResponse().getContentAsString();
+
+        assertThat((String) JsonPath.read(body, "$.refreshToken")).isNotEqualTo("some-refresh-token");
+        assertThat((Integer) JsonPath.read(body, "$.refreshExpiresIn")).isBetween(3_590, 3_600);
+        AuthenticatedUser claims = jwtService.parseToken(JsonPath.read(body, "$.accessToken"));
+        assertThat(claims).isEqualTo(new AuthenticatedUser(1L, "user@example.com", Role.CUSTOMER));
+    }
+
+    @Test
+    void refreshRejectsAnUnknownOrUsedToken() throws Exception {
+        when(refreshTokenRepository.markUsed(any(), any())).thenReturn(0);
+
+        mockMvc.perform(post("/api/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"unknown\"}"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.error").value("Session has expired. Please sign in again"))
+            .andExpect(jsonPath("$.accessToken").doesNotExist());
+    }
+
+    @Test
+    void refreshRejectsATokenIssuedBeforeLogout() throws Exception {
+        RefreshToken stored = new RefreshToken("hash", user, "family", false,
+            Instant.now(), Instant.now().plusSeconds(3_600));
+        user.invalidateTokens();
+        when(refreshTokenRepository.markUsed(any(), any())).thenReturn(1);
+        when(refreshTokenRepository.findByTokenHash(any())).thenReturn(Optional.of(stored));
+
+        mockMvc.perform(post("/api/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"old\"}"))
+            .andExpect(status().isUnauthorized());
+        verify(refreshTokenRepository).deleteByFamilyId("family");
+    }
+
+    @Test
+    void refreshValidatesItsInput() throws Exception {
+        mockMvc.perform(post("/api/auth/refresh")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"refreshToken\":\"\"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error").value("Invalid request data"));
+    }
+
+    @Test
+    void logoutRevokesRefreshTokens() throws Exception {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        mockMvc.perform(post("/api/auth/logout")
+                .header("Authorization", "Bearer " + jwtService.generateToken(user)))
+            .andExpect(status().isNoContent());
+        verify(refreshTokenRepository).deleteByUserId(1L);
+    }
+
+    @Test
+    void changePasswordReturnsFreshTokensForThisSession() throws Exception {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        mockMvc.perform(put("/api/users/me/change-password")
+                .header("Authorization", "Bearer " + jwtService.generateToken(user))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {"currentPassword":"password123","newPassword":"new-password-123",
+                     "confirmPassword":"new-password-123","rememberMe":true}
+                    """))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.accessToken").isNotEmpty())
+            .andExpect(jsonPath("$.refreshToken").isNotEmpty())
+            .andExpect(jsonPath("$.refreshExpiresIn").value(2_592_000));
+        verify(refreshTokenRepository).deleteStale(1L, 1);
     }
 
     @Test

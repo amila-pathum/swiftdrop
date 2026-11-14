@@ -31,7 +31,7 @@ describe('endpoint registry', () => {
       'getPricingRuleById', 'getPricingRules', 'getZoneById', 'getZones',
       'googleExchange', 'login', 'logout', 'markNotificationAsRead',
       'merchantApplication', 'myMerchantApplication', 'notifications',
-      'pricingQuote', 'register', 'registerCourier', 'registerMerchant',
+      'pricingQuote', 'refresh', 'register', 'registerCourier', 'registerMerchant',
       'trackParcel', 'unreadNotificationsCount', 'updatePricingRule', 'updateZone',
     ])
     expect(available.every((name) => ENDPOINTS[name].path.startsWith('/api/auth/')
