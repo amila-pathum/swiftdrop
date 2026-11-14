@@ -27,14 +27,32 @@ public class NotificationStreamService {
      * Subscribes an authenticated user to their real-time notification stream.
      */
     public SseEmitter subscribeUser(String userId) {
+        return subscribeUser(userId, null);
+    }
+
+    /**
+     * Subscribes an authenticated user to their real-time notification stream by userId and/or email.
+     */
+    public SseEmitter subscribeUser(String userId, String email) {
         SseEmitter emitter = new SseEmitter(SSE_TIMEOUT);
-        List<SseEmitter> emitters = userEmitters.computeIfAbsent(userId, k -> new CopyOnWriteArrayList<>());
-        emitters.add(emitter);
+        List<String> identifiers = java.util.stream.Stream.of(userId, email)
+                .filter(org.springframework.util.StringUtils::hasText)
+                .distinct()
+                .toList();
+
+        for (String id : identifiers) {
+            userEmitters.computeIfAbsent(id, k -> new CopyOnWriteArrayList<>()).add(emitter);
+        }
 
         Runnable cleanup = () -> {
-            emitters.remove(emitter);
-            if (emitters.isEmpty()) {
-                userEmitters.remove(userId);
+            for (String id : identifiers) {
+                List<SseEmitter> emitters = userEmitters.get(id);
+                if (emitters != null) {
+                    emitters.remove(emitter);
+                    if (emitters.isEmpty()) {
+                        userEmitters.remove(id);
+                    }
+                }
             }
         };
 
