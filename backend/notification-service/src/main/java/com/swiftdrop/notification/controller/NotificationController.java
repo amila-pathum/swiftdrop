@@ -31,7 +31,7 @@ public class NotificationController {
      */
     @GetMapping
     public List<NotificationResponse> listMyNotifications(@AuthenticationPrincipal Jwt jwt) {
-        return notificationService.getMyNotifications(jwt.getSubject());
+        return notificationService.getMyNotifications(jwt.getSubject(), jwt.getClaimAsString("email"));
     }
 
     /**
@@ -39,7 +39,7 @@ public class NotificationController {
      */
     @GetMapping("/unread-count")
     public UnreadCountResponse getUnreadCount(@AuthenticationPrincipal Jwt jwt) {
-        return new UnreadCountResponse(notificationService.getUnreadCount(jwt.getSubject()));
+        return new UnreadCountResponse(notificationService.getUnreadCount(jwt.getSubject(), jwt.getClaimAsString("email")));
     }
 
     /**
@@ -48,7 +48,7 @@ public class NotificationController {
      */
     @PatchMapping("/{id}/read")
     public NotificationResponse markAsRead(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
-        return notificationService.markAsRead(id, jwt.getSubject());
+        return notificationService.markAsRead(id, jwt.getSubject(), jwt.getClaimAsString("email"));
     }
 
     /**
@@ -56,7 +56,7 @@ public class NotificationController {
      */
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamUserNotifications(@AuthenticationPrincipal Jwt jwt) {
-        return notificationStreamService.subscribeUser(jwt.getSubject());
+        return notificationStreamService.subscribeUser(jwt.getSubject(), jwt.getClaimAsString("email"));
     }
 
     /**

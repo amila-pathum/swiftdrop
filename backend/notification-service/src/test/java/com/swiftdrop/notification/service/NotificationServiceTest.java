@@ -34,7 +34,7 @@ class NotificationServiceTest {
                 .createdAt(Instant.now())
                 .build();
 
-        when(notificationRepository.findByUserIdOrderByCreatedAtDesc(userId))
+        when(notificationRepository.findByUserIdInOrderByCreatedAtDesc(List.of(userId)))
                 .thenReturn(List.of(notification));
 
         List<NotificationResponse> responses = notificationService.getMyNotifications(userId);
@@ -47,7 +47,7 @@ class NotificationServiceTest {
     @Test
     void getUnreadCountReturnsCount() {
         String userId = "user-123";
-        when(notificationRepository.countByUserIdAndIsReadFalse(userId)).thenReturn(5L);
+        when(notificationRepository.countByUserIdInAndIsReadFalse(List.of(userId))).thenReturn(5L);
 
         long count = notificationService.getUnreadCount(userId);
 

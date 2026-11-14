@@ -26,15 +26,24 @@ public class IdentityServiceClient {
     private final ObjectMapper objectMapper;
     private final String identityServiceUrl;
     private final String jwtSecret;
+    private final String adminId;
+    private final String adminEmail;
+    private final int adminTokenVersion;
 
     @org.springframework.beans.factory.annotation.Autowired
     public IdentityServiceClient(
             ObjectMapper objectMapper,
             @Value("${notification.identity.url:http://localhost:8081}") String identityServiceUrl,
-            @Value("${swiftdrop.jwt.secret:}") String jwtSecret) {
+            @Value("${swiftdrop.jwt.secret:}") String jwtSecret,
+            @Value("${notification.identity.admin.id:10}") String adminId,
+            @Value("${notification.identity.admin.email:admin@swiftdrop.com}") String adminEmail,
+            @Value("${notification.identity.admin.token-version:0}") int adminTokenVersion) {
         this.objectMapper = objectMapper;
         this.identityServiceUrl = identityServiceUrl;
         this.jwtSecret = jwtSecret;
+        this.adminId = adminId;
+        this.adminEmail = adminEmail;
+        this.adminTokenVersion = adminTokenVersion;
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(3))
                 .build();
@@ -46,10 +55,24 @@ public class IdentityServiceClient {
             ObjectMapper objectMapper,
             String identityServiceUrl,
             String jwtSecret) {
+        this(httpClient, objectMapper, identityServiceUrl, jwtSecret, "10", "admin@swiftdrop.com", 0);
+    }
+
+    public IdentityServiceClient(
+            HttpClient httpClient,
+            ObjectMapper objectMapper,
+            String identityServiceUrl,
+            String jwtSecret,
+            String adminId,
+            String adminEmail,
+            int adminTokenVersion) {
         this.httpClient = httpClient;
         this.objectMapper = objectMapper;
         this.identityServiceUrl = identityServiceUrl;
         this.jwtSecret = jwtSecret;
+        this.adminId = adminId;
+        this.adminEmail = adminEmail;
+        this.adminTokenVersion = adminTokenVersion;
     }
 
     /**
@@ -90,6 +113,9 @@ public class IdentityServiceClient {
                 if (emailNode != null && !emailNode.asText().isBlank()) {
                     return Optional.of(emailNode.asText().trim());
                 }
+            } else {
+                log.warn("Identity-service returned HTTP {} for customerId '{}': {}",
+                        response.statusCode(), customerId, response.body());
             }
         } catch (NumberFormatException nfe) {
             log.debug("CustomerId '{}' is not numeric, skipping identity-service query", customerId);
@@ -108,11 +134,11 @@ public class IdentityServiceClient {
         try {
             byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);
             return Jwts.builder()
-                    .subject("999")
-                    .claim("email", "admin@swiftdrop.com")
+                    .subject(adminId)
+                    .claim("email", adminEmail)
                     .claim("role", "ADMIN")
                     .claim("status", "ACTIVE")
-                    .claim("ver", 0)
+                    .claim("ver", adminTokenVersion)
                     .issuedAt(new Date())
                     .expiration(Date.from(Instant.now().plusSeconds(300)))
                     .signWith(Keys.hmacShaKeyFor(keyBytes))
