@@ -1,11 +1,96 @@
-# Parcel creation
+# SwiftDrop Parcel Service
 
-`POST /api/parcels` requires a valid Identity Service JWT with `role: CUSTOMER`
-and a canonical positive numeric subject (a Java Long, matching Identity user IDs). The subject supplies both `senderId` and `createdBy`.
+Parcel Service owns parcel creation, private parcel reads, lifecycle history,
+customer cancellation and receipts, courier assignment, public tracking, and
+reliable publication of parcel-status events.
+
+- Local URL: `http://localhost:8082`
+- Gateway URL: `http://localhost:8080/api/parcels`
+- Health: `GET http://localhost:8082/actuator/health`
+- OpenAPI: [`../../contracts/openapi/parcel-service.yaml`](../../contracts/openapi/parcel-service.yaml)
+
+## Run locally
+
+From the repository root, start all services, PostgreSQL, RabbitMQ, and frontend:
+
+```bash
+bash infrastructure/scripts/run-all.sh
+```
+
+To start only Parcel Service after its dependencies are available:
+
+```bash
+bash infrastructure/scripts/run-service.sh parcel-service
+```
+
+Local PostgreSQL uses `parcel_db` on port `5433`; RabbitMQ uses port `5672`.
+Credentials come from the root `.env` and must not be committed.
+
+For the shared development RDS profile:
+
+```bash
+DB_PROFILE=rds bash infrastructure/scripts/run-service.sh parcel-service
+```
+
+RDS values come from `.env.rds` and the connection uses TLS. Never repair or
+reset a shared database to resolve a local schema problem.
+
+## Authentication and authorization
+
+All endpoints except health and public tracking require an Identity Service JWT:
+
+```http
+Authorization: Bearer <access-token>
+```
+
+Parcel Service validates the JWT itself. Its subject must be a canonical positive
+numeric Identity user ID, such as `42`; its `role` claim supplies authorization.
+
+| Capability | Allowed roles | Additional rule |
+|---|---|---|
+| Public tracking | Anonymous | Privacy-safe response only |
+| Customer creation/list/cancel/receipt | CUSTOMER | Parcel must belong to JWT subject where applicable |
+| Merchant creation/list | MERCHANT | Listing returns merchant-owned parcels only |
+| Private details/history | CUSTOMER, MERCHANT, DISPATCHER, ADMIN | Customers and merchants see only their own parcels |
+| Status update | COURIER, DISPATCHER, ADMIN | Courier subject must equal assigned numeric courier ID |
+| Courier assignment | DISPATCHER, ADMIN | Closed parcels cannot be assigned |
+| Dispatch projection/status listing | DISPATCHER, ADMIN | Staff-only integration endpoints |
+
+Private detail/history requests for another customer or merchant return `404`
+instead of revealing whether the parcel exists.
+
+## API overview
+
+The OpenAPI file is the authoritative field-level contract.
+
+| Method and path | Purpose |
+|---|---|
+| `GET /api/parcels/track/{trackingNumber}` | Public privacy-safe tracking |
+| `POST /api/parcels` | Customer parcel creation |
+| `POST /api/parcels/merchant` | Merchant parcel creation |
+| `GET /api/parcels/my` | Paginated customer-owned parcels |
+| `GET /api/parcels/merchant` | Paginated merchant-owned parcels |
+| `GET /api/parcels/{id}` | Authorized private details |
+| `GET /api/parcels/{id}/history` | Authorized chronological history |
+| `PATCH` or `POST /api/parcels/{id}/status` | Lifecycle update |
+| `PATCH /api/parcels/{id}/cancel` | Customer cancellation while `CREATED` |
+| `GET /api/parcels/{id}/receipt` | PDF receipt for an owned delivered parcel |
+| `PATCH /api/parcels/{id}/courier` | Assign numeric courier user ID |
+| `GET /api/parcels?status=...` | Paginated staff status listing |
+| `GET /api/parcels/dispatch` | Dispatch projection list |
+| `GET /api/parcels/dispatch/{id}` | One Dispatch projection |
+
+Paginated endpoints accept zero-based `page` and `size` from 1 through 100.
+Customer and merchant lists are newest first; staff status lists are oldest first.
+
+### Create a parcel
+
+Customer creation requires `CUSTOMER`; merchant creation uses the same body at
+`/api/parcels/merchant` and requires `MERCHANT`.
 
 ```json
 {
-  "receiverName": "Nimal",
+  "receiverName": "Nimal Perera",
   "receiverPhone": "0771234567",
   "pickupAddressLine1": "10 Main Street",
   "pickupAddressLine2": "Floor 2",
@@ -19,164 +104,118 @@ and a canonical positive numeric subject (a Java Long, matching Identity user ID
 }
 ```
 
-Send `Authorization: Bearer <access-token>` and `Content-Type: application/json`.
-Success returns HTTP 201 with `id`, `trackingNumber`, `status` (`CREATED`),
-`charge`, and `createdAt`. Pricing determines the charge; callers cannot set
-the sender, charge, tracking number, or status through the request DTO.
-The parcel and its initial `null → CREATED` history entry commit together.
+Sizes are `SMALL`, `MEDIUM`, and `LARGE`; parcel types are `STANDARD` and
+`EXPRESS`. Cities must be one of Sri Lanka's 25 districts in the OpenAPI schema.
+The caller cannot set sender ID, merchant ID, charge, tracking number, or status.
 
-Validation covers required fields, column lengths, phone characters and at
-least seven digits, and positive weight fitting NUMERIC(10,3).
-Invalid requests return 400, missing/invalid authentication returns 401,
-and other roles receive 403.
+Success returns `201 Created`:
 
-## Pricing contract and authentication
+```json
+{
+  "id": "d488bd02-1a21-442a-bff4-f1d596d887b6",
+  "trackingNumber": "SD-2026-000123",
+  "status": "CREATED",
+  "charge": 487.50,
+  "createdAt": "2026-11-14T08:30:00Z"
+}
+```
 
-The HTTP adapter sends `pickupCity`, `deliveryCity`, `weight`, and `serviceType`
-to `POST /api/pricing/quote` on `http://localhost:8086`. It reads `amount` from
-the Pricing Service response; currency and fee breakdown remain Pricing-owned
-response fields. Set `PRICING_SERVICE_URL` and `PRICING_QUOTE_PATH` to override
-the defaults.
+The parcel, initial `null -> CREATED` history, and outbox event commit together.
 
-Parcel Service forwards the authenticated caller's JWT as a Bearer token on the
-Pricing request. Both services independently validate the Identity-issued token.
-The token is passed only in memory and is never stored in parcel data, logs, or
-events. Pricing authentication remains enabled.
+### Pricing dependency
 
-Unavailable pricing returns 503. Missing, negative, over-precision, or
-out-of-range charges return 502. No substitute charge is generated.
+Creation calls `POST /api/pricing/quote` with pickup city, delivery city, weight,
+and service type. The caller's JWT is forwarded in memory so Pricing validates it
+independently; the token is never stored in parcel data, logs, or events.
 
-## Parcel status events
+- `PRICING_SERVICE_URL` defaults to `http://localhost:8086`.
+- `PRICING_QUOTE_PATH` defaults to `/api/pricing/quote`.
+- Unavailable Pricing returns `503`.
+- Invalid pricing output returns `502`.
+- Parcel Service never creates a fallback charge.
 
-Parcel creation and every successful status transition enqueue a
-`ParcelStatusChanged` event in `parcel_event_outbox` in the same database
-transaction as the parcel and status-history changes. A scheduled publisher
-sends pending rows to the durable `swiftdrop.events` topic exchange with routing
-key `parcel.status-changed`; failed sends remain pending and are retried.
+### Status transitions and idempotency
 
-Creation uses `oldStatus: null` and `newStatus: CREATED`. Event payloads contain
-identifiers and status metadata only; receiver phone numbers and addresses are
-not published. Set `swiftdrop.events.publisher-enabled=false` to disable the
-publisher, or set `swiftdrop.events.publish-delay-ms` to change its polling
-delay (default 1000 ms).
+Statuses are `CREATED`, `PICKED_UP`, `IN_TRANSIT`, `OUT_FOR_DELIVERY`,
+`DELIVERED`, `FAILED`, and `CANCELLED`. Illegal transitions are rejected.
+Customer cancellation uses the dedicated cancellation endpoint.
+
+Retrying courier clients should use `POST /api/parcels/{id}/status` with a UUID:
+
+```http
+Idempotency-Key: 5a82b09a-39e4-4510-b1ab-45c7b193719d
+```
+
+```json
+{
+  "status": "PICKED_UP",
+  "note": "Collected from sender",
+  "submissionId": "5a82b09a-39e4-4510-b1ab-45c7b193719d"
+}
+```
+
+When `submissionId` is supplied, the header is required and both UUIDs must
+match. An identical retry returns the stored response without another transition,
+history row, or event. Reusing the key with different input returns `409`.
+
+Courier updates compare the numeric JWT subject with `assigned_courier_id` while
+holding the parcel write lock. Dispatch still has a legacy UUID projection; new
+integrations must use `courierUserId` for the numeric Identity contract.
+
+## Reliable status events
+
+Creation and every successful transition insert `ParcelStatusChanged` into
+`parcel_event_outbox` in the same transaction as parcel and history changes. A
+scheduled publisher sends pending records to durable topic exchange
+`swiftdrop.events` with routing key `parcel.status-changed`; failed sends remain
+pending and retry.
+
+Events contain identifiers and status metadata only, never phone numbers or
+addresses.
+
+- `swiftdrop.events.publisher-enabled=false` disables the publisher.
+- `swiftdrop.events.publish-delay-ms` changes polling delay (default 1000 ms).
+
+## Errors
+
+Errors use one safe JSON field:
+
+```json
+{"error": "Parcel not found"}
+```
+
+Common statuses are `400` validation/input, `401` authentication, `403` role or
+assignment, `404` missing/hidden parcel, `409` state/idempotency conflict,
+`502` invalid pricing response, and `503` pricing unavailable.
+
+## Database migrations
+
+Flyway owns the schema and Hibernate only validates it. Current migrations are:
+
+- V1 parcel and status-history tables
+- V2/V3 numeric Identity user references
+- V4 transactional event outbox
+- V5 status-update idempotency
+
+Never edit an applied versioned migration. Add the next migration version. Resolve
+a checksum mismatch in a disposable local database by recreating only that local
+service schema, never by repairing shared RDS history.
 
 ## Tests
 
-From this directory in PowerShell, run `.\mvnw.cmd test` with Docker running.
-Database tests use disposable Testcontainers PostgreSQL, not `.env` or RDS.
-For only the supplied creation unit test, run
-`.\mvnw.cmd "-Dtest=ParcelCreationServiceTest" test`.
+From `backend/parcel-service`:
 
-## Phase 2 verification (2026-11-13)
-
-The creation implementation is already present: CreateParcelRequest, ParcelResponse,
-PricingClient, HttpPricingClient, TrackingNumberGenerator, ParcelCreationService,
-ParcelController, ParcelApiExceptionHandler, and ParcelCreationServiceTest.
-
-- Compile and ParcelCreationServiceTest: passed.
-- JWT contract: Identity JwtService emits role CUSTOMER and a decimal user ID
-  subject, for example "42". Parcel now uses Long/BIGINT for senderId, createdBy,
-  and changedBy. Signed-token regression tests cover this creation endpoint.
-- Gateway: GatewayIntegrationTest passes, including POST /api/parcels.
-- Pricing: the repository implements `POST /api/pricing/quote`. Parcel forwards
-  the caller JWT and uses the agreed city, weight and service-type request.
-- Postman: collection prepared in verification/parcel-creation.postman_collection.json;
-  not executed. Import it and set accessToken locally to a real CUSTOMER token.
-  baseUrl defaults to the gateway on port 8080. A successful request stores parcelId
-  and trackingNumber as collection variables. Each execution creates a record.
-- PostgreSQL: not verified in this run; Docker engine was unavailable, so
-  Testcontainers tests were skipped. After a successful Postman request, run
-  verification/verify-created-parcel.sql in parcel_db with the returned parcelId.
-  Confirm sender_id/created_by/changed_by match the JWT subject, charge matches
-  Pricing, and exactly one initial null -> CREATED history entry exists.
-
-V2 preserves the V1 migration checksum and changes only sender and audit user IDs.
-It stops on a populated legacy database because UUIDs have no intrinsic numeric
-Identity mapping. Such databases need an explicit data migration based on the
-real Identity mapping before this change can be deployed. Parcel, history,
-merchant, and courier entity identifiers retain their existing UUID contracts.
-
-## Creation API test matrix
-
-Run `.\mvnw.cmd "-Dtest=ParcelCreationApiTest,HttpPricingClientTest,SecurityConfigTest,ParcelCreationServiceTest" test`
-with Docker running. ParcelCreationApiTest requires Docker and fails instead of
-silently skipping when it is unavailable. It uses disposable PostgreSQL and mocked
-pricing; successful creation and the shared request helper use signed CUSTOMER JWTs.
-
-Coverage includes required receiver/address fields, phone format, weight limits,
-unsupported size/type, authentication/authorization, pricing failures, invalid
-charges, frontend charge tampering, duplicate tracking (409), history insertion
-rollback, and exactly one parcel plus one initial history row on success.
-
-The supported values are SMALL/MEDIUM/LARGE and STANDARD/EXPRESS.
-
-Real end-to-end verification through Gateway remains pending. Start the services,
-configure active pickup/delivery zones and a pricing rule, obtain a CUSTOMER token
-from Identity, run verification/parcel-creation.postman_collection.json through
-Gateway, then run verification/verify-created-parcel.sql with the returned parcelId.
-The automated Parcel tests mock Pricing and therefore do not replace this live check.
-
-## Phase 3 verification
-
-Run `.\mvnw.cmd "-Dtest=ParcelStatusUpdateApiTest,ParcelStatusUpdateServiceTest,ParcelStatusTransitionValidatorTest,SecurityConfigTest" test`.
-The API suite requires Docker and sends real HTTP requests to a random-port server
-with cryptographically signed test JWTs (not tokens acquired from a running Identity
-Service). PostgreSQL is disposable; no development or team database is modified.
-It checks ADMIN/DISPATCHER updates, forbidden roles/unverified couriers, missing JWT,
-invalid transitions and cancellation, rollback after flushing parcel/history writes,
-and concurrent updates yielding one 200, one 409, and only one new history record.
-
-Courier authorization remains incomplete. Member 6 must confirm the authoritative
-mapping from numeric Identity user IDs to assigned courier UUIDs, including endpoint,
-authentication, missing/disabled courier semantics, and failure handling. The current
-verifier denies courier changes. Once confirmed, implement the trusted lookup and
-test matching, nonmatching, absent, disabled, and unavailable mappings before enabling
-courier updates. The existing service unit test mocks a positive verifier result;
-it is not evidence that the production mapping exists.
-
-### Idempotent courier status submissions
-
-`POST /api/parcels/{id}/status` supports Courier Service retries while the existing
-`PATCH` endpoint remains available. Send the same UUID in the `Idempotency-Key`
-header and optional `submissionId` request field. The authenticated actor, parcel,
-requested status and normalized note are bound to that key.
-
-The idempotency claim, parcel transition, history row, outbox event and stored
-response commit in one transaction. An identical retry returns the original
-response without another transition, history row or event. Reusing a key with a
-different parcel, actor, status or note returns 409. The current Parcel assignment
-is checked while holding the same parcel write lock used by assignment changes.
-
-Dispatch still uses profile UUID assignments and does not expose the Courier
-Service's proposed numeric assignment ID/version/attempt contract. Parcel therefore
-does not claim to validate those unavailable fields; that cross-service contract
-must be reconciled before the complete courier workflow is enabled.
-
-## Merge compatibility: dispatch HTTP projection
-
-The Phase 4 `/api/parcels?status=CREATED` endpoint retains its paginated details
-response. The incoming Dispatch Service expects an array of dispatch projections;
-that separate contract is available at `/api/parcels/dispatch?status=CREATED`
-and `/api/parcels/dispatch/{parcelId}`. Both require DISPATCHER or ADMIN.
-
-For Dispatch Service's optional HTTP data source, set its existing environment
-settings before startup (no Dispatch Service source changes are required):
-
-```text
-PARCEL_CREATED_PATH=/api/parcels/dispatch?status=CREATED
-PARCEL_PATH=/api/parcels/dispatch/{parcelId}
+```powershell
+.\mvnw.cmd test
 ```
 
-Customer cancellation is retained at `PATCH /api/parcels/{id}/cancel`, using the
-numeric Identity subject. Existing paginated customer reads and Phase 3 status
-updates retain their original contracts.
+Integration tests use disposable Testcontainers PostgreSQL and require Docker.
+They do not read `.env.rds` or modify team databases. Coverage includes creation,
+JWT roles, ownership, public privacy, pricing failures, transitions, concurrency,
+idempotent retries, cancellation, receipts, outbox publishing, dispatch projections,
+and migration startup.
 
-## Merchant parcel listing
-
-`GET /api/parcels/merchant?page=0&size=10` requires an authenticated MERCHANT
-JWT and returns only parcels whose `merchant_id` equals the numeric token subject,
-newest first. Merchants may read the details and history of those parcels but
-receive 404 for parcels owned by another merchant. CUSTOMER, COURIER and anonymous
-callers cannot use the listing endpoint. The frontend route `/merchant/orders`
-uses this API directly and does not substitute sample orders when the result is
-empty or unavailable.
+For live Gateway verification, start all services, configure active Pricing zones
+and rules, obtain a real JWT, and import
+`verification/parcel-creation.postman_collection.json`. Each successful run creates
+a real parcel.
