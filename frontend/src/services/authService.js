@@ -1,4 +1,4 @@
-import { ApiError, ApiErrorKind, callEndpoint } from './apiClient'
+import { ApiError, ApiErrorKind, callEndpoint, request } from './apiClient'
 import { ENDPOINTS } from './endpoints'
 import { saveSession } from './tokenStorage'
 
@@ -82,6 +82,19 @@ export async function exchangeGoogleCode(code, verifier) {
  */
 export function getCurrentUser() {
   return callEndpoint(ENDPOINTS.currentUser)
+}
+
+/**
+ * Updates the signed-in user's profile.
+ * @param {{name: string, phone?: string, address?: string}} details
+ * @returns {Promise<{id, name, email, phone, address, role, status, createdAt}>}
+ */
+export function updateProfile(details) {
+  return request('/api/users/me', {
+    method: 'PUT',
+    body: details,
+    auth: true,
+  })
 }
 
 /**
