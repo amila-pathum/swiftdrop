@@ -28,7 +28,7 @@ function formatDateTime(value) {
     : '—'
 }
 
-function TrackingResult({ parcel }) {
+function TrackingResult({ parcel, onLiveUpdate }) {
   const { status: liveStatus, updatedAt: liveUpdatedAt, isConnected } = useParcelLiveStatus(
     parcel.trackingNumber,
     parcel.status
@@ -36,6 +36,12 @@ function TrackingResult({ parcel }) {
 
   const currentStatus = liveStatus || parcel.status
   const [history, setHistory] = useState(Array.isArray(parcel.history) ? parcel.history : [])
+
+  useEffect(() => {
+    if (liveStatus && liveStatus !== 'WAITING_FOR_UPDATES') {
+      onLiveUpdate?.()
+    }
+  }, [liveStatus, onLiveUpdate])
 
   useEffect(() => {
     if (liveStatus && liveStatus !== parcel.status) {
@@ -111,6 +117,11 @@ export default function TrackParcelPage() {
   const trackingNumber = normalizeTrackingNumber(params.trackingNumber)
   const valid = TRACKING_NUMBER_PATTERN.test(trackingNumber)
   const [result, setResult] = useState({ key: null, parcel: null, error: null })
+  const [hasLiveUpdate, setHasLiveUpdate] = useState(false)
+
+  useEffect(() => {
+    setHasLiveUpdate(false)
+  }, [trackingNumber])
 
   useEffect(() => {
     if (!valid) return undefined
@@ -145,7 +156,7 @@ export default function TrackParcelPage() {
             <p role="status">Looking up {trackingNumber}…</p>
           </div>
         )}
-        {current?.error && (
+        {current?.error && !hasLiveUpdate && (
           <Alert variant={current.error.kind === 'NOT_IMPLEMENTED' ? 'info' : 'error'}
             title={current.error.kind === 'NOT_IMPLEMENTED' ? 'Tracking coming soon' : undefined}>
             {describeError(current.error, {
@@ -154,7 +165,13 @@ export default function TrackParcelPage() {
             })}
           </Alert>
         )}
-        {current?.parcel && <TrackingResult parcel={current.parcel} />}
+        {current?.parcel ? (
+          <TrackingResult parcel={current.parcel} onLiveUpdate={() => setHasLiveUpdate(true)} />
+        ) : current?.error?.kind === 'NOT_IMPLEMENTED' && valid ? (
+          <div style={{ marginTop: '24px' }}>
+            <TrackingResult parcel={{ trackingNumber, status: 'WAITING_FOR_UPDATES', history: [] }} onLiveUpdate={() => setHasLiveUpdate(true)} />
+          </div>
+        ) : null}
         {trackingNumber === '' && (
           <EmptyState
             title="No tracking number entered"
