@@ -936,3 +936,115 @@
   color: var(--color-text-muted);
   padding: 0 4px;
 }
+
+/* ==========================================================================
+   Order Status History Timeline & Code Box
+   ========================================================================== */
+
+.merchant-scope .order-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  position: relative;
+  padding-left: 20px;
+  margin-top: 8px;
+}
+
+.merchant-scope .order-timeline::before {
+  content: '';
+  position: absolute;
+  top: 6px;
+  bottom: 6px;
+  left: 6px;
+  width: 2px;
+  background-color: var(--color-border);
+}
+
+.merchant-scope .timeline-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.merchant-scope .timeline-dot {
+  position: absolute;
+  left: -20px;
+  top: 4px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background-color: var(--color-primary);
+  border: 2px solid #ffffff;
+  box-shadow: 0 0 0 1px var(--color-primary);
+}
+
+.merchant-scope .timeline-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.merchant-scope .timeline-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.merchant-scope .timeline-time {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.merchant-scope .timeline-desc {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+
+.merchant-scope .code-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 20px;
+  margin-top: 24px;
+}
+
+.merchant-scope .code-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.merchant-scope .code-box {
+  background: #0f172a;
+  color: #f8fafc;
+  border-radius: var(--radius-control);
+  padding: 16px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-x: auto;
+  position: relative;
+}
+
+.merchant-scope .code-copy-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.merchant-scope .code-copy-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+}

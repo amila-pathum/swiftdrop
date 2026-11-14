@@ -140,4 +140,17 @@ describe('merchantService', () => {
     expect(url).toBe(`${API_BASE_URL}/api/merchants/me/webhook/rotate-secret`)
     expect(init.method).toBe('POST')
   })
+
+  it('getMyDashboard calls GET /api/merchants/me/dashboard', async () => {
+    const dashboardData = { totalOrders: 5, pendingOrders: 2, recentOrders: [] }
+    fetchMock.mockResolvedValue(jsonResponse(200, dashboardData))
+
+    const result = await merchantService.getMyDashboard()
+    expect(result).toEqual(dashboardData)
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe(`${API_BASE_URL}/api/merchants/me/dashboard`)
+    expect(init.method).toBe('GET')
+    expect(init.headers.Authorization).toBe('Bearer test-token')
+  })
 })

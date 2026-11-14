@@ -5,6 +5,10 @@ export const merchantService = {
   getMyMerchant: (signal) =>
     request('/api/merchants/me', { auth: true, signal }),
 
+  // Merchant Dashboard statistics and real orders
+  getMyDashboard: (signal) =>
+    request('/api/merchants/me/dashboard', { auth: true, signal }),
+
   // Admin approvals
   getAllMerchants: (status, signal) => {
     const query = status ? `?status=${encodeURIComponent(status)}` : ''
