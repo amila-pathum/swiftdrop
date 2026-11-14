@@ -103,4 +103,4 @@ DB_PROFILE=rds bash infrastructure/scripts/run-service.sh courier-service
 ./mvnw test
 ```
 
-Flyway V1 creates only courier-owned tables. Do not use Hibernate `update` against RDS. Unit and MVC authorization tests run without RDS; Testcontainers integration tests use throwaway PostgreSQL 18 and are skipped if Docker is unavailable.
+The original Flyway V1 is retained unchanged (checksum 1639178571); V2 adds the new courier profile, checkpoint and proof tables. The legacy couriers table and its three seeded demo records are preserved. Legacy UUID courier records are not automatically treated as authenticated numeric-user profiles; provision those through the profile API with verified identity accounts. Do not use Hibernate `update` against RDS. Unit and MVC authorization tests run without RDS; Testcontainers integration tests use throwaway PostgreSQL 18 and are skipped if Docker is unavailable.
