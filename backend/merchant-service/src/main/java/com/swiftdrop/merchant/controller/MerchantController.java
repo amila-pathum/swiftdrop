@@ -84,8 +84,10 @@ public class MerchantController {
 
     // Admin: approve merchant
     @PatchMapping("/admin/{merchantId}/approve")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<MerchantResponse> approveMerchant(
             @AuthenticationPrincipal Jwt jwt,
+            @RequestHeader(name = org.springframework.http.HttpHeaders.AUTHORIZATION, required = false) String authorization,
             @PathVariable Long merchantId) {
 
         requireAdmin(jwt);
@@ -93,7 +95,7 @@ public class MerchantController {
         Long adminId = getAuthenticatedUserId(jwt);
 
         return ResponseEntity.ok(
-                merchantService.approveMerchant(merchantId, adminId));
+                merchantService.approveMerchant(merchantId, adminId, authorization));
     }
 
     // Admin: reject merchant

@@ -131,4 +131,68 @@ public class MerchantWebhookService {
             throw new IllegalStateException("Webhook encryption failed; check WEBHOOK_ENCRYPTION_KEY", e);
         }
     }
+    @Transactional(readOnly = true)
+    public InternalWebhookSettings getInternalSettings(Long merchantId) {
+        Merchant merchant = merchants.findById(merchantId)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Merchant not found"));
+
+        if (merchant.getStatus() != MerchantStatus.APPROVED) {
+            return new InternalWebhookSettings(null, null, false);
+        }
+
+        return settings.findByMerchantId(merchantId)
+                .filter(MerchantWebhookSettings::isEnabled)
+                .map(config -> new InternalWebhookSettings(
+                        config.getWebhookUrl(),
+                        decrypt(config.getEncryptedSigningSecret()),
+                        true
+                ))
+                .orElseGet(() ->
+                        new InternalWebhookSettings(null, null, false));
+    }
+
+    public record InternalWebhookSettings(
+            String url,
+            String signingSecret,
+            boolean enabled
+    ) {
+        @Override
+        public String toString() {
+            return "InternalWebhookSettings[enabled=" + enabled + "]";
+        }
+    }
+
+    private String decrypt(String encryptedValue) {
+        try {
+            byte[] rawKey = Base64.getDecoder().decode(encryptionKey);
+            if (rawKey.length != 32) {
+                throw new IllegalStateException("Invalid encryption key length");
+            }
+
+            byte[] packed = Base64.getDecoder().decode(encryptedValue);
+            if (packed.length < 28) {
+                throw new IllegalStateException("Invalid encrypted secret");
+            }
+
+            byte[] iv = Arrays.copyOfRange(packed, 0, 12);
+            byte[] ciphertext = Arrays.copyOfRange(packed, 12, packed.length);
+
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            cipher.init(
+                    Cipher.DECRYPT_MODE,
+                    new SecretKeySpec(rawKey, "AES"),
+                    new GCMParameterSpec(128, iv)
+            );
+
+            return new String(
+                    cipher.doFinal(ciphertext),
+                    StandardCharsets.UTF_8
+            );
+        } catch (Exception exception) {
+            throw new IllegalStateException(
+                    "Webhook signing secret could not be decrypted"
+            );
+        }
+    }
 }

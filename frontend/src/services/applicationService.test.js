@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiErrorKind } from './apiClient'
-import { applyAsCourier, applyAsMerchant } from './applicationService'
+import { applyAsCourier, applyAsMerchant, getMyApplication } from './applicationService'
 import { API_BASE_URL } from './config'
 import { ENDPOINTS } from './endpoints'
-import { getSession } from './tokenStorage'
+import { getSession, saveSession } from './tokenStorage'
 
 const json = (status, body) => new Response(JSON.stringify(body), {
   status, headers: { 'Content-Type': 'application/json' },
@@ -47,18 +47,20 @@ describe('merchant and courier sign-up', () => {
   }))
 
   beforeEach(() => {
+    ENDPOINTS.merchantApplication.available = true
     fetchMock = vi.fn()
     vi.stubGlobal('fetch', fetchMock)
   })
 
   afterEach(() => {
     vi.unstubAllGlobals()
-    ENDPOINTS.merchantApplication.available = false
+    ENDPOINTS.merchantApplication.available = true
     ENDPOINTS.courierApplication.available = false
   })
 
   describe('while the application endpoints are planned', () => {
     it('creates only the merchant identity account and reports the application as not submitted', async () => {
+      ENDPOINTS.merchantApplication.available = false
       fetchMock.mockResolvedValue(json(201, pendingUser('MERCHANT', MERCHANT.contactEmail)))
 
       const result = await applyAsMerchant(MERCHANT)
@@ -123,19 +125,38 @@ describe('merchant and courier sign-up', () => {
         authorization: undefined,
       })
       expect(application).toEqual({
-        path: '/api/merchants/applications',
+        path: '/api/merchants/register',
         body: {
           businessName: 'Lanka Books',
-          businessRegistrationNumber: 'PV 1',
-          businessEmail: 'orders@lankabooks.lk',
-          businessPhone: '0112345678',
-          businessAddress: '45 Duplication Road',
+          registrationNumber: 'PV 1',
+          contactName: 'Nimal Perera',
+          email: 'orders@lankabooks.lk',
+          phone: '0112345678',
+          address: '45 Duplication Road',
         },
         authorization: 'Bearer new-account-token',
       })
       expect(result).toMatchObject({ applicationSubmitted: true, applicationError: null })
       // The applicant signs in normally afterwards.
       expect(getSession()).toBeNull()
+    })
+
+    it('loads merchant application status from the business profile and maps review fields', async () => {
+      saveSession('pending-merchant-token', 900)
+      fetchMock.mockResolvedValue(json(200, { status: 'REJECTED', createdAt: '2026-11-14T00:00:00Z', rejectionReason: 'Please correct registration details' }))
+      const controller = new AbortController()
+      expect(await getMyApplication('MERCHANT', { signal: controller.signal })).toEqual({
+        status: 'REJECTED', submittedAt: '2026-11-14T00:00:00Z', reviewNote: 'Please correct registration details',
+      })
+      expect(calls()[0].path).toBe('/api/merchants/me')
+      expect(calls()[0].authorization).toBe('Bearer pending-merchant-token')
+      expect(fetchMock.mock.calls[0][1].signal).toBe(controller.signal)
+    })
+
+    it('preserves a missing application response so an existing account can complete its profile', async () => {
+      saveSession('pending-merchant-token', 900)
+      fetchMock.mockResolvedValue(json(404, { error: 'Merchant application not found' }))
+      await expect(getMyApplication('MERCHANT')).rejects.toMatchObject({ status: 404 })
     })
 
     it('submits the courier application with vehicle details only', async () => {

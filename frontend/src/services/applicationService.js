@@ -7,9 +7,8 @@ import { clearSession } from './tokenStorage'
 //
 // The identity account (credentials, role) is created by the Identity Service,
 // which exists. The business application belongs to the Merchant / Courier
-// Service; those endpoints are PLANNED (see endpoints.js) and until they exist
-// every call to them rejects with an ApiError of kind NOT_IMPLEMENTED, and the
-// UI says so. Nothing here fakes a successful result.
+// Service. Merchant applications use its existing registration/profile API.
+// Courier application endpoints remain planned (see endpoints.js).
 
 export const ApplicationStatus = Object.freeze({
   PENDING: 'PENDING',
@@ -32,11 +31,16 @@ export const VEHICLE_TYPES = Object.freeze([
  */
 export function submitMerchantApplication(details) {
   const {
-    businessName, businessRegistrationNumber, businessEmail, businessPhone, businessAddress,
+    businessName, businessRegistrationNumber, contactName, businessEmail, businessPhone, businessAddress,
   } = details
   return callEndpoint(ENDPOINTS.merchantApplication, {
     body: {
-      businessName, businessRegistrationNumber, businessEmail, businessPhone, businessAddress,
+      businessName,
+      registrationNumber: businessRegistrationNumber,
+      contactName,
+      email: businessEmail,
+      phone: businessPhone,
+      address: businessAddress,
     },
   })
 }
@@ -115,5 +119,9 @@ const MY_APPLICATION = {
 export async function getMyApplication(role, { signal } = {}) {
   const endpoint = MY_APPLICATION[role]
   if (!endpoint) return null
-  return callEndpoint(endpoint, { signal })
+  const result = await callEndpoint(endpoint, { signal })
+  if (role === 'MERCHANT' && result) {
+    return { status: result.status, submittedAt: result.createdAt, reviewNote: result.rejectionReason }
+  }
+  return result
 }

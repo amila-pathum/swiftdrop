@@ -30,6 +30,7 @@ import CourierWorkloadPage from './pages/dispatcher/CourierWorkloadPage'
 import MerchantDashboardPage from './pages/merchant/MerchantDashboardPage'
 import MerchantApiKeysPage from './pages/merchant/MerchantApiKeysPage'
 import MerchantWebhookPage from './pages/merchant/MerchantWebhookPage'
+import MerchantDeliveriesPage from './pages/merchant/MerchantDeliveriesPage'
 import NotAvailablePage from './pages/NotAvailablePage'
 import NotFoundPage from './pages/NotFoundPage'
 import NotificationsPage from './pages/NotificationsPage'
@@ -121,6 +122,7 @@ function App() {
         <Route element={<AppLayout />}>
           <Route path="/merchant/api-keys" element={<MerchantApiKeysPage />} />
           <Route path="/merchant/webhooks" element={<MerchantWebhookPage />} />
+          <Route path="/merchant/webhook-deliveries" element={<MerchantDeliveriesPage />} />
           <Route path="/merchant/webhook" element={<Navigate to="/merchant/webhooks" replace />} />
         </Route>
       </Route>
