@@ -1,20 +1,18 @@
 package com.swiftdrop.identity_service.controller;
 
 import com.swiftdrop.identity_service.dto.ChangePasswordRequest;
+import com.swiftdrop.identity_service.dto.LoginResponse;
 import com.swiftdrop.identity_service.dto.UpdateProfileRequest;
 import com.swiftdrop.identity_service.dto.UserResponse;
 import com.swiftdrop.identity_service.security.AuthenticatedUser;
 import com.swiftdrop.identity_service.service.UserService;
 import jakarta.validation.Valid;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/users")
@@ -39,10 +37,9 @@ public class UserController {
     }
 
     @PutMapping("/me/change-password")
-    public ResponseEntity<Map<String, String>> changePassword(
+    public LoginResponse changePassword(
             @AuthenticationPrincipal AuthenticatedUser principal,
             @Valid @RequestBody ChangePasswordRequest request) {
-        userService.changePassword(principal.id(), request);
-        return ResponseEntity.ok(Map.of("message", "Password changed successfully"));
+        return userService.changePassword(principal.id(), request);
     }
 }

@@ -38,6 +38,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest(properties = {
     "swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+    "management.health.rabbit.enabled=false",
     "spring.autoconfigure.exclude=org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration,org.springframework.boot.data.jpa.autoconfigure.JpaRepositoriesAutoConfiguration"
 })
 @AutoConfigureMockMvc
@@ -52,6 +53,7 @@ class SecurityConfigTest {
     @MockitoBean com.swiftdrop.parcel.service.ParcelQueryService parcelQueryService;
     @MockitoBean com.swiftdrop.parcel.service.ParcelCreationService parcelCreationService;
     @MockitoBean com.swiftdrop.parcel.service.ParcelStatusUpdateService parcelStatusUpdateService;
+    @MockitoBean com.swiftdrop.parcel.event.ParcelEventOutbox parcelEventOutbox;
 
     /** Test-only endpoint showing the convention for a protected, role-restricted endpoint. */
     @TestConfiguration
@@ -155,15 +157,18 @@ class SecurityConfigTest {
                 .contentType("application/json")
                 .content("""
                     {"receiverName":"Nimal","receiverPhone":"0771234567",
-                     "pickupAddress":"Colombo","deliveryAddress":"Kandy",
+                     "pickupAddressLine1":"10 Main Street","pickupCity":"Colombo",
+                     "deliveryAddressLine1":"20 Lake Road","deliveryCity":"Kandy",
                      "weight":2.5,"size":"MEDIUM","parcelType":"STANDARD"}
                     """))
             .andExpect(status().isCreated());
         org.mockito.Mockito.verify(parcelCreationService).createCustomerParcel(
-            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(Long.valueOf(subject)));
+            org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(Long.valueOf(subject)),
+            org.mockito.ArgumentMatchers.anyString());
     }
 
     @ParameterizedTest
+    @org.junit.jupiter.params.provider.NullSource
     @ValueSource(strings = {"0", "-1", "01", "+1", "9223372036854775808", "550e8400-e29b-41d4-a716-446655440000"})
     void creationRejectsNonIdentitySubjects(String subject) throws Exception {
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/parcels")
@@ -171,7 +176,8 @@ class SecurityConfigTest {
                 .contentType("application/json")
                 .content("""
                     {"receiverName":"Nimal","receiverPhone":"0771234567",
-                     "pickupAddress":"Colombo","deliveryAddress":"Kandy",
+                     "pickupAddressLine1":"10 Main Street","pickupCity":"Colombo",
+                     "deliveryAddressLine1":"20 Lake Road","deliveryCity":"Kandy",
                      "weight":2.5,"size":"MEDIUM","parcelType":"STANDARD"}
                     """))
             .andExpect(status().isUnauthorized());

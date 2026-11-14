@@ -1,25 +1,24 @@
 package com.swiftdrop.parcel.controller;
 
 import com.swiftdrop.parcel.dto.request.CreateParcelRequest;
-import com.swiftdrop.parcel.dto.response.DispatchParcelResponse;
-import com.swiftdrop.parcel.dto.response.ParcelReceipt;
-import com.swiftdrop.parcel.dto.response.ParcelResponse;
-import com.swiftdrop.parcel.service.ParcelCreationService;
-import com.swiftdrop.parcel.service.ParcelStatusUpdateService;
 import com.swiftdrop.parcel.dto.request.UpdateParcelStatusRequest;
-import com.swiftdrop.parcel.dto.response.ParcelStatusUpdateResponse;
+import com.swiftdrop.parcel.dto.response.DispatchParcelResponse;
 import com.swiftdrop.parcel.dto.response.ParcelDetailsResponse;
 import com.swiftdrop.parcel.dto.response.ParcelHistoryResponse;
+import com.swiftdrop.parcel.dto.response.ParcelReceipt;
+import com.swiftdrop.parcel.dto.response.ParcelResponse;
+import com.swiftdrop.parcel.dto.response.ParcelStatusUpdateResponse;
+import com.swiftdrop.parcel.dto.response.PublicTrackingResponse;
 import com.swiftdrop.parcel.entity.ParcelStatus;
+import com.swiftdrop.parcel.service.ParcelCreationService;
 import com.swiftdrop.parcel.service.ParcelQueryService;
+import com.swiftdrop.parcel.service.ParcelService;
+import com.swiftdrop.parcel.service.ParcelStatusUpdateService;
+import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import java.util.List;
-import java.util.UUID;
-import com.swiftdrop.parcel.service.ParcelService;
-import com.swiftdrop.parcel.dto.response.DispatchParcelResponse;
-import jakarta.validation.Valid;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -30,6 +29,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/parcels")
@@ -46,22 +48,37 @@ public class ParcelController {
         this.parcelService = parcelService;
     }
 
+    @GetMapping("/track/{trackingNumber}")
+    public ResponseEntity<PublicTrackingResponse>
+            track(@PathVariable String trackingNumber) {
+        return ResponseEntity.ok()
+            .cacheControl(CacheControl.noStore())
+            .body(parcelService.track(trackingNumber));
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasRole('CUSTOMER')")
     public ParcelResponse create(@Valid @RequestBody CreateParcelRequest request,
                                  @AuthenticationPrincipal Jwt jwt) {
-        Long userId;
-        try {
-            userId = Long.valueOf(jwt.getSubject());
-            if (userId <= 0 || !userId.toString().equals(jwt.getSubject())) {
-                throw new IllegalArgumentException("Non-canonical user ID");
-            }
-        } catch (IllegalArgumentException exception) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
-                "Token subject is not a valid user identifier");
-        }
-        return service.createCustomerParcel(request, userId);
+        return service.createCustomerParcel(request, parseUserId(jwt), jwt.getTokenValue());
+    }
+
+    @PostMapping("/merchant")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('MERCHANT')")
+    public ParcelResponse createMerchant(@Valid @RequestBody CreateParcelRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        return service.createMerchantParcel(request, parseUserId(jwt), jwt.getTokenValue());
+    }
+
+    @PatchMapping("/{id}/courier")
+    @PreAuthorize("hasAnyRole('DISPATCHER', 'ADMIN')")
+    public ParcelResponse assignCourier(@PathVariable UUID id,
+            @Valid @RequestBody com.swiftdrop.parcel.dto.request.AssignCourierRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        parseUserId(jwt);
+        return ParcelResponse.from(parcelService.assignCourier(id, request.courierUserId()));
     }
 
     @PatchMapping("/{id}/status")
@@ -69,15 +86,7 @@ public class ParcelController {
     public ParcelStatusUpdateResponse updateStatus(@PathVariable java.util.UUID id,
             @Valid @RequestBody UpdateParcelStatusRequest request,
             @AuthenticationPrincipal Jwt jwt) {
-        Long actorId;
-        try {
-            actorId = Long.valueOf(jwt.getSubject());
-            if (actorId <= 0 || !actorId.toString().equals(jwt.getSubject())) {
-                throw new NumberFormatException("Invalid subject");
-            }
-        } catch (NumberFormatException exception) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid authenticated user identifier");
-        }
+        Long actorId = parseUserId(jwt);
         String role = jwt.getClaimAsString("role");
         return statusUpdates.update(id, request, actorId, role);
     }
@@ -107,7 +116,7 @@ public class ParcelController {
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<byte[]> getReceipt(@PathVariable("id") UUID id,
                                             @AuthenticationPrincipal Jwt jwt) {
-        ParcelReceipt receipt = parcelService.generateReceipt(id, extractUserId(jwt));
+        ParcelReceipt receipt = parcelService.generateReceipt(id, parseUserId(jwt));
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);
         headers.setContentDisposition(ContentDisposition.attachment().filename(receipt.filename()).build());
@@ -137,7 +146,7 @@ public class ParcelController {
 
     private Long parseUserId(Jwt jwt) {
         try {
-            Long userId = Long.valueOf(jwt.getSubject());
+            Long userId = Long.valueOf(jwt == null ? null : jwt.getSubject());
             if (userId <= 0 || !userId.toString().equals(jwt.getSubject())) {
                 throw new NumberFormatException("Invalid user ID");
             }

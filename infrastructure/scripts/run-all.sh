@@ -113,6 +113,13 @@ if [[ "$profile" == rds ]]; then
 			{ echo "Nothing was started." >&2; exit 1; }
 	done
 	echo "  all set."
+	if [[ "${SKIP_DOCKER:-}" != 1 ]]; then
+		echo "Starting RabbitMQ (docker compose) ..."
+		(cd "$root" && docker compose up -d --wait rabbitmq) || {
+			echo "docker compose failed for RabbitMQ; is Docker running? (SKIP_DOCKER=1 skips this step)" >&2
+			exit 1
+		}
+	fi
 elif [[ "${SKIP_DOCKER:-}" != 1 ]]; then
 	echo "Starting PostgreSQL and RabbitMQ (docker compose) ..."
 	(cd "$root" && docker compose up -d --wait) || {
