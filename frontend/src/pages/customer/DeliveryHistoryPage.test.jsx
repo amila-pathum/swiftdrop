@@ -29,6 +29,15 @@ describe('DeliveryHistoryPage', () => {
     expect(parcelService.getMyParcels).toHaveBeenCalledWith(0, 100, expect.any(AbortSignal))
   })
 
+  it('links Create Delivery to the registered customer creation route', async () => {
+    parcelService.getMyParcels.mockResolvedValue({ content: [] })
+    render(<MemoryRouter><DeliveryHistoryPage /></MemoryRouter>)
+
+    await screen.findByText('No deliveries yet')
+    expect(screen.getByRole('link', { name: 'Create Delivery' }))
+      .toHaveAttribute('href', '/customer/create-delivery')
+  })
+
   it('shows a genuine empty state instead of preview parcels', async () => {
     parcelService.getMyParcels.mockResolvedValue({ content: [] })
     render(<MemoryRouter><DeliveryHistoryPage /></MemoryRouter>)
