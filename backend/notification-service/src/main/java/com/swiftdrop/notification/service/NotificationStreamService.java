@@ -145,6 +145,9 @@ public class NotificationStreamService {
                 emitter.send(SseEmitter.event()
                         .name("status-changed")
                         .data(payload));
+                emitter.send(SseEmitter.event()
+                        .name("status")
+                        .data(payload));
             } catch (IOException e) {
                 log.debug("Removing failed emitter for tracking number {}", trackingNumber);
                 emitters.remove(emitter);
