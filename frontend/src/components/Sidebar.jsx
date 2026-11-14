@@ -35,6 +35,26 @@ function UserIcon() {
   )
 }
 
+function ZoneIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+      <circle cx="12" cy="10" r="3" />
+    </svg>
+  )
+}
+
+function PricingIcon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <line x1="12" y1="1" x2="12" y2="23" />
+      <path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+    </svg>
+  )
+}
+
 function SidebarFooter() {
   return (
     <div className="sidebar-bottom">
@@ -96,6 +116,8 @@ export default function Sidebar({ open = false, onNavigate }) {
     const adminLinks = [
       { to: '/admin/dashboard', label: 'Overview', icon: GridIcon },
       { to: '/admin/merchant-approvals', label: 'Merchant Approvals', icon: ApprovalIcon },
+      { to: '/admin/zones', label: 'Zone Management', icon: ZoneIcon },
+      { to: '/admin/pricing-rules', label: 'Pricing Rules', icon: PricingIcon },
       ...DISPATCH_LINKS,
       { to: '/profile', label: 'Profile', icon: UserIcon },
     ]
