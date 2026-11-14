@@ -44,6 +44,19 @@ class WebhookManagementSecurityTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.total").value(0));
         verify(store).history("1",false,0,20);
     }
+    @Test void paginatedAndFilteredHistoryUsesTheInternalTokenChain() throws Exception {
+        when(store.history("1",true,2,7)).thenReturn(new WebhookDeliveryStore.Page(List.of(),0,2,7));
+        mvc.perform(get(PATH + "?page=2&size=7&failedOnly=true").header("X-SwiftDrop-Internal-Token",TOKEN))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.page").value(2));
+        verify(store).history("1",true,2,7);
+    }
+    @Test void paginationDoesNotBypassInternalAuthentication() throws Exception {
+        String uri = PATH + "?page=0&size=20&failedOnly=false";
+        mvc.perform(get(uri)).andExpect(status().isUnauthorized());
+        mvc.perform(get(uri).header("X-SwiftDrop-Internal-Token","wrong")).andExpect(status().isUnauthorized());
+        mvc.perform(get(uri).with(jwt())).andExpect(status().isUnauthorized());
+        verifyNoInteractions(store);
+    }
     @Test void foreignRecordCannotBeRetried() throws Exception {
         UUID id = UUID.randomUUID();
         when(store.detail("1",id)).thenReturn(Optional.empty());

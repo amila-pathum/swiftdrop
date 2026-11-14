@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 import Button from '../../components/Button'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import { webhookDeliveries } from '../../services/webhookDeliveries'
@@ -102,7 +103,9 @@ export default function MerchantDeliveriesPage() {
     </div>
     {loading ? <div className="webhook-status-card"><LoadingSpinner /><p role="status">Loading deliveries…</p></div>
       : loadError ? <div className="webhook-status-card" role="alert">
-        <h2>Unable to load delivery history</h2><p>{loadError}</p><Button onClick={refresh}>Try again</Button>
+        <h2>Unable to load delivery history</h2><p>{loadError}</p>
+        {loadError === 'Merchant profile not found' && <p><Link to="/merchant/webhooks">Set up your business profile</Link> to enable webhook delivery history.</p>}
+        <Button onClick={refresh}>Try again</Button>
       </div> : <>
         <div className="webhook-history-card">
           {!result?.items.length ? <div className="webhook-status-card">

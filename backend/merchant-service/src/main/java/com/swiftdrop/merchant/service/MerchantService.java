@@ -20,9 +20,11 @@ import java.util.List;
 public class MerchantService {
 
     private final MerchantRepository merchantRepository;
+    private final MerchantIdentityActivationClient identityActivation;
 
-    public MerchantService(MerchantRepository merchantRepository) {
+    public MerchantService(MerchantRepository merchantRepository, MerchantIdentityActivationClient identityActivation) {
         this.merchantRepository = merchantRepository;
+        this.identityActivation = identityActivation;
     }
 
     // Register a merchant application
@@ -112,11 +114,18 @@ public class MerchantService {
     @Transactional
     public MerchantResponse approveMerchant(
             Long merchantId,
-            Long adminId) {
+            Long adminId,
+            String authorization) {
 
-        Merchant merchant = findMerchant(merchantId);
+        Merchant merchant = findForReview(merchantId);
 
-        validatePending(merchant);
+        if (merchant.getStatus() != MerchantStatus.PENDING && merchant.getStatus() != MerchantStatus.APPROVED) {
+            validatePending(merchant);
+        }
+        // Retry also repairs records approved before identity activation was integrated.
+        // If the remote response is lost or our commit fails, retry reads ACTIVE and completes safely.
+        identityActivation.ensureActive(merchant.getUserId(), authorization);
+        if (merchant.getStatus() == MerchantStatus.APPROVED) return MerchantResponse.from(merchant);
 
         merchant.setStatus(MerchantStatus.APPROVED);
         merchant.setRejectionReason(null);
@@ -140,7 +149,7 @@ public class MerchantService {
                     "Rejection reason is required");
         }
 
-        Merchant merchant = findMerchant(merchantId);
+        Merchant merchant = findForReview(merchantId);
 
         validatePending(merchant);
 
@@ -154,6 +163,11 @@ public class MerchantService {
     }
 
     // Shared helper: find merchant
+    private Merchant findForReview(Long merchantId) {
+        return merchantRepository.findForReviewById(merchantId).orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Merchant not found"));
+    }
+
     private Merchant findMerchant(Long merchantId) {
 
         return merchantRepository.findById(merchantId)

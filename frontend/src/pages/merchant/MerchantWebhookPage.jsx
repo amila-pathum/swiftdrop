@@ -7,6 +7,7 @@ import { webhookDeliveries } from '../../services/webhookDeliveries'
 import WebhookPageLayout from './webhooks/WebhookPageLayout'
 import WebhookActionIcon from './webhooks/WebhookActionIcon'
 import WebhookDialog from './webhooks/WebhookDialog'
+import MerchantProfileSetup from './webhooks/MerchantProfileSetup'
 
 const statuses = [
   ['Created', 'CREATED'], ['Picked Up', 'PICKED_UP'],
@@ -21,6 +22,7 @@ export default function MerchantWebhookPage() {
   const [savedSettings, setSavedSettings] = useState(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
+  const [profileMissing, setProfileMissing] = useState(false)
   const [loadVersion, setLoadVersion] = useState(0)
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -35,7 +37,15 @@ export default function MerchantWebhookPage() {
     const controller = new AbortController()
     async function load() {
       try {
-        const profile = await merchantService.getMyMerchant(controller.signal)
+        let profile
+        try { profile = await merchantService.getMyMerchant(controller.signal) }
+        catch (err) {
+          if (err.status === 404) {
+            if (!controller.signal.aborted) setProfileMissing(true)
+            return
+          }
+          throw err
+        }
         let config = null
         if (profile?.status === 'APPROVED') {
           try { config = await merchantService.getWebhookSettings(controller.signal) }
@@ -43,6 +53,7 @@ export default function MerchantWebhookPage() {
         }
         if (controller.signal.aborted) return
         setMerchant(profile)
+        setProfileMissing(false)
         setSavedSettings(config)
         setSettings(config || emptySettings)
       } catch (err) {
@@ -118,10 +129,15 @@ export default function MerchantWebhookPage() {
       : loadError ? <div className="webhook-status-card" role="alert">
         <h2>Unable to load webhook settings</h2><p>{loadError}</p>
         <Button onClick={() => { setLoadError(''); setLoading(true); setLoadVersion((n) => n + 1) }}>Try again</Button>
-      </div> : <>
+      </div> : profileMissing ? <MerchantProfileSetup
+        onRefresh={() => { setLoadError(''); setLoading(true); setLoadVersion((n) => n + 1) }}
+        onRegistered={(profile) => {
+          setMerchant(profile); setProfileMissing(false)
+          setMessage('Business profile submitted. An administrator must approve it before you can configure webhooks.')
+        }} /> : <>
         {!approved && <div className="info-banner info-banner-warning webhook-feedback" role="alert">
           <div className="info-banner-content"><strong>Webhook settings require business approval</strong>
-            Your merchant account status is {merchant?.status || 'PENDING'}.
+            Your business profile status is {merchant?.status || 'PENDING'}. Ask an administrator to review it, then refresh this page.
           </div>
         </div>}
         <section className="webhook-endpoint-card" aria-label="Endpoint configuration">

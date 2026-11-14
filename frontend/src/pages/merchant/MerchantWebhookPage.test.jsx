@@ -6,7 +6,7 @@ import { merchantService } from '../../services/merchantService'
 import { webhookDeliveries } from '../../services/webhookDeliveries'
 
 vi.mock('../../services/merchantService', () => ({ merchantService: {
-  getMyMerchant: vi.fn(), getWebhookSettings: vi.fn(), updateWebhookSettings: vi.fn(), rotateWebhookSecret: vi.fn(),
+  getMyMerchant: vi.fn(), getWebhookSettings: vi.fn(), updateWebhookSettings: vi.fn(), rotateWebhookSecret: vi.fn(), registerMyMerchant: vi.fn(),
 } }))
 vi.mock('../../services/webhookDeliveries', () => ({ webhookDeliveries: { test: vi.fn() } }))
 const merchant = { id: 1, businessName: 'Demo store', status: 'APPROVED' }
@@ -25,6 +25,68 @@ beforeEach(() => {
 })
 
 describe('Merchant webhook settings', () => {
+  const businessDetails = {
+    businessName: 'Example Store', registrationNumber: 'BR-001', contactName: 'Store Owner',
+    email: 'owner@example.test', phone: '0771234567', address: '123 Example Street',
+  }
+  async function fillProfile() {
+    await screen.findByRole('heading', { name: 'Set up your business profile' })
+    for (const [name, value] of Object.entries(businessDetails)) {
+      fireEvent.change(document.getElementById(`merchant-setup-${name}`), { target: { value: ` ${value} ` } })
+    }
+  }
+
+  it('registers a missing business profile for the current account and waits for approval', async () => {
+    merchantService.getMyMerchant.mockRejectedValue({ status: 404, message: 'Not Found' })
+    merchantService.registerMyMerchant.mockResolvedValue({ ...merchant, status: 'PENDING' })
+    show(); await fillProfile()
+    fireEvent.click(screen.getByRole('button', { name: 'Submit business profile' }))
+    await screen.findByText(/Business profile submitted/)
+    expect(merchantService.registerMyMerchant).toHaveBeenCalledWith(businessDetails)
+    expect(merchantService.getWebhookSettings).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Send Test Event' })).toBeDisabled()
+    expect(screen.getByText(/business profile status is PENDING/)).toBeInTheDocument()
+  })
+
+  it('validates the profile and submits only once while registration is pending', async () => {
+    merchantService.getMyMerchant.mockRejectedValue({ status: 404 })
+    let finish
+    merchantService.registerMyMerchant.mockImplementation(() => new Promise((resolve) => { finish = resolve }))
+    show()
+    const submit = await screen.findByRole('button', { name: 'Submit business profile' })
+    fireEvent.click(submit)
+    expect(screen.getByRole('alert')).toHaveTextContent('Complete all business profile fields.')
+    expect(merchantService.registerMyMerchant).not.toHaveBeenCalled()
+    await fillProfile()
+    fireEvent.click(submit); fireEvent.click(submit)
+    expect(merchantService.registerMyMerchant).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: /Submitting/ })).toBeDisabled()
+    finish({ ...merchant, status: 'PENDING' })
+    await screen.findByText(/Business profile submitted/)
+  })
+
+  it('can check an existing profile after a registration conflict without another POST', async () => {
+    merchantService.getMyMerchant.mockRejectedValueOnce({ status: 404 }).mockResolvedValue(merchant)
+    merchantService.registerMyMerchant.mockRejectedValue({ status: 409 })
+    show(); await fillProfile()
+    fireEvent.click(screen.getByRole('button', { name: 'Submit business profile' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('already exists')
+    fireEvent.click(screen.getByRole('button', { name: 'Check profile status' }))
+    await loaded()
+    expect(merchantService.registerMyMerchant).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps business details available after registration fails', async () => {
+    merchantService.getMyMerchant.mockRejectedValue({ status: 404 })
+    merchantService.registerMyMerchant.mockRejectedValue(new Error('Service unavailable'))
+    show(); await fillProfile()
+    fireEvent.click(screen.getByRole('button', { name: 'Submit business profile' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Service unavailable')
+    expect(screen.getByLabelText(/Business name/)).toHaveValue(' Example Store ')
+    expect(screen.getByRole('button', { name: 'Submit business profile' })).toBeEnabled()
+  })
+
   it('shows the two webhook views and configured settings without revealing the stored secret', async () => {
     show(); await loaded()
     expect(screen.getByRole('heading', { level: 1, name: 'Webhooks' })).toBeInTheDocument()

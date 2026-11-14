@@ -40,6 +40,7 @@
 .webhook-endpoint-heading { padding: 14px 20px; border-bottom: 1px solid var(--color-border); }
 .webhook-endpoint-heading h2 { font-size: 14px; font-weight: 600; }
 .webhook-endpoint-form { display: flex; flex-direction: column; gap: 24px; padding: 20px; }
+.webhook-registration-fields { border: 0; margin: 0; padding: 0; display: grid; gap: 16px; min-width: 0; }
 .webhook-endpoint-form .input { min-height: 40px; }
 .webhook-page .form-label { font-size: 14px; font-weight: 500; }
 .webhook-page .form-hint, .webhook-page .webhook-help { color: var(--color-text-muted); font-size: 12px; }

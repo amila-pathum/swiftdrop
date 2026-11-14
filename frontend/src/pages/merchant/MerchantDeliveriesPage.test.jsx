@@ -100,6 +100,13 @@ it('recovers from history errors using Try again', async () => {
   expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 })
 
+it('directs a missing merchant profile to the authenticated profile setup', async () => {
+  webhookDeliveries.list.mockRejectedValue(new Error('Merchant profile not found'))
+  show()
+  const setup = await screen.findByRole('link', { name: 'Set up your business profile' })
+  expect(setup).toHaveAttribute('href', '/merchant/webhooks')
+})
+
 it('ignores a stale response after the filter changes', async () => {
   let finishOld
   webhookDeliveries.list.mockImplementationOnce(() => new Promise((resolve) => { finishOld = resolve }))

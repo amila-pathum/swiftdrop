@@ -83,7 +83,8 @@ public class WebhookManagementSecurityConfig {
 
         return http
                 .securityMatcher(new org.springframework.security.web.util.matcher.RegexRequestMatcher(
-                        "^/internal/webhooks/merchants/[^/]+/deliveries(?:/.*)?$", null
+                        // RegexRequestMatcher includes the query string; history always sends pagination.
+                        "^/internal/webhooks/merchants/[^/?]+/deliveries(?:/[^?]*)?(?:\\?.*)?$", null
                 ))
                 .csrf(csrf -> csrf.disable())
                 .httpBasic(basic -> basic.disable())
