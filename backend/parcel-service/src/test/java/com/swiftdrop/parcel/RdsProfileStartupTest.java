@@ -43,7 +43,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "DB_HOST=rds-host.invalid",
     "DB_NAME=" + RdsProfileStartupTest.DATABASE,
     "DB_USERNAME=" + RdsProfileStartupTest.USERNAME,
-    "DB_PASSWORD=unused-with-service-connection"
+    "DB_PASSWORD=unused-with-service-connection",
+    "management.health.rabbit.enabled=false"
 })
 @ActiveProfiles("rds")
 @AutoConfigureMockMvc

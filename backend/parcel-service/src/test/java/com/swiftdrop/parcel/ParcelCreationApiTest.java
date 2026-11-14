@@ -48,7 +48,8 @@ class ParcelCreationApiTest {
 
     private static final String BODY = """
         {"receiverName":" Nimal ","receiverPhone":"0771234567",
-         "pickupAddress":" Colombo ","deliveryAddress":"Kandy",
+         "pickupAddressLine1":" 10 Main Street ","pickupAddressLine2":"Floor 2","pickupCity":"Colombo",
+         "deliveryAddressLine1":"20 Lake Road","deliveryAddressLine2":"","deliveryCity":"Kandy",
          "weight":2.500,"size":"MEDIUM","parcelType":"STANDARD"}
         """;
 
@@ -56,14 +57,15 @@ class ParcelCreationApiTest {
     void historyFailureRollsBackTheParcelInsert() {
         long before = parcels.count();
         long historyBefore = history.count();
-        when(pricing.quote(any())).thenReturn(new BigDecimal("450.00"));
+        when(pricing.quote(any(), anyString())).thenReturn(new BigDecimal("450.00"));
         String number = "SD" + UUID.randomUUID().toString().replace("-", "");
         when(tracking.generate()).thenReturn(number);
         doThrow(new org.springframework.dao.DataIntegrityViolationException("History write failed"))
                 .when(history).save(any());
         var request = new com.swiftdrop.parcel.dto.request.CreateParcelRequest(
-                "Nimal", "0771234567", "Colombo", "Kandy", new BigDecimal("2.500"), "MEDIUM", "STANDARD");
-        assertThatThrownBy(() -> creation.createCustomerParcel(request, 42L))
+                "Nimal", "0771234567", "10 Main Street", null, "Colombo",
+                "20 Lake Road", null, "Kandy", new BigDecimal("2.500"), "MEDIUM", "STANDARD");
+        assertThatThrownBy(() -> creation.createCustomerParcel(request, 42L, "customer-jwt"))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
         assertThat(parcels.count()).isEqualTo(before);
         assertThat(history.count()).isEqualTo(historyBefore);
@@ -76,13 +78,15 @@ class ParcelCreationApiTest {
         long historyCount = history.count();
         Long customer = 42L;
         String number = "SD" + UUID.randomUUID().toString().replace("-", "");
-        when(pricing.quote(any())).thenReturn(new BigDecimal("450.00"));
+        String authorization = customerToken(customer);
+        when(pricing.quote(any(), anyString())).thenReturn(new BigDecimal("450.00"));
         when(tracking.generate()).thenReturn(number);
-        mvc.perform(post("/api/parcels").header("Authorization", customerToken(customer))
+        mvc.perform(post("/api/parcels").header("Authorization", authorization)
                 .contentType(MediaType.APPLICATION_JSON).content(BODY))
             .andExpect(status().isCreated()).andExpect(jsonPath("trackingNumber").value(number))
             .andExpect(jsonPath("charge").value(450.00)).andExpect(jsonPath("status").value("CREATED"))
             .andExpect(jsonPath("createdAt").isNotEmpty());
+        verify(pricing).quote(any(), eq(authorization.substring("Bearer ".length())));
         var parcel = parcels.findByTrackingNumber(number).orElseThrow();
         assertThat(parcels.count()).isEqualTo(parcelCount + 1);
         assertThat(history.count()).isEqualTo(historyCount + 1);
@@ -91,7 +95,8 @@ class ParcelCreationApiTest {
         assertThat(parcel.getSenderId()).isEqualTo(customer);
         assertThat(parcel.getCreatedBy()).isEqualTo(customer);
         assertThat(parcel.getReceiverName()).isEqualTo("Nimal");
-        assertThat(parcel.getPickupAddress()).isEqualTo("Colombo");
+        assertThat(parcel.getPickupAddress()).isEqualTo("10 Main Street, Floor 2, Colombo");
+        assertThat(parcel.getDeliveryAddress()).isEqualTo("20 Lake Road, Kandy");
         var entries = history.findByParcelIdOrderByChangedAtAsc(parcel.getId());
         assertThat(entries).hasSize(1);
         assertThat(entries.getFirst().getPreviousStatus()).isNull();
@@ -143,7 +148,7 @@ class ParcelCreationApiTest {
     void rejectsInvalidQuotesBeforeSaving(String charge) throws Exception {
         long before = parcels.count();
         long historyBefore = history.count();
-        when(pricing.quote(any())).thenReturn(new BigDecimal(charge));
+        when(pricing.quote(any(), anyString())).thenReturn(new BigDecimal(charge));
         mvc.perform(post("/api/parcels").with(jwt().jwt(j -> j.subject("42"))
                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
                 .contentType(MediaType.APPLICATION_JSON).content(BODY)).andExpect(status().isBadGateway());
@@ -154,7 +159,8 @@ class ParcelCreationApiTest {
     @ParameterizedTest
     @org.junit.jupiter.params.provider.CsvSource({
         "receiverName,", "receiverName,   ", "receiverPhone,abc",
-        "receiverPhone,123", "pickupAddress,", "deliveryAddress,",
+        "receiverPhone,123", "pickupAddressLine1,", "pickupCity,Unknown",
+        "deliveryAddressLine1,", "deliveryCity,Unknown",
         "size,INVALID", "parcelType,INVALID"
     })
     void rejectsInvalidDetails(String field, String value) throws Exception {
@@ -173,7 +179,7 @@ class ParcelCreationApiTest {
     void unavailablePricingCreatesNoRecords() throws Exception {
         long before = parcels.count();
         long historyBefore = history.count();
-        when(pricing.quote(any())).thenThrow(new org.springframework.web.server.ResponseStatusException(
+        when(pricing.quote(any(), anyString())).thenThrow(new org.springframework.web.server.ResponseStatusException(
             org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE, "Pricing service unavailable"));
         customerPost(BODY).andExpect(status().isServiceUnavailable());
         assertThat(parcels.count()).isEqualTo(before);
@@ -184,7 +190,7 @@ class ParcelCreationApiTest {
     void missingPriceCreatesNoRecords() throws Exception {
         long before = parcels.count();
         long historyBefore = history.count();
-        when(pricing.quote(any())).thenReturn(null);
+        when(pricing.quote(any(), anyString())).thenReturn(null);
         customerPost(BODY).andExpect(status().isBadGateway());
         assertThat(parcels.count()).isEqualTo(before);
         assertThat(history.count()).isEqualTo(historyBefore);
@@ -193,7 +199,7 @@ class ParcelCreationApiTest {
     @Test
     void duplicateTrackingNumberFailsWithoutAdditionalRecords() throws Exception {
         String number = "SD" + UUID.randomUUID().toString().replace("-", "");
-        when(pricing.quote(any())).thenReturn(new BigDecimal("450.00"));
+        when(pricing.quote(any(), anyString())).thenReturn(new BigDecimal("450.00"));
         when(tracking.generate()).thenReturn(number);
         customerPost(BODY).andExpect(status().isCreated());
         long before = parcels.count();
@@ -209,7 +215,7 @@ class ParcelCreationApiTest {
     void historyFailureThroughApiRollsBackEverything() throws Exception {
         long before = parcels.count();
         long historyBefore = history.count();
-        when(pricing.quote(any())).thenReturn(new BigDecimal("450.00"));
+        when(pricing.quote(any(), anyString())).thenReturn(new BigDecimal("450.00"));
         when(tracking.generate()).thenReturn("SD" + UUID.randomUUID().toString().replace("-", ""));
         doThrow(new org.springframework.dao.DataIntegrityViolationException("History insert failed"))
             .when(history).save(any());
@@ -220,7 +226,7 @@ class ParcelCreationApiTest {
 
     @Test
     void frontendCannotOverridePrice() throws Exception {
-        when(pricing.quote(any())).thenReturn(new BigDecimal("450.00"));
+        when(pricing.quote(any(), anyString())).thenReturn(new BigDecimal("450.00"));
         String number = "SD" + UUID.randomUUID().toString().replace("-", "");
         when(tracking.generate()).thenReturn(number);
         customerPost(BODY.replace("\"weight\":2.500", "\"charge\":0.01,\"weight\":2.500"))

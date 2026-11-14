@@ -32,9 +32,10 @@ public class ParcelCreationService {
     }
 
     @Transactional
-    public ParcelResponse createCustomerParcel(CreateParcelRequest request, Long userId) {
+    public ParcelResponse createCustomerParcel(CreateParcelRequest request, Long userId,
+                                                String accessToken) {
         // Quote before writing to the database; never trust a client-supplied charge.
-        BigDecimal charge = pricing.quote(request);
+        BigDecimal charge = pricing.quote(request, accessToken);
         if (charge == null || charge.signum() < 0 || charge.scale() > 2
                 || charge.compareTo(new BigDecimal("9999999999.99")) > 0) {
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,
@@ -47,8 +48,12 @@ public class ParcelCreationService {
         parcel.setCreatedBy(userId);
         parcel.setReceiverName(request.receiverName().trim());
         parcel.setReceiverPhone(request.receiverPhone().trim());
-        parcel.setPickupAddress(request.pickupAddress().trim());
-        parcel.setDeliveryAddress(request.deliveryAddress().trim());
+        parcel.setPickupAddress(formatAddress(request.pickupAddressLine1(),
+                                              request.pickupAddressLine2(),
+                                              request.pickupCity()));
+        parcel.setDeliveryAddress(formatAddress(request.deliveryAddressLine1(),
+                                                request.deliveryAddressLine2(),
+                                                request.deliveryCity()));
         parcel.setWeight(request.weight());
         parcel.setSize(request.size().trim());
         parcel.setParcelType(request.parcelType().trim());
@@ -61,5 +66,12 @@ public class ParcelCreationService {
         // Event publishing is intentionally NOT implemented in Phase 2.
         // Add a transactional outbox before claiming reliable event delivery.
         return ParcelResponse.from(saved);
+    }
+
+    private String formatAddress(String line1, String line2, String city) {
+        if (line2 == null || line2.isBlank()) {
+            return line1.trim() + ", " + city.trim();
+        }
+        return line1.trim() + ", " + line2.trim() + ", " + city.trim();
     }
 }

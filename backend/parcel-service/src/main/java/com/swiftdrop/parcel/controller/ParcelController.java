@@ -61,7 +61,7 @@ public class ParcelController {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
                 "Token subject is not a valid user identifier");
         }
-        return service.createCustomerParcel(request, userId);
+        return service.createCustomerParcel(request, userId, jwt.getTokenValue());
     }
 
     @PatchMapping("/{id}/status")
