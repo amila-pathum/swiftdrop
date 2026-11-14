@@ -132,6 +132,14 @@ export const ENDPOINTS = Object.freeze({
   },
 
   // ------------------------------------------------------------------ Parcel
+  pricingQuote: {
+    method: 'POST',
+    path: '/api/pricing/quote',
+    available: true,
+    auth: true,
+    // Body: { pickupCity, deliveryCity, weight, serviceType: 'STANDARD' | 'EXPRESS' }
+    // -> { amount, currency: 'LKR', breakdown: { baseFee, weightFee, expressFee } }
+  },
   trackParcel: {
     method: 'GET',
     path: '/api/parcels/track/:trackingNumber',
@@ -139,6 +147,29 @@ export const ENDPOINTS = Object.freeze({
     // Public, no token. -> { trackingNumber, status, createdAt, estimatedDeliveryDate,
     //   origin, destination, trackingHistory: [{ status, description, location, timestamp }] }.
     // Unsupported ETA/location/description fields are null; invalid or unknown -> 404.
+  },
+
+  // ------------------------------------------------------------ Notification
+  notifications: {
+    method: 'GET',
+    path: '/api/notifications',
+    available: true,
+    auth: true,
+    // Notification Service. -> Array of NotificationResponse { id, userId, trackingNumber, title, message, read, createdAt }
+  },
+  unreadNotificationsCount: {
+    method: 'GET',
+    path: '/api/notifications/unread-count',
+    available: true,
+    auth: true,
+    // Notification Service. -> { count: number }
+  },
+  markNotificationAsRead: {
+    method: 'PATCH',
+    path: '/api/notifications/:id/read',
+    available: true,
+    auth: true,
+    // Notification Service. -> Updated NotificationResponse { id, ..., read: true }
   },
 })
 

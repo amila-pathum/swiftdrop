@@ -61,6 +61,15 @@ describe('apiClient', () => {
 
       await expect(apiClient.get('/api/example')).resolves.toBeNull()
     })
+
+    it('returns text for authenticated CSV exports', async () => {
+      saveSession('secret-token', 900)
+      fetchMock.mockResolvedValue(new Response('"status","count"\r\n', { status: 200 }))
+
+      await expect(request('/api/example.csv', { auth: true, responseType: 'text' }))
+        .resolves.toBe('"status","count"\r\n')
+      expect(fetchMock.mock.calls[0][1].headers.Accept).toBe('text/csv')
+    })
   })
 
   describe('authorization header', () => {

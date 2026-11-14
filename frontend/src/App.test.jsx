@@ -1,11 +1,23 @@
 import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { useAuth } from './context/AuthContext'
 import { ApiError, ApiErrorKind } from './services/apiClient'
+import { dispatchService } from './services/dispatchService'
 
 vi.mock('./context/AuthContext', () => ({ useAuth: vi.fn() }))
+vi.mock('./services/dispatchService', () => ({
+  dispatchService: {
+    getUnassigned: vi.fn().mockResolvedValue({ content: [], page: 0, totalPages: 0, totalElements: 0 }),
+    getParcels: vi.fn().mockResolvedValue({ content: [], page: 0, totalPages: 0, totalElements: 0 }),
+    getCouriers: vi.fn().mockResolvedValue([]),
+    getParcel: vi.fn().mockResolvedValue({ parcel: {}, history: [] }),
+    assignCourier: vi.fn(),
+    getReport: vi.fn().mockResolvedValue([]),
+    exportReport: vi.fn().mockResolvedValue(''),
+  },
+}))
 
 const USER = {
   id: 1,
@@ -54,6 +66,18 @@ const currentPath = () => screen.getByTestId('location').textContent
 const heading = (name) => screen.getByRole('heading', { level: 1, name })
 
 describe('App routing', () => {
+  beforeEach(() => {
+    dispatchService.getUnassigned.mockResolvedValue({
+      content: [], page: 0, totalPages: 0, totalElements: 0,
+    })
+    dispatchService.getParcels.mockResolvedValue({
+      content: [], page: 0, totalPages: 0, totalElements: 0,
+    })
+    dispatchService.getCouriers.mockResolvedValue([])
+    dispatchService.getParcel.mockResolvedValue({ parcel: {}, history: [] })
+    dispatchService.getReport.mockResolvedValue([])
+  })
+
   afterEach(() => {
     vi.resetAllMocks()
     vi.unstubAllGlobals()
@@ -183,6 +207,29 @@ describe('App routing', () => {
       screen.getByRole('button', { name: 'Log out' }).click()
       expect(auth.logout).toHaveBeenCalledTimes(1)
     })
+
+    it('allows MERCHANT to access merchant pages and redirects CUSTOMER', () => {
+      authenticatedAs('CUSTOMER')
+      renderAt('/merchant/api-keys')
+      expect(heading('Customer dashboard')).toBeInTheDocument()
+
+      authenticatedAs('MERCHANT')
+      renderAt('/merchant/api-keys')
+      expect(heading('API key management')).toBeInTheDocument()
+
+      renderAt('/merchant/webhooks')
+      expect(heading('Webhook Settings')).toBeInTheDocument()
+    })
+
+    it('allows ADMIN to access admin approvals and redirects non-admins', () => {
+      authenticatedAs('MERCHANT')
+      renderAt('/admin/merchant-approvals')
+      expect(heading('Your business, at a glance')).toBeInTheDocument()
+
+      authenticatedAs('ADMIN')
+      renderAt('/admin/merchant-approvals')
+      expect(heading('Merchant Applications')).toBeInTheDocument()
+    })
   })
 
   describe('role-based dashboard', () => {
@@ -194,10 +241,17 @@ describe('App routing', () => {
       expect(screen.queryByText(/future development phase/)).not.toBeInTheDocument()
     })
 
+    it('shows the merchant dashboard for MERCHANT', () => {
+      authenticatedAs('MERCHANT')
+      renderAt('/dashboard')
+
+      expect(heading('Your business, at a glance')).toBeInTheDocument()
+      expect(screen.queryByText(/future development phase/)).not.toBeInTheDocument()
+      expect(screen.queryByText('Customer dashboard')).not.toBeInTheDocument()
+    })
+
     it.each([
-      ['MERCHANT', 'Merchant dashboard'],
       ['COURIER', 'Courier dashboard'],
-      ['DISPATCHER', 'Dispatcher dashboard'],
       ['ADMIN', 'Admin dashboard'],
     ])('shows a not-available page for %s', (role, title) => {
       authenticatedAs(role)
@@ -206,6 +260,28 @@ describe('App routing', () => {
       expect(heading(title)).toBeInTheDocument()
       expect(screen.getByText(/future development phase/)).toBeInTheDocument()
       expect(screen.queryByText('Customer dashboard')).not.toBeInTheDocument()
+    })
+
+    it('shows dispatch management to dispatcher users', async () => {
+      authenticatedAs('DISPATCHER')
+      renderAt('/dashboard')
+
+      expect(await screen.findByRole('heading', { level: 1, name: 'Dispatch dashboard' }))
+        .toBeInTheDocument()
+      expect(currentPath()).toBe('/dispatcher/dashboard')
+      expect(screen.getByRole('link', { name: 'Reports' })).toHaveAttribute('href', '/reports')
+    })
+
+    it('allows admins to open reports and redirects other roles away', async () => {
+      authenticatedAs('ADMIN')
+      renderAt('/reports')
+      expect(await screen.findByRole('heading', { level: 1, name: 'Dispatch reports' }))
+        .toBeInTheDocument()
+
+      authenticatedAs('CUSTOMER')
+      renderAt('/reports')
+      expect(await screen.findByRole('heading', { level: 1, name: 'Customer dashboard' }))
+        .toBeInTheDocument()
     })
 
     it.each([
@@ -282,7 +358,7 @@ describe('App routing', () => {
         trackingNumber: 'SD-2026-000123', status: 'IN_TRANSIT',
         createdAt: '2026-01-01T00:00:00Z', estimatedDeliveryDate: null,
         origin: null, destination: null,
-        trackingHistory: [{ status: 'CREATED', timestamp: '2026-01-01T00:00:00Z',
+        history: [{ status: 'CREATED', timestamp: '2026-01-01T00:00:00Z',
           description: null, location: null }],
       }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
       vi.stubGlobal('fetch', fetchMock)

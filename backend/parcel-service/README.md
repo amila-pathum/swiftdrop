@@ -1,7 +1,7 @@
 # Parcel creation
 
 `POST /api/parcels` requires a valid Identity Service JWT with `role: CUSTOMER`
-and a UUID subject. The subject supplies both `senderId` and `createdBy`.
+and a canonical positive numeric subject (a Java Long, matching Identity user IDs). The subject supplies both `senderId` and `createdBy`.
 
 ```json
 {
@@ -44,3 +44,93 @@ From this directory in PowerShell, run `.\mvnw.cmd test` with Docker running.
 Database tests use disposable Testcontainers PostgreSQL, not `.env` or RDS.
 For only the supplied creation unit test, run
 `.\mvnw.cmd "-Dtest=ParcelCreationServiceTest" test`.
+
+## Phase 2 verification (2026-11-13)
+
+The creation implementation is already present: CreateParcelRequest, ParcelResponse,
+PricingClient, HttpPricingClient, TrackingNumberGenerator, ParcelCreationService,
+ParcelController, ParcelApiExceptionHandler, and ParcelCreationServiceTest.
+
+- Compile and ParcelCreationServiceTest: passed.
+- JWT contract: Identity JwtService emits role CUSTOMER and a decimal user ID
+  subject, for example "42". Parcel now uses Long/BIGINT for senderId, createdBy,
+  and changedBy. Signed-token regression tests cover this creation endpoint.
+- Gateway: GatewayIntegrationTest passes, including POST /api/parcels.
+- Pricing: pending Member 4 confirmation. The pricing service currently has no
+  quote controller. Confirm path, payload, weight units, currency, allowed sizes
+  and types, response charge precision, and service authentication.
+- Postman: collection prepared in verification/parcel-creation.postman_collection.json;
+  not executed. Import it and set accessToken locally to a real CUSTOMER token.
+  baseUrl defaults to the gateway on port 8080. A successful request stores parcelId
+  and trackingNumber as collection variables. Each execution creates a record.
+- PostgreSQL: not verified in this run; Docker engine was unavailable, so
+  Testcontainers tests were skipped. After a successful Postman request, run
+  verification/verify-created-parcel.sql in parcel_db with the returned parcelId.
+  Confirm sender_id/created_by/changed_by match the JWT subject, charge matches
+  Pricing, and exactly one initial null -> CREATED history entry exists.
+
+V2 preserves the V1 migration checksum and changes only sender and audit user IDs.
+It stops on a populated legacy database because UUIDs have no intrinsic numeric
+Identity mapping. Such databases need an explicit data migration based on the
+real Identity mapping before this change can be deployed. Parcel, history,
+merchant, and courier entity identifiers retain their existing UUID contracts.
+
+## Creation API test matrix
+
+Run `.\mvnw.cmd "-Dtest=ParcelCreationApiTest,HttpPricingClientTest,SecurityConfigTest,ParcelCreationServiceTest" test`
+with Docker running. ParcelCreationApiTest requires Docker and fails instead of
+silently skipping when it is unavailable. It uses disposable PostgreSQL and mocked
+pricing; successful creation and the shared request helper use signed CUSTOMER JWTs.
+
+Coverage includes required receiver/address fields, phone format, weight limits,
+unsupported size/type, authentication/authorization, pricing failures, invalid
+charges, frontend charge tampering, duplicate tracking (409), history insertion
+rollback, and exactly one parcel plus one initial history row on success.
+
+The initial supported values are SMALL/MEDIUM/LARGE and STANDARD. These are
+provisional until the product/pricing team confirms its supported values.
+
+Real end-to-end verification through Gateway remains pending: the current Pricing
+Service has zone/rule management but no quote endpoint matching HttpPricingClient,
+and that client still needs the agreed pricing authentication. Do not treat the
+mocked pricing integration test as verification of the real pricing flow. Once
+those contracts are implemented, start the local services, obtain a CUSTOMER token
+from Identity, run verification/parcel-creation.postman_collection.json through
+Gateway, then run verification/verify-created-parcel.sql with the returned parcelId.
+
+## Phase 3 verification
+
+Run `.\mvnw.cmd "-Dtest=ParcelStatusUpdateApiTest,ParcelStatusUpdateServiceTest,ParcelStatusTransitionValidatorTest,SecurityConfigTest" test`.
+The API suite requires Docker and sends real HTTP requests to a random-port server
+with cryptographically signed test JWTs (not tokens acquired from a running Identity
+Service). PostgreSQL is disposable; no development or team database is modified.
+It checks ADMIN/DISPATCHER updates, forbidden roles/unverified couriers, missing JWT,
+invalid transitions and cancellation, rollback after flushing parcel/history writes,
+and concurrent updates yielding one 200, one 409, and only one new history record.
+
+Courier authorization remains incomplete. Member 6 must confirm the authoritative
+mapping from numeric Identity user IDs to assigned courier UUIDs, including endpoint,
+authentication, missing/disabled courier semantics, and failure handling. The current
+verifier denies courier changes. Once confirmed, implement the trusted lookup and
+test matching, nonmatching, absent, disabled, and unavailable mappings before enabling
+courier updates. The existing service unit test mocks a positive verifier result;
+it is not evidence that the production mapping exists.
+
+## Merge compatibility: dispatch HTTP projection
+
+The Phase 4 `/api/parcels?status=CREATED` endpoint retains its paginated details
+response. The incoming Dispatch Service expects an array of dispatch projections;
+that separate contract is available at `/api/parcels/dispatch?status=CREATED`
+and `/api/parcels/dispatch/{parcelId}`. Both require DISPATCHER or ADMIN.
+
+For Dispatch Service's optional HTTP data source, set its existing environment
+settings before startup (no Dispatch Service source changes are required):
+
+```text
+PARCEL_CREATED_PATH=/api/parcels/dispatch?status=CREATED
+PARCEL_PATH=/api/parcels/dispatch/{parcelId}
+```
+
+Customer cancellation is retained at `PATCH /api/parcels/{id}/cancel`, using the
+numeric Identity subject. Existing paginated customer reads and Phase 3 status
+updates retain their original contracts.

@@ -6,6 +6,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import PublicOnlyRoute from './components/PublicOnlyRoute'
 import { useAuth } from './context/AuthContext'
 import AdminDashboardPage from './pages/admin/AdminDashboardPage'
+import MerchantApprovalsPage from './pages/admin/MerchantApprovalsPage'
 import ApplicationStatusPage from './pages/application/ApplicationStatusPage'
 import ApplicationSubmittedPage from './pages/application/ApplicationSubmittedPage'
 import CourierRegisterPage from './pages/auth/CourierRegisterPage'
@@ -17,10 +18,17 @@ import RegisterPage from './pages/auth/RegisterPage'
 import ResetPasswordPage from './pages/auth/ResetPasswordPage'
 import CourierDashboardPage from './pages/courier/CourierDashboardPage'
 import CustomerDashboardPage from './pages/customer/CustomerDashboardPage'
+import CreateDeliveryPage from './pages/customer/CreateDeliveryPage'
 import DispatcherDashboardPage from './pages/dispatcher/DispatcherDashboardPage'
+import DispatchReportsPage from './pages/dispatcher/DispatchReportsPage'
+import OngoingDeliveriesPage from './pages/dispatcher/OngoingDeliveriesPage'
+import CourierWorkloadPage from './pages/dispatcher/CourierWorkloadPage'
 import MerchantDashboardPage from './pages/merchant/MerchantDashboardPage'
+import MerchantApiKeysPage from './pages/merchant/MerchantApiKeysPage'
+import MerchantWebhookPage from './pages/merchant/MerchantWebhookPage'
 import NotAvailablePage from './pages/NotAvailablePage'
 import NotFoundPage from './pages/NotFoundPage'
+import NotificationsPage from './pages/NotificationsPage'
 import ProfilePage from './pages/ProfilePage'
 import LandingPage from './pages/public/LandingPage'
 import TrackParcelPage from './pages/public/TrackParcelPage'
@@ -85,19 +93,47 @@ function App() {
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<DashboardRedirect />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
         </Route>
       </Route>
 
-      {/* Active accounts only; each dashboard limited to its own role. */}
-      <Route element={<ProtectedRoute />}>
+      {Object.entries(ROLE_PAGES).map(([role, page]) => (
+        <Route key={role} element={<ProtectedRoute allowedRoles={[role]} />}>
+          <Route element={<AppLayout />}>
+            <Route path={ROLE_DASHBOARDS[role]} element={page} />
+          </Route>
+        </Route>
+      ))}
+
+      <Route element={<ProtectedRoute allowedRoles={['CUSTOMER']} />}>
         <Route element={<AppLayout />}>
-          {Object.entries(ROLE_PAGES).map(([role, page]) => (
-            <Route
-              key={role}
-              path={ROLE_DASHBOARDS[role]}
-              element={<ProtectedRoute allowedRoles={[role]}>{page}</ProtectedRoute>}
-            />
-          ))}
+          <Route path="/customer/create-delivery" element={<CreateDeliveryPage />} />
+        </Route>
+      </Route>
+
+      {/* Merchant protected routes */}
+      <Route element={<ProtectedRoute allowedRoles={['MERCHANT']} />}>
+        <Route element={<AppLayout />}>
+          <Route path="/merchant/api-keys" element={<MerchantApiKeysPage />} />
+          <Route path="/merchant/webhooks" element={<MerchantWebhookPage />} />
+          <Route path="/merchant/webhook" element={<Navigate to="/merchant/webhooks" replace />} />
+        </Route>
+      </Route>
+
+      {/* Admin protected routes */}
+      <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
+        <Route element={<AppLayout />}>
+          <Route path="/admin/merchant-approvals" element={<MerchantApprovalsPage />} />
+          <Route path="/admin/approvals" element={<Navigate to="/admin/merchant-approvals" replace />} />
+        </Route>
+      </Route>
+
+      <Route element={<ProtectedRoute allowedRoles={['DISPATCHER', 'ADMIN']} />}>
+        <Route element={<AppLayout />}>
+          <Route path="/dispatch" element={<DispatcherDashboardPage />} />
+          <Route path="/dispatch/deliveries" element={<OngoingDeliveriesPage />} />
+          <Route path="/dispatch/workload" element={<CourierWorkloadPage />} />
+          <Route path="/reports" element={<DispatchReportsPage />} />
         </Route>
       </Route>
 
