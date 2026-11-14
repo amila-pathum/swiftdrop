@@ -38,17 +38,23 @@ public class ParcelCreationService {
     @Transactional
     public ParcelResponse createCustomerParcel(CreateParcelRequest request, Long userId,
                                                 String accessToken) {
-        return create(request, userId, null, accessToken);
+        return create(request, userId, null, accessToken, null);
     }
 
     @Transactional
     public ParcelResponse createMerchantParcel(CreateParcelRequest request, Long userId,
                                                 String accessToken) {
-        return create(request, userId, userId, accessToken);
+        return create(request, userId, userId, accessToken, null);
+    }
+
+    @Transactional
+    public ParcelResponse createMerchantIntegrationParcel(CreateParcelRequest request, Long userId,
+            String accessToken, String reference) {
+        return create(request, userId, userId, accessToken, reference);
     }
 
     private ParcelResponse create(CreateParcelRequest request, Long userId, Long merchantId,
-                                  String accessToken) {
+                                  String accessToken, String reference) {
         if (userId == null || userId <= 0) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid authenticated user identifier");
         }
@@ -65,6 +71,7 @@ public class ParcelCreationService {
         parcel.setSenderId(userId);
         parcel.setCreatedBy(userId);
         parcel.setMerchantId(merchantId);
+        parcel.setMerchantOrderReference(reference);
         parcel.setReceiverName(request.receiverName().trim());
         parcel.setReceiverPhone(request.receiverPhone().trim());
         parcel.setPickupAddress(formatAddress(request.pickupAddressLine1(),
