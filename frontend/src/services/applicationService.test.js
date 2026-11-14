@@ -121,7 +121,7 @@ describe('merchant and courier sign-up', () => {
       const [, login, application] = calls()
       expect(login).toEqual({
         path: '/api/auth/login',
-        body: { email: 'nimal@lankabooks.lk', password: 'password123' },
+        body: { email: 'nimal@lankabooks.lk', password: 'password123', rememberMe: false },
         authorization: undefined,
       })
       expect(application).toEqual({

@@ -34,6 +34,13 @@ public class GlobalExceptionHandler {
                 .body(Map.of("error", ex.getMessage()));
     }
 
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidRefreshToken(
+            InvalidRefreshTokenException ex) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("error", ex.getMessage()));
+    }
+
     @ExceptionHandler(AccountNotActiveException.class)
     public ResponseEntity<Map<String, String>> handleInactiveAccount(
             AccountNotActiveException ex) {

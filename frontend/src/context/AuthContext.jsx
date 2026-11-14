@@ -1,7 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { onUnauthorized } from '../services/apiClient'
+import { onUnauthorized, refreshSession } from '../services/apiClient'
 import * as authService from '../services/authService'
-import { clearSession, getSession, isSessionExpired } from '../services/tokenStorage'
+import {
+  clearSession,
+  getSession,
+  isSessionExpired,
+  isSessionOver,
+} from '../services/tokenStorage'
 
 const AuthStatus = Object.freeze({
   LOADING: 'loading',
@@ -11,6 +16,10 @@ const AuthStatus = Object.freeze({
 
 // setTimeout overflows above this delay (~24.8 days) and would fire immediately.
 const MAX_TIMER_DELAY_MS = 2_147_483_647
+
+// When the server cannot be reached to renew an expired access token, try again
+// after this delay instead of signing the user out.
+const REFRESH_RETRY_DELAY_MS = 30_000
 
 const AuthContext = createContext(null)
 
@@ -27,6 +36,9 @@ const anonymousState = (sessionExpired = false) => ({
  * - status `loading` + error: the stored session could not be verified because the
  *   server was unreachable. The session is kept; call refreshUser() to retry.
  * - sessionExpired: the previous session ended (expired or rejected by the server).
+ *
+ * The access token is renewed with the refresh token when it expires, so the
+ * session lasts until the refresh token expires or the server refuses it.
  */
 export function AuthProvider({ children }) {
   const [state, setState] = useState({
@@ -57,17 +69,37 @@ export function AuthProvider({ children }) {
     setState(anonymousState(sessionExpired))
   }, [cancelExpiryTimer])
 
+  // Fires when the access token expires: renews it, or ends the session when it
+  // can no longer be renewed.
   const scheduleExpiry = useCallback((expiresAt) => {
     cancelExpiryTimer()
     const delay = Math.min(Math.max(expiresAt - Date.now(), 0), MAX_TIMER_DELAY_MS)
     expiryTimerRef.current = setTimeout(() => {
       expiryTimerRef.current = null
       const session = getSession()
-      if (session === null || isSessionExpired()) {
+      if (session === null || isSessionOver()) {
         endSession(true)
-      } else {
-        scheduleExpiry(session.expiresAt)
+        return
       }
+      if (!isSessionExpired()) {
+        scheduleExpiry(session.expiresAt)
+        return
+      }
+      const generation = generationRef.current
+      refreshSession().then(({ expiresAt: renewedUntil }) => {
+        if (mountedRef.current && generation === generationRef.current) {
+          scheduleExpiry(renewedUntil)
+        }
+      }, (error) => {
+        if (!mountedRef.current || generation !== generationRef.current) {
+          return
+        }
+        if (error?.status === 401) {
+          endSession(true)
+        } else {
+          scheduleExpiry(Date.now() + REFRESH_RETRY_DELAY_MS)
+        }
+      })
     }, delay)
   }, [cancelExpiryTimer, endSession])
 
@@ -79,7 +111,7 @@ export function AuthProvider({ children }) {
       endSession(false)
       return null
     }
-    if (isSessionExpired()) {
+    if (isSessionOver()) {
       endSession(true)
       return null
     }
@@ -94,7 +126,8 @@ export function AuthProvider({ children }) {
       if (!mountedRef.current || generation !== generationRef.current) {
         return null
       }
-      scheduleExpiry(session.expiresAt)
+      // The request may have renewed the access token.
+      scheduleExpiry(getSession()?.expiresAt ?? session.expiresAt)
       setState({ user, status: AuthStatus.AUTHENTICATED, error: null, sessionExpired: false })
       return user
     } catch (error) {
@@ -128,30 +161,31 @@ export function AuthProvider({ children }) {
     loadUser()
   }, [loadUser])
 
-  // Any authenticated request rejected with 401 (e.g. by a domain service)
-  // means the token is no longer accepted: end the session.
+  // The API client reports a session that can no longer be used (a 401 it
+  // could not recover from by refreshing): end it.
   useEffect(() => onUnauthorized(() => {
     if (getSession() !== null) {
       endSession(true)
     }
   }), [endSession])
 
-  // Timers can be paused in background tabs, so recheck when the tab is shown again.
+  // Timers can be paused in background tabs, so recheck when the tab is shown
+  // again: run the expiry check (renew or end) at once.
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible'
           && expiryTimerRef.current !== null
           && isSessionExpired()) {
-        endSession(true)
+        scheduleExpiry(Date.now())
       }
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [endSession])
+  }, [scheduleExpiry])
 
   // Errors are rethrown for the caller (e.g. a login form). A failed login leaves
   // the current session and state untouched. `remember` keeps the session after
-  // the tab is closed, until the token expires.
+  // the tab is closed and asks for a longer-lived refresh token.
   const login = useCallback(async (email, password, { remember = false } = {}) => {
     const { user, expiresAt } = await authService.login(email, password, { remember })
     generationRef.current += 1
@@ -176,7 +210,7 @@ export function AuthProvider({ children }) {
   // Ends the session here immediately and tells the backend to invalidate the
   // user's tokens. The request is best effort: signing out never waits for it.
   const logout = useCallback(() => {
-    if (getSession() !== null && !isSessionExpired()) {
+    if (getSession() !== null && !isSessionOver()) {
       try {
         // Started before the token is cleared, so it still carries it.
         Promise.resolve(authService.logout()).catch(() => {})

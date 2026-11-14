@@ -2,6 +2,7 @@ package com.swiftdrop.identity_service.config;
 
 import com.swiftdrop.identity_service.repository.OAuthLoginCodeRepository;
 import com.swiftdrop.identity_service.repository.PasswordResetTokenRepository;
+import com.swiftdrop.identity_service.repository.RefreshTokenRepository;
 import com.swiftdrop.identity_service.repository.UserIdentityRepository;
 import com.swiftdrop.identity_service.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -41,6 +42,7 @@ class GoogleSignInConfigTest {
     @MockitoBean UserIdentityRepository userIdentityRepository;
     @MockitoBean OAuthLoginCodeRepository oauthLoginCodeRepository;
     @MockitoBean PasswordResetTokenRepository passwordResetTokenRepository;
+    @MockitoBean RefreshTokenRepository refreshTokenRepository;
 
     @Test
     void registersGoogleAsAnOpenIdConnectClientThatRequiresPkce() {

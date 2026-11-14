@@ -100,7 +100,7 @@ Rules:
 
 ### Who does what
 
-- **Identity Service issues JWTs** (`POST /api/auth/login`, `POST /api/auth/google/exchange`). It is the only service that signs tokens.
+- **Identity Service issues JWTs** (`POST /api/auth/login`, `POST /api/auth/google/exchange`, `POST /api/auth/refresh`). It is the only service that signs tokens.
 - **Every protected service verifies JWTs itself**, with the shared `JWT_SECRET`, in `config/SecurityConfig.java`. A request reaching a service is never trusted just because it came through the Gateway.
 - **Every service enforces its own role rules** on its endpoints, with `@PreAuthorize`.
 - **The API Gateway** only routes and handles CORS today. It may also check tokens in the future, as an extra layer, never as the only one.
@@ -117,6 +117,34 @@ The access token is a JWT signed with HMAC (`JWT_SECRET`, at least 32 random byt
 | `iat`, `exp` | Issued at and expiry |
 
 Each domain service accepts a token only if the signature is valid, it has not expired, and it has `sub` and `role`. The role becomes the Spring Security authority `ROLE_<role>`. All services must use the same `JWT_SECRET`; `run-service.sh` loads it from `.env`.
+
+### Refresh tokens
+
+Login, Google sign-in and password change return a refresh token next to the access token:
+
+```json
+{
+  "accessToken": "<JWT>",
+  "tokenType": "Bearer",
+  "expiresIn": 900,
+  "refreshToken": "<opaque random string>",
+  "refreshExpiresIn": 86400,
+  "user": { "id": 1, "name": "...", "email": "...", "role": "CUSTOMER", "status": "ACTIVE", "...": "..." }
+}
+```
+
+`POST /api/auth/login` takes an optional `"rememberMe": true`, which makes the refresh token last `JWT_REFRESH_REMEMBER_ME_EXPIRATION_MS` (30 days by default) instead of `JWT_REFRESH_EXPIRATION_MS` (24 hours). The lifetime counts from sign-in; refreshing does not extend it.
+
+`POST /api/auth/refresh` (public, no `Authorization` header) with `{"refreshToken": "..."}` returns the same response shape with a new access token and a **new** refresh token. Replace both. Errors: `400` "Invalid request data" for a missing token, `401` "Session has expired. Please sign in again" for an unknown, used, expired or revoked one.
+
+Rules (Identity Service, `RefreshTokenService`):
+
+- A refresh token is opaque (256 random bits), not a JWT; only its SHA-256 hash is stored (`refresh_tokens` table). Domain services never see it.
+- **Rotation:** each refresh token works once. Presenting a used token again more than 30 seconds later is treated as theft and revokes every token from that sign-in. Within those 30 seconds it is only refused, so two browser tabs refreshing at the same moment do not sign each other out.
+- **Revocation:** a refresh token is bound to the user's token version. Logout, password change, password reset, and an admin changing the user's role or status all end refresh as well as access tokens. A suspended or disabled account cannot refresh.
+- Refreshing does not invalidate access tokens already issued; they expire on their own (`JWT_EXPIRATION_MS`).
+
+Frontend (`frontend/src/services/apiClient.js`): the refresh token is kept next to the access token (sessionStorage, or localStorage with "Remember me"). An authenticated `request()` renews an expired access token before sending, and retries once after a `401`. Concurrent requests share one refresh. If the refresh token is refused, the session ends and the user is sent to the login page with a "session expired" notice; if the server is unreachable, the session is kept and retried. `AuthContext` also renews the token when it expires. Pages never call the refresh endpoint themselves.
 
 ### Security rules for developers
 
