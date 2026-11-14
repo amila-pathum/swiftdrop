@@ -32,7 +32,8 @@ class UserServiceTest {
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, passwordEncoder, jwtService);
+        userService = new UserService(userRepository, passwordEncoder, jwtService,
+            mock(RefreshTokenService.class));
         activeUser = createUser(1L, "John Doe", "john@example.com", UserStatus.ACTIVE);
     }
 

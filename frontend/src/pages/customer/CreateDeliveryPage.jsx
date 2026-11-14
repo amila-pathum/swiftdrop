@@ -5,6 +5,7 @@ import Button from '../../components/Button'
 import DeliveryStepper from '../../components/delivery/DeliveryStepper'
 import FormField from '../../components/FormField'
 import { parcelService } from '../../services/parcelService'
+import CopyTrackingNumberButton from '../../components/CopyTrackingNumberButton'
 import { getDeliveryQuote } from '../../services/pricingService'
 import './createDelivery.css'
 
@@ -205,7 +206,10 @@ export default function CreateDeliveryPage() {
           <header><h1>Delivery booked successfully!</h1></header>
           <div className="delivery-fields">
             <p>Your parcel has been created. Save this tracking number:</p>
-            <p className="delivery-tracking-number">{createdParcel.trackingNumber}</p>
+            <div className="delivery-tracking-copy-row">
+              <p className="delivery-tracking-number">{createdParcel.trackingNumber}</p>
+              <CopyTrackingNumberButton trackingNumber={createdParcel.trackingNumber} />
+            </div>
             <p>Status: <strong>{createdParcel.status}</strong></p>
             <p>Final delivery charge: <strong>{currency(createdParcel.charge)}</strong></p>
             <p>Parcel ID: {createdParcel.id}</p>

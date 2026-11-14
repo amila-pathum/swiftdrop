@@ -14,6 +14,17 @@ function formatDate(value) {
     : '—'
 }
 
+const EXAMPLE_ORDER_CURL = `curl -X POST https://api.swiftdrop.com/api/merchant/orders \\
+  -H "Content-Type: application/json" \\
+  -H "X-API-Key: sd_live_YOUR_KEY_HERE" \\
+  -d '{
+    "recipientName": "Olivia Bennett",
+    "recipientPhone": "+1-555-0192",
+    "deliveryAddress": "456 Oak Avenue, Austin, TX 78701",
+    "weightKg": 1.5,
+    "instructions": "Leave at front door"
+  }'`
+
 function ShieldCheckIcon() {
   return (
     <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -57,6 +68,7 @@ export default function MerchantApiKeysPage() {
   // Ready Key Modal state (Image 3)
   const [createdResult, setCreatedResult] = useState(null)
   const [copied, setCopied] = useState(false)
+  const [copiedSnippet, setCopiedSnippet] = useState(false)
 
   // Revoke Modal state
   const [keyToRevoke, setKeyToRevoke] = useState(null)
@@ -151,6 +163,12 @@ export default function MerchantApiKeysPage() {
       setCopied(true)
       setTimeout(() => setCopied(false), 2500)
     }
+  }
+
+  const handleCopySnippet = () => {
+    navigator.clipboard.writeText(EXAMPLE_ORDER_CURL)
+    setCopiedSnippet(true)
+    setTimeout(() => setCopiedSnippet(false), 2500)
   }
 
   const handleRevokeConfirm = async () => {
@@ -341,6 +359,34 @@ export default function MerchantApiKeysPage() {
               </div>
             </div>
           </div>
+
+          {/* Example Order Request Snippet */}
+          <section className="code-card" aria-label="Example order request">
+            <div className="code-header">
+              <div>
+                <h3 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text)', margin: '0 0 2px' }}>
+                  Example Order Request
+                </h3>
+                <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: 0 }}>
+                  Authenticate order creation requests from your backend, warehouse, or e-commerce store using your API key.
+                </p>
+              </div>
+              <span className="badge badge-info">cURL / REST API</span>
+            </div>
+            <div className="code-box">
+              <button
+                type="button"
+                className="code-copy-btn"
+                onClick={handleCopySnippet}
+                aria-label="Copy cURL snippet"
+              >
+                {copiedSnippet ? '✓ Copied' : 'Copy cURL'}
+              </button>
+              <pre style={{ margin: 0, overflowX: 'auto' }}>
+                <code>{EXAMPLE_ORDER_CURL}</code>
+              </pre>
+            </div>
+          </section>
         </>
       )}
 

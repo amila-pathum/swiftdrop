@@ -2,6 +2,7 @@ package com.swiftdrop.merchant.controller;
 
 import com.swiftdrop.merchant.dto.request.MerchantRegistrationRequest;
 import com.swiftdrop.merchant.dto.request.RejectMerchantRequest;
+import com.swiftdrop.merchant.dto.response.MerchantDashboardResponse;
 import com.swiftdrop.merchant.dto.response.MerchantResponse;
 import com.swiftdrop.merchant.entity.MerchantStatus;
 import com.swiftdrop.merchant.service.MerchantService;
@@ -58,6 +59,19 @@ public class MerchantController {
                 merchantService.getMyMerchant(userId));
     }
 
+    // Get current user's merchant dashboard data
+    @GetMapping("/me/dashboard")
+    public ResponseEntity<MerchantDashboardResponse> getMyDashboard(
+            @AuthenticationPrincipal Jwt jwt) {
+
+        requireApplicantRole(jwt);
+
+        Long userId = getAuthenticatedUserId(jwt);
+
+        return ResponseEntity.ok(
+                merchantService.getMyDashboard(userId));
+    }
+
     // Admin: list merchant applications
     @GetMapping("/admin")
     public ResponseEntity<List<MerchantResponse>> getAllMerchants(
@@ -84,8 +98,10 @@ public class MerchantController {
 
     // Admin: approve merchant
     @PatchMapping("/admin/{merchantId}/approve")
+    @org.springframework.security.access.prepost.PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<MerchantResponse> approveMerchant(
             @AuthenticationPrincipal Jwt jwt,
+            @RequestHeader(name = org.springframework.http.HttpHeaders.AUTHORIZATION, required = false) String authorization,
             @PathVariable Long merchantId) {
 
         requireAdmin(jwt);
@@ -93,7 +109,7 @@ public class MerchantController {
         Long adminId = getAuthenticatedUserId(jwt);
 
         return ResponseEntity.ok(
-                merchantService.approveMerchant(merchantId, adminId));
+                merchantService.approveMerchant(merchantId, adminId, authorization));
     }
 
     // Admin: reject merchant

@@ -2,6 +2,7 @@ package com.swiftdrop.parcel.entity;
 
 import jakarta.persistence.*;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.UUID;
 
 @Entity
@@ -43,7 +44,9 @@ public class ParcelStatusHistory {
         this.newStatus = newStatus;
         this.changedBy = changedBy;
         this.note = note;
-        this.changedAt = Instant.now();
+        // PostgreSQL TIMESTAMPTZ stores microseconds; normalize before returning
+        // responses so an idempotent replay is byte-for-byte stable.
+        this.changedAt = Instant.now().truncatedTo(ChronoUnit.MICROS);
     }
 
     public UUID getId() { return id; }

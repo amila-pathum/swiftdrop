@@ -6,6 +6,7 @@ import ProtectedRoute from './components/ProtectedRoute'
 import PublicOnlyRoute from './components/PublicOnlyRoute'
 import { useAuth } from './context/AuthContext'
 import AdminDashboardPage from './pages/admin/AdminDashboardPage'
+import AdminUserManagementPage from './pages/admin/AdminUserManagementPage'
 import MerchantApprovalsPage from './pages/admin/MerchantApprovalsPage'
 import ZoneManagementPage from './pages/admin/ZoneManagementPage'
 import PricingRuleManagementPage from './pages/admin/PricingRuleManagementPage'
@@ -21,6 +22,9 @@ import ResetPasswordPage from './pages/auth/ResetPasswordPage'
 import CourierDashboardPage from './pages/courier/CourierDashboardPage'
 import CustomerDashboardPage from './pages/customer/CustomerDashboardPage'
 import CreateDeliveryPage from './pages/customer/CreateDeliveryPage'
+import DeliveryHistoryPage from './pages/customer/DeliveryHistoryPage'
+import DeliveryDetailsPage from './pages/customer/DeliveryDetailsPage'
+import ChangePasswordPage from './pages/customer/ChangePasswordPage'
 import DispatcherDashboardPage from './pages/dispatcher/DispatcherDashboardPage'
 import DispatchReportsPage from './pages/dispatcher/DispatchReportsPage'
 import OngoingDeliveriesPage from './pages/dispatcher/OngoingDeliveriesPage'
@@ -28,6 +32,8 @@ import CourierWorkloadPage from './pages/dispatcher/CourierWorkloadPage'
 import MerchantDashboardPage from './pages/merchant/MerchantDashboardPage'
 import MerchantApiKeysPage from './pages/merchant/MerchantApiKeysPage'
 import MerchantWebhookPage from './pages/merchant/MerchantWebhookPage'
+import MerchantOrdersPage from './pages/merchant/MerchantOrdersPage'
+import MerchantDeliveriesPage from './pages/merchant/MerchantDeliveriesPage'
 import NotAvailablePage from './pages/NotAvailablePage'
 import NotFoundPage from './pages/NotFoundPage'
 import NotificationsPage from './pages/NotificationsPage'
@@ -96,6 +102,7 @@ function App() {
           <Route path="/dashboard" element={<DashboardRedirect />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/notifications" element={<NotificationsPage />} />
+          <Route path="/change-password" element={<ChangePasswordPage />} />
         </Route>
       </Route>
 
@@ -117,14 +124,26 @@ function App() {
       <Route element={<ProtectedRoute allowedRoles={['MERCHANT']} />}>
         <Route element={<AppLayout />}>
           <Route path="/merchant/api-keys" element={<MerchantApiKeysPage />} />
+          <Route path="/merchant/orders" element={<MerchantOrdersPage />} />
           <Route path="/merchant/webhooks" element={<MerchantWebhookPage />} />
+          <Route path="/merchant/webhook-deliveries" element={<MerchantDeliveriesPage />} />
           <Route path="/merchant/webhook" element={<Navigate to="/merchant/webhooks" replace />} />
+        </Route>
+      </Route>
+
+      {/* Customer protected routes */}
+      <Route element={<ProtectedRoute allowedRoles={['CUSTOMER']} />}>
+        <Route element={<AppLayout />}>
+          <Route path="/customer/deliveries" element={<DeliveryHistoryPage />} />
+          <Route path="/customer/deliveries/:id" element={<DeliveryDetailsPage />} />
+          <Route path="/customer/change-password" element={<ChangePasswordPage />} />
         </Route>
       </Route>
 
       {/* Admin protected routes */}
       <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
         <Route element={<AppLayout />}>
+          <Route path="/admin/users" element={<AdminUserManagementPage />} />
           <Route path="/admin/merchant-approvals" element={<MerchantApprovalsPage />} />
           <Route path="/admin/approvals" element={<Navigate to="/admin/merchant-approvals" replace />} />
           <Route path="/admin/zones" element={<ZoneManagementPage />} />

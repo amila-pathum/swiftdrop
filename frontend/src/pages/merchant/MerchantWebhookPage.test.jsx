@@ -1,185 +1,201 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import MerchantWebhookPage from './MerchantWebhookPage'
 import { merchantService } from '../../services/merchantService'
+import { webhookDeliveries } from '../../services/webhookDeliveries'
 
-vi.mock('../../services/merchantService', () => ({
-  merchantService: {
-    getMyMerchant: vi.fn(),
-    getWebhookSettings: vi.fn(),
-    updateWebhookSettings: vi.fn(),
-    rotateWebhookSecret: vi.fn(),
-  },
-}))
+vi.mock('../../services/merchantService', () => ({ merchantService: {
+  getMyMerchant: vi.fn(), getWebhookSettings: vi.fn(), updateWebhookSettings: vi.fn(), rotateWebhookSecret: vi.fn(), registerMyMerchant: vi.fn(),
+} }))
+vi.mock('../../services/webhookDeliveries', () => ({ webhookDeliveries: { test: vi.fn() } }))
+const merchant = { id: 1, businessName: 'Demo store', status: 'APPROVED' }
+const settings = { url: 'https://store.example/hooks/swiftdrop', enabled: true, updatedAt: '2026-11-10T12:00:00Z' }
+const show = () => render(<MemoryRouter><MerchantWebhookPage /></MemoryRouter>)
+const loaded = () => screen.findByDisplayValue(settings.url)
 
-const MOCK_MERCHANT = {
-  id: 1,
-  businessName: 'UrbanNest Commerce',
-  status: 'APPROVED',
-}
-
-const MOCK_WEBHOOK = {
-  url: 'https://api.urbannest.co/webhooks/swiftdrop',
-  enabled: true,
-  updatedAt: '2026-11-10T12:00:00Z',
-}
-
-describe('MerchantWebhookPage', () => {
-  beforeEach(() => {
-    vi.resetAllMocks()
-    Object.assign(navigator, {
-      clipboard: {
-        writeText: vi.fn().mockResolvedValue(undefined),
-      },
-    })
+beforeEach(() => {
+  vi.resetAllMocks()
+  merchantService.getMyMerchant.mockResolvedValue(merchant)
+  merchantService.getWebhookSettings.mockResolvedValue(settings)
+  Object.assign(navigator, { clipboard: { writeText: vi.fn().mockResolvedValue(undefined) } })
+  Object.assign(HTMLDialogElement.prototype, {
+    showModal() { this.setAttribute('open', '') }, close() { this.removeAttribute('open') },
   })
+})
 
-  afterEach(() => {
-    vi.restoreAllMocks()
-  })
-
-  function renderPage() {
-    return render(
-      <MemoryRouter>
-        <MerchantWebhookPage />
-      </MemoryRouter>,
-    )
+describe('Merchant webhook settings', () => {
+  const businessDetails = {
+    businessName: 'Example Store', registrationNumber: 'BR-001', contactName: 'Store Owner',
+    email: 'owner@example.test', phone: '0771234567', address: '123 Example Street',
+  }
+  async function fillProfile() {
+    await screen.findByRole('heading', { name: 'Set up your business profile' })
+    for (const [name, value] of Object.entries(businessDetails)) {
+      fireEvent.change(document.getElementById(`merchant-setup-${name}`), { target: { value: ` ${value} ` } })
+    }
   }
 
-  it('renders configured webhook settings with masked secret and delivery events', async () => {
-    merchantService.getMyMerchant.mockResolvedValue(MOCK_MERCHANT)
-    merchantService.getWebhookSettings.mockResolvedValue(MOCK_WEBHOOK)
-
-    renderPage()
-
-    expect(screen.getByRole('heading', { level: 1, name: 'Webhook Settings' })).toBeInTheDocument()
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('https://api.urbannest.co/webhooks/swiftdrop')).toBeInTheDocument()
-    })
-
-    expect(screen.getByText('Enabled')).toBeInTheDocument()
-    expect(screen.getByText(/whsec_••••••••••••••••••••••••••••/)).toBeInTheDocument()
-    expect(screen.getByText('Delivery events')).toBeInTheDocument()
-    expect(screen.getByText('parcel.created')).toBeInTheDocument()
-    expect(screen.getByText('parcel.delivered')).toBeInTheDocument()
+  it('registers a missing business profile for the current account and waits for approval', async () => {
+    merchantService.getMyMerchant.mockRejectedValue({ status: 404, message: 'Not Found' })
+    merchantService.registerMyMerchant.mockResolvedValue({ ...merchant, status: 'PENDING' })
+    show(); await fillProfile()
+    fireEvent.click(screen.getByRole('button', { name: 'Submit business profile' }))
+    await screen.findByText(/Business profile submitted/)
+    expect(merchantService.registerMyMerchant).toHaveBeenCalledWith(businessDetails)
+    expect(merchantService.getWebhookSettings).not.toHaveBeenCalled()
+    expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Send Test Event' })).toBeDisabled()
+    expect(screen.getByText(/business profile status is PENDING/)).toBeInTheDocument()
   })
 
-  it('handles unconfigured webhook settings (404) gracefully as empty form', async () => {
-    merchantService.getMyMerchant.mockResolvedValue(MOCK_MERCHANT)
-    merchantService.getWebhookSettings.mockRejectedValue({ status: 404, message: 'Not configured' })
-
-    renderPage()
-
-    await waitFor(() => {
-      expect(screen.getByPlaceholderText('https://api.urbannest.co/webhooks/swiftdrop')).toBeInTheDocument()
-    })
-
-    expect(screen.getByText(/A secret will be generated automatically when you save/)).toBeInTheDocument()
+  it('validates the profile and submits only once while registration is pending', async () => {
+    merchantService.getMyMerchant.mockRejectedValue({ status: 404 })
+    let finish
+    merchantService.registerMyMerchant.mockImplementation(() => new Promise((resolve) => { finish = resolve }))
+    show()
+    const submit = await screen.findByRole('button', { name: 'Submit business profile' })
+    fireEvent.click(submit)
+    expect(screen.getByRole('alert')).toHaveTextContent('Complete all business profile fields.')
+    expect(merchantService.registerMyMerchant).not.toHaveBeenCalled()
+    await fillProfile()
+    fireEvent.click(submit); fireEvent.click(submit)
+    expect(merchantService.registerMyMerchant).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: /Submitting/ })).toBeDisabled()
+    finish({ ...merchant, status: 'PENDING' })
+    await screen.findByText(/Business profile submitted/)
   })
 
-  it('saves webhook settings and displays new secret if returned', async () => {
-    merchantService.getMyMerchant.mockResolvedValue(MOCK_MERCHANT)
-    merchantService.getWebhookSettings.mockResolvedValue(MOCK_WEBHOOK)
-    merchantService.updateWebhookSettings.mockResolvedValue({
-      settings: {
-        url: 'https://api.urbannest.co/webhooks/new',
-        enabled: true,
-        updatedAt: '2026-11-13T10:00:00Z',
-      },
-      signingSecret: 'whsec_new_generated_secret_key',
-    })
-
-    renderPage()
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('https://api.urbannest.co/webhooks/swiftdrop')).toBeInTheDocument()
-    })
-
-    const input = screen.getByLabelText(/Webhook Endpoint URL/)
-    fireEvent.change(input, { target: { value: 'https://api.urbannest.co/webhooks/new' } })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Save Settings' }))
-
-    await waitFor(() => {
-      expect(merchantService.updateWebhookSettings).toHaveBeenCalledWith(
-        'https://api.urbannest.co/webhooks/new',
-        true,
-      )
-    })
-
-    expect(screen.getByText(/Webhook settings saved/)).toBeInTheDocument()
-    expect(screen.getByText('whsec_new_generated_secret_key')).toBeInTheDocument()
-
-    // Test Copy button for secret
-    const copyBtn = screen.getByRole('button', { name: 'Copy' })
-    fireEvent.click(copyBtn)
-    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('whsec_new_generated_secret_key')
+  it('can check an existing profile after a registration conflict without another POST', async () => {
+    merchantService.getMyMerchant.mockRejectedValueOnce({ status: 404 }).mockResolvedValue(merchant)
+    merchantService.registerMyMerchant.mockRejectedValue({ status: 409 })
+    show(); await fillProfile()
+    fireEvent.click(screen.getByRole('button', { name: 'Submit business profile' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('already exists')
+    fireEvent.click(screen.getByRole('button', { name: 'Check profile status' }))
+    await loaded()
+    expect(merchantService.registerMyMerchant).toHaveBeenCalledTimes(1)
   })
 
-  it('validates that URL must start with https://', async () => {
-    merchantService.getMyMerchant.mockResolvedValue(MOCK_MERCHANT)
-    merchantService.getWebhookSettings.mockResolvedValue(MOCK_WEBHOOK)
-
-    renderPage()
-
-    await waitFor(() => {
-      expect(screen.getByDisplayValue('https://api.urbannest.co/webhooks/swiftdrop')).toBeInTheDocument()
-    })
-
-    const input = screen.getByLabelText(/Webhook Endpoint URL/)
-    fireEvent.change(input, { target: { value: 'http://insecure.url.com' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save Settings' }))
-
-    expect(screen.getByRole('alert')).toHaveTextContent('Webhook URL must be a valid HTTPS URL.')
-    expect(merchantService.updateWebhookSettings).not.toHaveBeenCalled()
+  it('keeps business details available after registration fails', async () => {
+    merchantService.getMyMerchant.mockRejectedValue({ status: 404 })
+    merchantService.registerMyMerchant.mockRejectedValue(new Error('Service unavailable'))
+    show(); await fillProfile()
+    fireEvent.click(screen.getByRole('button', { name: 'Submit business profile' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Service unavailable')
+    expect(screen.getByLabelText(/Business name/)).toHaveValue(' Example Store ')
+    expect(screen.getByRole('button', { name: 'Submit business profile' })).toBeEnabled()
   })
 
-  it('rotates signing secret after confirmation', async () => {
-    merchantService.getMyMerchant.mockResolvedValue(MOCK_MERCHANT)
-    merchantService.getWebhookSettings.mockResolvedValue(MOCK_WEBHOOK)
-    merchantService.rotateWebhookSecret.mockResolvedValue({
-      settings: { ...MOCK_WEBHOOK, updatedAt: '2026-11-13T12:00:00Z' },
-      signingSecret: 'whsec_rotated_secret_999',
-    })
-
-    renderPage()
-
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Rotate Secret' })).toBeInTheDocument()
-    })
-
-    fireEvent.click(screen.getByRole('button', { name: 'Rotate Secret' }))
-
-    const modal = screen.getByRole('dialog')
-    expect(modal).toBeInTheDocument()
-    expect(modal).toHaveTextContent(/invalidate/i)
-
-    const confirmBtn = screen.getAllByRole('button', { name: 'Rotate Secret' })[1]
-    fireEvent.click(confirmBtn)
-
-    await waitFor(() => {
-      expect(merchantService.rotateWebhookSecret).toHaveBeenCalled()
-    })
-
-    expect(screen.getByText('whsec_rotated_secret_999')).toBeInTheDocument()
+  it('shows the two webhook views and configured settings without revealing the stored secret', async () => {
+    show(); await loaded()
+    expect(screen.getByRole('heading', { level: 1, name: 'Webhooks' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Delivery History' })).toHaveAttribute('href', '/merchant/webhook-deliveries')
+    expect(screen.getByRole('switch', { name: 'Endpoint enabled' })).toBeChecked()
+    expect(screen.getByLabelText('Signing secret hidden')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Copy' })).not.toBeInTheDocument()
+    expect(screen.getByText('Status-change events')).toBeInTheDocument()
   })
 
-  it('disables saving and rotating when merchant is not approved', async () => {
-    merchantService.getMyMerchant.mockResolvedValue({
-      ...MOCK_MERCHANT,
-      status: 'PENDING',
-    })
-    merchantService.getWebhookSettings.mockResolvedValue(null)
+  it('treats missing configuration as an empty form and disables testing until saved', async () => {
+    merchantService.getWebhookSettings.mockRejectedValue({ status: 404 })
+    show()
+    expect(await screen.findByText(/A secret will be generated automatically/)).toBeInTheDocument()
+    expect(screen.getByLabelText(/Endpoint URL/)).toHaveValue('')
+    expect(screen.getByRole('button', { name: 'Send Test Event' })).toBeDisabled()
+  })
 
-    renderPage()
+  it('saves the endpoint and switch, then allows copying the one-time secret', async () => {
+    merchantService.updateWebhookSettings.mockResolvedValue({ settings: { ...settings, enabled: false }, signingSecret: 'whsec_new' })
+    show(); await loaded()
+    fireEvent.click(screen.getByRole('switch'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    expect(await screen.findByText('whsec_new')).toBeInTheDocument()
+    expect(merchantService.updateWebhookSettings).toHaveBeenCalledWith(settings.url, false)
+    fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
+    await screen.findByRole('button', { name: 'Copied' })
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('whsec_new')
+    expect(screen.getByRole('button', { name: 'Send Test Event' })).toBeDisabled()
+  })
 
-    await waitFor(() => {
-      expect(screen.getByText(/Webhook settings require business approval/)).toBeInTheDocument()
-    })
+  it.each(['http://insecure.example/hooks', 'https://', 'https://user:password@store.example/hooks', 'https://store.example/#fragment'])(
+    'rejects invalid endpoint %s without saving', async (url) => {
+      show(); await loaded()
+      fireEvent.change(screen.getByLabelText(/Endpoint URL/), { target: { value: url } })
+      fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+      expect(screen.getByRole('alert')).toHaveTextContent('Webhook URL must be a valid HTTPS URL.')
+      expect(merchantService.updateWebhookSettings).not.toHaveBeenCalled()
+    },
+  )
 
-    expect(screen.getByRole('button', { name: 'Save Settings' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Rotate Secret' })).toBeDisabled()
+  it('queues a test once and describes it as queued, not received', async () => {
+    let finish
+    webhookDeliveries.test.mockImplementation(() => new Promise((resolve) => { finish = resolve }))
+    show(); await loaded()
+    const button = screen.getByRole('button', { name: 'Send Test Event' })
+    fireEvent.click(button); fireEvent.click(button)
+    expect(webhookDeliveries.test).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: /Queuing/ })).toBeDisabled()
+    finish({ state: 'PENDING' })
+    expect(await screen.findByRole('status')).toHaveTextContent('Test event queued. Open Delivery History to check the receiver outcome.')
+  })
+
+  it('requires saving URL changes before a test and re-enables testing after saving', async () => {
+    const nextSettings = { ...settings, url: 'https://store.example/new-hook' }
+    merchantService.updateWebhookSettings.mockResolvedValue({ settings: nextSettings })
+    show(); await loaded()
+    fireEvent.change(screen.getByLabelText(/Endpoint URL/), { target: { value: nextSettings.url } })
+    expect(screen.getByRole('button', { name: 'Send Test Event' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Send Test Event' })).toBeEnabled())
+  })
+
+  it('reports a failed test request without claiming the webhook was delivered', async () => {
+    webhookDeliveries.test.mockRejectedValue(new Error('Notification service unavailable'))
+    show(); await loaded()
+    fireEvent.click(screen.getByRole('button', { name: 'Send Test Event' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Notification service unavailable')
+    expect(screen.queryByText(/Test event queued/)).not.toBeInTheDocument()
+  })
+
+  it('keeps a failed secret rotation open and supports a successful retry', async () => {
+    merchantService.rotateWebhookSecret.mockRejectedValueOnce(new Error('Try again later'))
+      .mockResolvedValue({ settings, signingSecret: 'whsec_rotated' })
+    show(); await loaded()
+    fireEvent.click(screen.getByRole('button', { name: 'Rotate secret' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Rotate secret' }))
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Try again later')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Rotate secret' }))
+    expect(await screen.findByText('whsec_rotated')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('does not claim a copy succeeded if clipboard access fails', async () => {
+    merchantService.updateWebhookSettings.mockResolvedValue({ settings, signingSecret: 'whsec_new' })
+    navigator.clipboard.writeText.mockRejectedValue(new Error('Denied'))
+    show(); await loaded()
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Copy' }))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unable to copy the secret.')
+    expect(screen.queryByRole('button', { name: 'Copied' })).not.toBeInTheDocument()
+  })
+
+  it('disables settings actions for merchants awaiting approval', async () => {
+    merchantService.getMyMerchant.mockResolvedValue({ ...merchant, status: 'PENDING' })
+    show()
+    await screen.findByText('Webhook settings require business approval')
+    for (const name of ['Save changes', 'Rotate secret', 'Send Test Event']) expect(screen.getByRole('button', { name })).toBeDisabled()
+    expect(merchantService.getWebhookSettings).not.toHaveBeenCalled()
+  })
+
+  it('recovers from a settings lookup outage without treating it as missing settings', async () => {
+    merchantService.getWebhookSettings.mockRejectedValueOnce(new Error('Settings unavailable')).mockResolvedValue(settings)
+    show()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Settings unavailable')
+    expect(screen.queryByText(/A secret will be generated/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
+    await loaded()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 })

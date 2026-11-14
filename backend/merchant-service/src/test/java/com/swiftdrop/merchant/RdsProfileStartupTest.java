@@ -110,7 +110,8 @@ class RdsProfileStartupTest {
                 .containsExactly(
                         "1:SQL",
                         "2:SQL",
-                        "3:SQL"
+                        "3:SQL",
+                        "4:SQL"
                 );
 
         assertThat(jdbc.queryForList(
@@ -122,6 +123,7 @@ class RdsProfileStartupTest {
                 .containsExactly(
                         "flyway_schema_history",
                         "merchant_api_keys",
+                        "merchant_integration_orders",
                         "merchant_webhook_settings",
                         "merchants"
                 );

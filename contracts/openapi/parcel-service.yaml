@@ -1,0 +1,529 @@
+openapi: 3.1.0
+info:
+  title: SwiftDrop Parcel API
+  version: 1.0.0
+  description: |
+    Parcel creation, authenticated parcel queries, lifecycle updates, receipts,
+    public tracking, courier assignment, and Dispatch Service projections.
+    Paths are the public paths exposed unchanged through the API Gateway.
+servers:
+  - url: http://localhost:8080
+    description: API Gateway
+  - url: http://localhost:8082
+    description: Parcel Service (local direct access)
+tags:
+  - name: Public tracking
+  - name: Customer parcels
+  - name: Merchant parcels
+  - name: Parcel lifecycle
+  - name: Dispatch integration
+paths:
+  /api/parcels/track/{trackingNumber}:
+    get:
+      tags: [Public tracking]
+      summary: Track a parcel without authentication
+      description: Returns a privacy-safe allowlist and never exposes contact details or internal notes.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/trackingNumber'
+      responses:
+        '200':
+          description: Public parcel status and timeline
+          headers:
+            Cache-Control:
+              schema: {type: string}
+              description: Always `no-store`.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PublicTrackingResponse'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/parcels:
+    post:
+      tags: [Customer parcels]
+      summary: Create a customer parcel
+      description: |
+        Requires role CUSTOMER. The numeric JWT subject becomes senderId and
+        createdBy. Charge and tracking number are calculated by the service.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateParcelRequest'}
+      responses:
+        '201': {$ref: '#/components/responses/ParcelCreated'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '502': {$ref: '#/components/responses/BadGateway'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+    get:
+      tags: [Dispatch integration]
+      summary: List parcels having a requested status
+      description: Requires role DISPATCHER or ADMIN. Results are oldest first.
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: status
+          in: query
+          required: true
+          schema: {$ref: '#/components/schemas/ParcelStatus'}
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+      responses:
+        '200': {$ref: '#/components/responses/ParcelPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/parcels/my:
+    get:
+      tags: [Customer parcels]
+      summary: List the authenticated customer's parcels
+      description: Requires role CUSTOMER. Returns only parcels owned by the numeric JWT subject, newest first.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+      responses:
+        '200': {$ref: '#/components/responses/ParcelPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/parcels/merchant:
+    post:
+      tags: [Merchant parcels]
+      summary: Create a merchant parcel
+      description: Requires role MERCHANT. The numeric JWT subject becomes merchantId and createdBy.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateParcelRequest'}
+      responses:
+        '201': {$ref: '#/components/responses/ParcelCreated'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '502': {$ref: '#/components/responses/BadGateway'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+    get:
+      tags: [Merchant parcels]
+      summary: List the authenticated merchant's parcels
+      description: Requires role MERCHANT. Returns only parcels owned by the numeric JWT subject, newest first.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/size'
+      responses:
+        '200': {$ref: '#/components/responses/ParcelPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/parcels/{id}:
+    get:
+      tags: [Customer parcels, Merchant parcels]
+      summary: Get private parcel details
+      description: |
+        CUSTOMER and MERCHANT callers may access only their own parcel. DISPATCHER
+        and ADMIN may access any parcel. Unauthorized ownership is returned as 404.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/parcelId'
+      responses:
+        '200':
+          description: Authorized parcel details
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ParcelDetailsResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/parcels/{id}/history:
+    get:
+      tags: [Parcel lifecycle]
+      summary: Get a parcel's ordered status history
+      description: Uses the same ownership rules as private parcel details. Events are oldest first.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/parcelId'
+      responses:
+        '200':
+          description: Chronological status events
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/ParcelHistoryResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/parcels/{id}/status:
+    patch:
+      tags: [Parcel lifecycle]
+      summary: Update parcel status
+      description: Requires role COURIER, DISPATCHER, or ADMIN. Courier callers must be assigned to the parcel.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/parcelId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateParcelStatusRequest'}
+      responses:
+        '200': {$ref: '#/components/responses/StatusUpdated'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+    post:
+      tags: [Parcel lifecycle]
+      summary: Submit an idempotent parcel status update
+      description: |
+        Same authorization and transition rules as PATCH. Courier retry clients
+        should send a UUID Idempotency-Key. If submissionId is present it must
+        equal that header. An identical retry returns the stored response.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/parcelId'
+        - $ref: '#/components/parameters/idempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateParcelStatusRequest'}
+      responses:
+        '200': {$ref: '#/components/responses/StatusUpdated'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/parcels/{id}/cancel:
+    patch:
+      tags: [Customer parcels]
+      summary: Cancel an owned parcel before pickup
+      description: Requires role CUSTOMER and parcel ownership.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/parcelId'
+      responses:
+        '200':
+          description: Cancelled parcel summary
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ParcelResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/parcels/{id}/receipt:
+    get:
+      tags: [Customer parcels]
+      summary: Download a delivered parcel receipt
+      description: Requires role CUSTOMER and parcel ownership.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/parcelId'
+      responses:
+        '200':
+          description: PDF receipt
+          headers:
+            Content-Disposition:
+              schema: {type: string}
+          content:
+            application/pdf:
+              schema: {type: string, format: binary}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/parcels/{id}/courier:
+    patch:
+      tags: [Dispatch integration]
+      summary: Assign a numeric Identity courier user ID
+      description: Requires role DISPATCHER or ADMIN. Closed parcels cannot be assigned.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/parcelId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/AssignCourierRequest'}
+      responses:
+        '200':
+          description: Updated parcel summary
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ParcelResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/parcels/dispatch:
+    get:
+      tags: [Dispatch integration]
+      summary: List dispatch parcel projections
+      description: Requires role DISPATCHER or ADMIN. This endpoint is intentionally not paginated.
+      security: [{bearerAuth: []}]
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema: {$ref: '#/components/schemas/ParcelStatus'}
+      responses:
+        '200':
+          description: Dispatch projections
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/DispatchParcelResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/parcels/dispatch/{id}:
+    get:
+      tags: [Dispatch integration]
+      summary: Get one dispatch parcel projection
+      description: Requires role DISPATCHER or ADMIN.
+      security: [{bearerAuth: []}]
+      parameters:
+        - $ref: '#/components/parameters/parcelId'
+      responses:
+        '200':
+          description: Dispatch parcel projection
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/DispatchParcelResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Identity Service JWT with a positive canonical numeric subject and an ACTIVE role claim.
+  parameters:
+    parcelId:
+      name: id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    trackingNumber:
+      name: trackingNumber
+      in: path
+      required: true
+      schema: {type: string, minLength: 6, maxLength: 40, pattern: '^[A-Za-z0-9-]{6,40}$'}
+    page:
+      name: page
+      in: query
+      schema: {type: integer, minimum: 0, default: 0}
+    size:
+      name: size
+      in: query
+      schema: {type: integer, minimum: 1, maximum: 100, default: 10}
+    idempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      schema: {type: string, format: uuid}
+  schemas:
+    ParcelStatus:
+      type: string
+      enum: [CREATED, PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, FAILED, CANCELLED]
+    District:
+      type: string
+      enum: [Ampara, Anuradhapura, Badulla, Batticaloa, Colombo, Galle, Gampaha, Hambantota, Jaffna, Kalutara, Kandy, Kegalle, Kilinochchi, Kurunegala, Mannar, Matale, Matara, Monaragala, Mullaitivu, Nuwara Eliya, Polonnaruwa, Puttalam, Ratnapura, Trincomalee, Vavuniya]
+    CreateParcelRequest:
+      type: object
+      additionalProperties: false
+      required: [receiverName, receiverPhone, pickupAddressLine1, pickupCity, deliveryAddressLine1, deliveryCity, weight, size, parcelType]
+      properties:
+        receiverName: {type: string, minLength: 1, maxLength: 150}
+        receiverPhone:
+          type: string
+          minLength: 7
+          maxLength: 30
+          pattern: '^(?=(?:[^0-9]*[0-9]){7})[+0-9 ()-]{7,30}$'
+        pickupAddressLine1: {type: string, minLength: 1, maxLength: 255}
+        pickupAddressLine2: {type: [string, 'null'], maxLength: 255}
+        pickupCity: {$ref: '#/components/schemas/District'}
+        deliveryAddressLine1: {type: string, minLength: 1, maxLength: 255}
+        deliveryAddressLine2: {type: [string, 'null'], maxLength: 255}
+        deliveryCity: {$ref: '#/components/schemas/District'}
+        weight: {type: number, minimum: 0.001, maximum: 9999999.999, multipleOf: 0.001}
+        size: {type: string, enum: [SMALL, MEDIUM, LARGE]}
+        parcelType: {type: string, enum: [STANDARD, EXPRESS]}
+    AssignCourierRequest:
+      type: object
+      additionalProperties: false
+      required: [courierUserId]
+      properties:
+        courierUserId: {type: integer, format: int64, minimum: 1}
+    UpdateParcelStatusRequest:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status: {$ref: '#/components/schemas/ParcelStatus'}
+        note: {type: [string, 'null'], maxLength: 1000}
+        submissionId: {type: [string, 'null'], format: uuid}
+    ParcelResponse:
+      type: object
+      required: [id, trackingNumber, status, charge, createdAt]
+      properties:
+        id: {type: string, format: uuid}
+        trackingNumber: {type: string}
+        status: {$ref: '#/components/schemas/ParcelStatus'}
+        charge: {type: number}
+        createdAt: {type: string, format: date-time}
+    ParcelDetailsResponse:
+      type: object
+      required: [id, trackingNumber, senderId, receiverName, receiverPhone, pickupAddress, deliveryAddress, weight, size, parcelType, charge, status, createdAt, updatedAt]
+      properties:
+        id: {type: string, format: uuid}
+        trackingNumber: {type: string}
+        senderId: {type: integer, format: int64}
+        receiverName: {type: string}
+        receiverPhone: {type: string}
+        pickupAddress: {type: string}
+        deliveryAddress: {type: string}
+        weight: {type: number}
+        size: {type: string, enum: [SMALL, MEDIUM, LARGE]}
+        parcelType: {type: string, enum: [STANDARD, EXPRESS]}
+        charge: {type: number}
+        status: {$ref: '#/components/schemas/ParcelStatus'}
+        merchantId: {type: [integer, 'null'], format: int64}
+        merchantOrderReference: {type: [string, 'null']}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    ParcelHistoryResponse:
+      type: object
+      required: [id, newStatus, changedAt, changedBy]
+      properties:
+        id: {type: string, format: uuid}
+        previousStatus:
+          oneOf:
+            - {$ref: '#/components/schemas/ParcelStatus'}
+            - {type: 'null'}
+        newStatus: {$ref: '#/components/schemas/ParcelStatus'}
+        changedAt: {type: string, format: date-time}
+        changedBy: {type: integer, format: int64}
+        note: {type: [string, 'null']}
+    ParcelStatusUpdateResponse:
+      type: object
+      required: [parcelId, previousStatus, newStatus, changedAt]
+      properties:
+        parcelId: {type: string, format: uuid}
+        previousStatus: {$ref: '#/components/schemas/ParcelStatus'}
+        newStatus: {$ref: '#/components/schemas/ParcelStatus'}
+        changedAt: {type: string, format: date-time}
+    PublicTrackingResponse:
+      type: object
+      required: [trackingNumber, status, createdAt, estimatedDeliveryDate, origin, destination, trackingHistory]
+      properties:
+        trackingNumber: {type: string}
+        status: {$ref: '#/components/schemas/ParcelStatus'}
+        createdAt: {type: string, format: date-time}
+        estimatedDeliveryDate: {type: [string, 'null'], format: date}
+        origin: {type: [string, 'null']}
+        destination: {type: [string, 'null']}
+        trackingHistory:
+          type: array
+          items: {$ref: '#/components/schemas/PublicTrackingEntry'}
+    PublicTrackingEntry:
+      type: object
+      required: [status, description, location, timestamp]
+      properties:
+        status: {$ref: '#/components/schemas/ParcelStatus'}
+        description: {type: [string, 'null']}
+        location: {type: [string, 'null']}
+        timestamp: {type: string, format: date-time}
+    DispatchParcelResponse:
+      type: object
+      required: [parcelId, trackingNumber, pickupArea, dropoffArea, pickupAddress, deliveryAddress, size, status, charge, createdAt, updatedAt]
+      properties:
+        parcelId: {type: string, format: uuid}
+        trackingNumber: {type: string}
+        pickupArea: {type: string}
+        dropoffArea: {type: string}
+        pickupAddress: {type: string}
+        deliveryAddress: {type: string}
+        size: {type: string}
+        status: {type: string}
+        courierId: {type: [string, 'null'], format: uuid, deprecated: true}
+        courierUserId: {type: [integer, 'null'], format: int64}
+        courierName: {type: [string, 'null']}
+        charge: {type: number}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    PageParcelDetails:
+      type: object
+      required: [content, totalElements, totalPages, number, size, first, last, empty]
+      properties:
+        content:
+          type: array
+          items: {$ref: '#/components/schemas/ParcelDetailsResponse'}
+        totalElements: {type: integer, format: int64}
+        totalPages: {type: integer}
+        number: {type: integer}
+        size: {type: integer}
+        first: {type: boolean}
+        last: {type: boolean}
+        empty: {type: boolean}
+        numberOfElements: {type: integer}
+        pageable: {type: object, additionalProperties: true}
+        sort: {type: object, additionalProperties: true}
+    Error:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error: {type: string}
+  responses:
+    ParcelCreated:
+      description: Parcel created; parcel, initial history, and outbox event committed atomically.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ParcelResponse'}
+    ParcelPage:
+      description: Paginated parcel details
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/PageParcelDetails'}
+    StatusUpdated:
+      description: Status transition committed
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/ParcelStatusUpdateResponse'}
+    BadRequest:
+      description: Invalid request, identifier, status, transition input, or pagination
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    Unauthorized:
+      description: Missing, invalid, expired, or malformed authenticated identity
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    Forbidden:
+      description: Authenticated role or courier assignment is not authorized
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    NotFound:
+      description: Parcel not found or deliberately hidden by ownership rules
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    Conflict:
+      description: State transition, idempotency, assignment, or persistence conflict
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    BadGateway:
+      description: Pricing returned an invalid response
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    Unavailable:
+      description: Pricing Service is unavailable
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
