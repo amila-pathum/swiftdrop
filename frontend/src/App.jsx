@@ -7,6 +7,8 @@ import PublicOnlyRoute from './components/PublicOnlyRoute'
 import { useAuth } from './context/AuthContext'
 import AdminDashboardPage from './pages/admin/AdminDashboardPage'
 import MerchantApprovalsPage from './pages/admin/MerchantApprovalsPage'
+import ZoneManagementPage from './pages/admin/ZoneManagementPage'
+import PricingRuleManagementPage from './pages/admin/PricingRuleManagementPage'
 import ApplicationStatusPage from './pages/application/ApplicationStatusPage'
 import ApplicationSubmittedPage from './pages/application/ApplicationSubmittedPage'
 import CourierRegisterPage from './pages/auth/CourierRegisterPage'
@@ -125,6 +127,8 @@ function App() {
         <Route element={<AppLayout />}>
           <Route path="/admin/merchant-approvals" element={<MerchantApprovalsPage />} />
           <Route path="/admin/approvals" element={<Navigate to="/admin/merchant-approvals" replace />} />
+          <Route path="/admin/zones" element={<ZoneManagementPage />} />
+          <Route path="/admin/pricing-rules" element={<PricingRuleManagementPage />} />
         </Route>
       </Route>
 

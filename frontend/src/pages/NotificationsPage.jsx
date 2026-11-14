@@ -17,8 +17,10 @@ export default function NotificationsPage() {
   const { notifications, unreadCount, isLoading, markAsRead, refresh } = useNotifications()
   const [filter, setFilter] = useState('ALL') // 'ALL' or 'UNREAD'
 
+  const isNotificationRead = (n) => Boolean(n.read ?? n.isRead)
+
   const filtered = filter === 'UNREAD'
-    ? notifications.filter((n) => !n.read)
+    ? notifications.filter((n) => !isNotificationRead(n))
     : notifications
 
   return (
@@ -90,86 +92,89 @@ export default function NotificationsPage() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {filtered.map((notification) => (
-            <article
-              key={notification.id}
-              className="card notification-card"
-              style={{
-                padding: '16px 20px',
-                borderLeft: notification.read ? '4px solid #cbd5e1' : '4px solid #2563eb',
-                backgroundColor: notification.read ? '#ffffff' : '#f8fafc',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
-                transition: 'border-color 0.2s, background-color 0.2s',
-              }}
-            >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {!notification.read && (
-                    <span
-                      style={{
-                        width: '8px',
-                        height: '8px',
-                        borderRadius: '50%',
-                        backgroundColor: '#2563eb',
-                        display: 'inline-block',
-                      }}
-                      aria-label="Unread"
-                    />
-                  )}
-                  <h2 style={{ fontSize: '15px', fontWeight: 600, margin: 0, color: '#1e293b' }}>
-                    {notification.title}
-                  </h2>
-                </div>
-                <time style={{ fontSize: '12px', color: '#94a3b8' }}>
-                  {formatDateTime(notification.createdAt)}
-                </time>
-              </div>
-
-              <p style={{ margin: 0, fontSize: '14px', color: '#475569', lineHeight: 1.5 }}>
-                {notification.message}
-              </p>
-
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  {notification.trackingNumber && (
-                    <span
-                      className="pill pill-info"
-                      style={{
-                        fontSize: '12px',
-                        fontFamily: 'monospace',
-                        padding: '2px 8px',
-                        borderRadius: '4px',
-                        backgroundColor: '#e2e8f0',
-                        color: '#1e293b',
-                      }}
-                    >
-                      {notification.trackingNumber}
-                    </span>
-                  )}
-                  {notification.trackingNumber && (
-                    <Link
-                      to={`/track/${encodeURIComponent(notification.trackingNumber)}`}
-                      style={{ fontSize: '13px', color: '#2563eb', textDecoration: 'none', fontWeight: 500 }}
-                    >
-                      Track Parcel &rarr;
-                    </Link>
-                  )}
+          {filtered.map((notification) => {
+            const isRead = isNotificationRead(notification)
+            return (
+              <article
+                key={notification.id}
+                className="card notification-card"
+                style={{
+                  padding: '16px 20px',
+                  borderLeft: isRead ? '4px solid #cbd5e1' : '4px solid #2563eb',
+                  backgroundColor: isRead ? '#ffffff' : '#f8fafc',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  transition: 'border-color 0.2s, background-color 0.2s',
+                }}
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {!isRead && (
+                      <span
+                        style={{
+                          width: '8px',
+                          height: '8px',
+                          borderRadius: '50%',
+                          backgroundColor: '#2563eb',
+                          display: 'inline-block',
+                        }}
+                        aria-label="Unread"
+                      />
+                    )}
+                    <h2 style={{ fontSize: '15px', fontWeight: 600, margin: 0, color: '#1e293b' }}>
+                      {notification.title}
+                    </h2>
+                  </div>
+                  <time style={{ fontSize: '12px', color: '#94a3b8' }}>
+                    {formatDateTime(notification.createdAt)}
+                  </time>
                 </div>
 
-                {!notification.read && (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => markAsRead(notification.id)}
-                  >
-                    Mark as read
-                  </Button>
-                )}
-              </div>
-            </article>
-          ))}
+                <p style={{ margin: 0, fontSize: '14px', color: '#475569', lineHeight: 1.5 }}>
+                  {notification.message}
+                </p>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    {notification.trackingNumber && (
+                      <span
+                        className="pill pill-info"
+                        style={{
+                          fontSize: '12px',
+                          fontFamily: 'monospace',
+                          padding: '2px 8px',
+                          borderRadius: '4px',
+                          backgroundColor: '#e2e8f0',
+                          color: '#1e293b',
+                        }}
+                      >
+                        {notification.trackingNumber}
+                      </span>
+                    )}
+                    {notification.trackingNumber && (
+                      <Link
+                        to={`/track/${encodeURIComponent(notification.trackingNumber)}`}
+                        style={{ fontSize: '13px', color: '#2563eb', textDecoration: 'none', fontWeight: 500 }}
+                      >
+                        Track Parcel &rarr;
+                      </Link>
+                    )}
+                  </div>
+
+                  {!isRead && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => markAsRead(notification.id)}
+                    >
+                      Mark as read
+                    </Button>
+                  )}
+                </div>
+              </article>
+            )
+          })}
         </div>
       )}
     </div>

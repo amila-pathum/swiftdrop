@@ -22,6 +22,7 @@ export function useParcelLiveStatus(trackingNumber, initialStatus = null) {
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState(null)
   const [lastEvent, setLastEvent] = useState(null)
+  const [events, setEvents] = useState([])
 
   const eventSourceRef = useRef(null)
   const reconnectTimeoutRef = useRef(null)
@@ -29,6 +30,9 @@ export function useParcelLiveStatus(trackingNumber, initialStatus = null) {
 
   useEffect(() => {
     isMountedRef.current = true
+    setStatus(initialStatus)
+    setUpdatedAt(null)
+    setEvents([])
 
     if (!trackingNumber || typeof trackingNumber !== 'string' || !trackingNumber.trim()) {
       setIsConnected(false)
@@ -54,39 +58,33 @@ export function useParcelLiveStatus(trackingNumber, initialStatus = null) {
           backoffDelay = 3000 // reset backoff upon successful connection
         }
 
-        // Handle named 'status' event
-        es.addEventListener('status', (e) => {
+        const handleStatusEvent = (e) => {
           if (!isMountedRef.current) return
           try {
             const data = JSON.parse(e.data)
             if (data.status) {
               setStatus(data.status)
             }
-            if (data.updatedAt) {
-              setUpdatedAt(data.updatedAt)
+            const time = data.occurredAt || data.updatedAt
+            if (time) {
+              setUpdatedAt(time)
             }
             setLastEvent(data)
+            if (data.status) {
+              setEvents((prev) => {
+                const exists = prev.some((ev) => ev.status === data.status)
+                if (exists) return prev
+                return [...prev, { status: data.status, occurredAt: time || new Date().toISOString() }]
+              })
+            }
           } catch {
             // Ignore malformed JSON
           }
-        })
-
-        // Also handle generic messages if status arrives on default event
-        es.onmessage = (e) => {
-          if (!isMountedRef.current) return
-          try {
-            const data = JSON.parse(e.data)
-            if (data.status) {
-              setStatus(data.status)
-            }
-            if (data.updatedAt) {
-              setUpdatedAt(data.updatedAt)
-            }
-            setLastEvent(data)
-          } catch {
-            // Heartbeats or ping events
-          }
         }
+
+        es.addEventListener('status', handleStatusEvent)
+        es.addEventListener('status-changed', handleStatusEvent)
+        es.onmessage = handleStatusEvent
 
         es.onerror = () => {
           if (!isMountedRef.current) return
@@ -127,6 +125,7 @@ export function useParcelLiveStatus(trackingNumber, initialStatus = null) {
     isConnected,
     error,
     lastEvent,
+    events,
   }
 }
 
