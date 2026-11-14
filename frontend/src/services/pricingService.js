@@ -1,43 +1,43 @@
-
 import { callEndpoint } from './apiClient'
 import { ENDPOINTS } from './endpoints'
 
 export const pricingService = {
   // Zones
-  getZones: () =>
-    callEndpoint(ENDPOINTS.getZones),
+  getZones: (options) =>
+    callEndpoint(ENDPOINTS.getZones, options),
 
-  getZoneById: (id) =>
-    callEndpoint(ENDPOINTS.getZoneById, { params: { id } }),
+  getZoneById: (id, options) =>
+    callEndpoint(ENDPOINTS.getZoneById, { ...options, params: { id } }),
 
-  createZone: (data) =>
-    callEndpoint(ENDPOINTS.createZone, { body: data }),
+  createZone: (data, options) =>
+    callEndpoint(ENDPOINTS.createZone, { ...options, body: data }),
 
-  updateZone: (id, data) =>
-    callEndpoint(ENDPOINTS.updateZone, { params: { id }, body: data }),
+  updateZone: (id, data, options) =>
+    callEndpoint(ENDPOINTS.updateZone, { ...options, params: { id }, body: data }),
 
-  disableZone: (id) =>
-    callEndpoint(ENDPOINTS.disableZone, { params: { id } }),
+  disableZone: (id, options) =>
+    callEndpoint(ENDPOINTS.disableZone, { ...options, params: { id } }),
 
   // Pricing Rules
-  getPricingRules: () =>
-    callEndpoint(ENDPOINTS.getPricingRules),
+  getPricingRules: (options) =>
+    callEndpoint(ENDPOINTS.getPricingRules, options),
 
-  getPricingRuleById: (id) =>
-    callEndpoint(ENDPOINTS.getPricingRuleById, { params: { id } }),
+  getPricingRuleById: (id, options) =>
+    callEndpoint(ENDPOINTS.getPricingRuleById, { ...options, params: { id } }),
 
-  createPricingRule: (data) =>
-    callEndpoint(ENDPOINTS.createPricingRule, { body: data }),
+  createPricingRule: (data, options) =>
+    callEndpoint(ENDPOINTS.createPricingRule, { ...options, body: data }),
 
-  updatePricingRule: (id, data) =>
-    callEndpoint(ENDPOINTS.updatePricingRule, { params: { id }, body: data }),
+  updatePricingRule: (id, data, options) =>
+    callEndpoint(ENDPOINTS.updatePricingRule, { ...options, params: { id }, body: data }),
 
-  disablePricingRule: (id) =>
-    callEndpoint(ENDPOINTS.disablePricingRule, { params: { id } }),
+  disablePricingRule: (id, options) =>
+    callEndpoint(ENDPOINTS.disablePricingRule, { ...options, params: { id } }),
 
   // Quote
-  calculateQuote: (data) =>
-    callEndpoint(ENDPOINTS.calculateQuote, { body: data }),
+  calculateQuote: (data, options) =>
+    callEndpoint(ENDPOINTS.calculateQuote, { ...options, body: data }),
 }
 
 export default pricingService
+
