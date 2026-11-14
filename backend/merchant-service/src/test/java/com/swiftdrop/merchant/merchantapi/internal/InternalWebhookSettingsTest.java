@@ -28,6 +28,7 @@ class InternalWebhookSettingsTest {
         var service = new MerchantWebhookService(merchants,settings,
                 "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=");
         var created = service.configure(9001L,new UpdateMerchantWebhookRequest("https://example.test/webhook",true));
+        assertEquals(7L,service.profileIdForUser(9001L));
         assertEquals(created.signingSecret(),service.getInternalSettings(7L).signingSecret());
         assertTrue(service.getInternalSettings(7L).enabled());
         when(merchant.getStatus()).thenReturn(MerchantStatus.PENDING);

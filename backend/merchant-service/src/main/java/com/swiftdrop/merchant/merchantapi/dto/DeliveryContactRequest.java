@@ -25,4 +25,5 @@ public record DeliveryContactRequest(
         String postalCode
 
 ) {
+    @Override public String toString() { return "DeliveryContactRequest[REDACTED]"; }
 }
