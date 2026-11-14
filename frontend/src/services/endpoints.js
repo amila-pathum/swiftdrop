@@ -93,26 +93,20 @@ export const ENDPOINTS = Object.freeze({
   // ---------------------------------------------------------------- Merchant
   merchantApplication: {
     method: 'POST',
-    path: '/api/merchants/applications',
-    available: false,
+    path: '/api/merchants/register',
+    available: true,
     auth: true,
-    // PLANNED (Merchant Service). Called with the new merchant's own token.
-    // Body: { businessName, businessRegistrationNumber, businessEmail,
-    //         businessPhone, businessAddress }
-    // -> 201 { id, status: "PENDING", submittedAt }. 409 if already applied.
-    //
-    // Permission contract: the caller has authority APPLICANT_MERCHANT (pending)
-    // or ROLE_MERCHANT (active). Use:
-    //   @PreAuthorize("hasAnyAuthority('APPLICANT_MERCHANT','ROLE_MERCHANT')")
-    // Never read the raw JWT "role" claim to authorize this endpoint.
+    // Merchant Service's implemented registration contract. Uses the applicant's JWT.
+    // Body: { businessName, registrationNumber, contactName, email, phone, address }
+    // -> 201 MerchantResponse with status PENDING. 409 if already applied.
   },
   myMerchantApplication: {
     method: 'GET',
-    path: '/api/merchants/me/application',
-    available: false,
+    path: '/api/merchants/me',
+    available: true,
     auth: true,
-    // PLANNED (Merchant Service). Requires APPLICANT_MERCHANT or ROLE_MERCHANT.
-    // -> { status, submittedAt, reviewedAt, reviewNote }. 404 if none submitted.
+    // -> MerchantResponse. The application service maps createdAt/rejectionReason
+    // to the status page's submittedAt/reviewNote fields. 404 if none submitted.
   },
 
   // ----------------------------------------------------------------- Courier
