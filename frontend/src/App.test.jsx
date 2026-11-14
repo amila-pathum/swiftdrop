@@ -362,7 +362,7 @@ describe('App routing', () => {
       mockAuth()
       const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
         trackingNumber: 'SD-2026-000123', status: 'PICKED_UP',
-        trackingHistory: [{ status: 'CREATED', timestamp: '2026-01-01T00:00:00Z',
+        history: [{ status: 'CREATED', timestamp: '2026-01-01T00:00:00Z',
           description: null, location: null }],
       }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
       vi.stubGlobal('fetch', fetchMock)

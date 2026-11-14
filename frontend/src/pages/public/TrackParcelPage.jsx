@@ -4,6 +4,7 @@ import Alert from '../../components/Alert'
 import EmptyState from '../../components/EmptyState'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import TrackingSearch from '../../components/TrackingSearch'
+import { useParcelLiveStatus } from '../../hooks/useParcelLiveStatus'
 import { describeError } from '../../services/errorMessages'
 import {
   normalizeTrackingNumber,
@@ -28,7 +29,31 @@ function formatDateTime(value) {
 }
 
 function TrackingResult({ parcel }) {
-  const history = Array.isArray(parcel.trackingHistory) ? parcel.trackingHistory : []
+  const { status: liveStatus, updatedAt: liveUpdatedAt, isConnected } = useParcelLiveStatus(
+    parcel.trackingNumber,
+    parcel.status
+  )
+
+  const currentStatus = liveStatus || parcel.status
+  const [history, setHistory] = useState(Array.isArray(parcel.history) ? parcel.history : [])
+
+  useEffect(() => {
+    if (liveStatus && liveStatus !== parcel.status) {
+      setHistory((prev) => {
+        const exists = prev.some((h) => h.status === liveStatus)
+        if (exists) return prev
+        return [
+          ...prev,
+          {
+            status: liveStatus,
+            occurredAt: liveUpdatedAt || new Date().toISOString(),
+            note: 'Live status update',
+          },
+        ]
+      })
+    }
+  }, [liveStatus, liveUpdatedAt, parcel.status])
+
   return (
     <section className="card tracking-result" aria-labelledby="tracking-result-title">
       <header className="tracking-result-head">
@@ -36,7 +61,32 @@ function TrackingResult({ parcel }) {
           <p className="hero-card-eyebrow">Tracking number</p>
           <h2 id="tracking-result-title" className="card-title">{parcel.trackingNumber}</h2>
         </div>
-        <span className="pill pill-info">{formatStatus(parcel.status)}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {isConnected && (
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '4px',
+                fontSize: '11px',
+                color: '#16a34a',
+                fontWeight: 600,
+              }}
+            >
+              <span
+                style={{
+                  width: '6px',
+                  height: '6px',
+                  borderRadius: '50%',
+                  backgroundColor: '#16a34a',
+                  display: 'inline-block',
+                }}
+              />
+              LIVE
+            </span>
+          )}
+          <span className="pill pill-info">{formatStatus(currentStatus)}</span>
+        </div>
       </header>
       {history.length === 0 ? (
         <EmptyState title="No updates yet" description="Status updates will appear here." />

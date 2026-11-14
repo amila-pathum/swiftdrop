@@ -85,10 +85,10 @@ class RdsProfileStartupTest {
         assertThat(jdbc.queryForList(
             "SELECT version || ':' || type FROM public.flyway_schema_history"
                 + " WHERE version IS NOT NULL ORDER BY installed_rank",
-            String.class)).containsExactly("1:SQL");
+            String.class)).containsExactly("1:SQL", "2:SQL");
         assertThat(jdbc.queryForList(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name",
-            String.class)).containsExactly("flyway_schema_history", "webhook_deliveries", "webhook_delivery_attempts");
+            String.class)).containsExactly("flyway_schema_history", "notifications", "processed_events", "webhook_deliveries", "webhook_delivery_attempts");
     }
 
     @Test
