@@ -1,4 +1,3 @@
-
 package com.swiftdrop.identity_service.exception;
 
 import org.springframework.dao.DataIntegrityViolationException;
@@ -18,97 +17,102 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleDuplicateEmail(
             DuplicateEmailException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
-            .body(Map.of("error", ex.getMessage()));
+                .body(Map.of("error", ex.getMessage()));
     }
 
     @ExceptionHandler(InvalidCredentialsException.class)
     public ResponseEntity<Map<String, String>> handleInvalidCredentials(
             InvalidCredentialsException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-            .body(Map.of("error", ex.getMessage()));
+                .body(Map.of("error", ex.getMessage()));
     }
 
     @ExceptionHandler(InvalidLoginCodeException.class)
     public ResponseEntity<Map<String, String>> handleInvalidLoginCode(
             InvalidLoginCodeException ex) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-            .body(Map.of("error", ex.getMessage()));
+                .body(Map.of("error", ex.getMessage()));
     }
 
     @ExceptionHandler(AccountNotActiveException.class)
     public ResponseEntity<Map<String, String>> handleInactiveAccount(
             AccountNotActiveException ex) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
-            .body(Map.of("error", ex.getMessage()));
+                .body(Map.of("error", ex.getMessage()));
     }
 
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<Map<String, String>> handleUserNotFound(
             UserNotFoundException ex) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
-            .body(Map.of("error", ex.getMessage()));
+                .body(Map.of("error", ex.getMessage()));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, String>> handleValidation(
             MethodArgumentNotValidException ex) {
         return ResponseEntity.badRequest()
-            .body(Map.of("error", "Invalid request data"));
+                .body(Map.of("error", "Invalid request data"));
     }
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     public ResponseEntity<Map<String, String>> handleDatabaseConflict(
             DataIntegrityViolationException ex) {
         return ResponseEntity.status(HttpStatus.CONFLICT)
-            .body(Map.of("error", "A conflicting record already exists"));
+                .body(Map.of("error", "A conflicting record already exists"));
     }
 
     @ExceptionHandler(InvalidCurrentPasswordException.class)
     public ResponseEntity<Map<String, String>> handleInvalidCurrentPassword(
             InvalidCurrentPasswordException ex) {
         return ResponseEntity.badRequest()
-            .body(Map.of("error", ex.getMessage()));
+                .body(Map.of("error", ex.getMessage()));
     }
 
     @ExceptionHandler(PasswordMismatchException.class)
     public ResponseEntity<Map<String, String>> handlePasswordMismatch(
             PasswordMismatchException ex) {
         return ResponseEntity.badRequest()
-            .body(Map.of("error", ex.getMessage()));
+                .body(Map.of("error", ex.getMessage()));
     }
 
     @ExceptionHandler(SamePasswordException.class)
     public ResponseEntity<Map<String, String>> handleSamePassword(
             SamePasswordException ex) {
         return ResponseEntity.badRequest()
-            .body(Map.of("error", ex.getMessage()));
+                .body(Map.of("error", ex.getMessage()));
     }
 
     @ExceptionHandler(InvalidResetTokenException.class)
     public ResponseEntity<Map<String, String>> handleInvalidResetToken(
             InvalidResetTokenException ex) {
         return ResponseEntity.badRequest()
-            .body(Map.of("error", ex.getMessage()));
+                .body(Map.of("error", ex.getMessage()));
     }
 
     @ExceptionHandler(PasswordResetUnavailableException.class)
     public ResponseEntity<Map<String, String>> handlePasswordResetUnavailable(
             PasswordResetUnavailableException ex) {
         return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED)
-            .body(Map.of("error", ex.getMessage()));
+                .body(Map.of("error", ex.getMessage()));
     }
 
-    @ExceptionHandler({RoleNotAllowedException.class, InvalidStatusChangeException.class})
+    @ExceptionHandler({RoleNotAllowedException.class, InvalidStatusChangeException.class, InvalidRoleChangeException.class})
     public ResponseEntity<Map<String, String>> handleRejectedAdminRequest(RuntimeException ex) {
         return ResponseEntity.badRequest()
+                .body(Map.of("error", ex.getMessage()));
+    }
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity<Map<String, String>> handleRateLimit(RateLimitExceededException ex) {
+        return ResponseEntity.status(429)
             .body(Map.of("error", ex.getMessage()));
     }
 
-    // Malformed JSON, or an unknown enum value such as an invalid role or status.
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<Map<String, String>> handleUnreadableBody(
             HttpMessageNotReadableException ex) {
         return ResponseEntity.badRequest()
-            .body(Map.of("error", "Invalid request data"));
+                .body(Map.of("error", "Invalid request data"));
     }
 }

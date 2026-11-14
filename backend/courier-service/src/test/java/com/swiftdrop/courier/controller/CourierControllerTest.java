@@ -22,6 +22,7 @@ import static org.mockito.Mockito.*;
 class CourierControllerTest {
     @Autowired MockMvc mvc;
     @MockitoBean CourierProfileService profiles;
+    @MockitoBean CourierService legacy;
     @MockitoBean CourierDeliveryService deliveries;
     @Test void unauthenticatedGets401AndCustomerCannotUseCourierEndpoints() throws Exception {
         mvc.perform(get("/api/couriers/me")).andExpect(status().isUnauthorized());
@@ -35,9 +36,21 @@ class CourierControllerTest {
             .andExpect(status().isForbidden());verifyNoInteractions(profiles);
     }
     @Test void dispatcherCanListButInvalidPaginationIsRejected() throws Exception {
-        mvc.perform(get("/api/couriers").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_DISPATCHER")))).andExpect(status().isOk());
-        mvc.perform(get("/api/couriers").param("size","1000").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_DISPATCHER")))).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/couriers/profiles").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_DISPATCHER")))).andExpect(status().isOk());
+        mvc.perform(get("/api/couriers/profiles").param("size","1000").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_DISPATCHER")))).andExpect(status().isBadRequest());
         verify(profiles,times(1)).list(null,null,true,0,20);
+    }
+    @Test void legacyAndProfileListsCoexistAndFilteredAliasIsPreserved() throws Exception {
+        var id=UUID.fromString("10000000-0000-4000-8000-000000000001");
+        when(legacy.list()).thenReturn(java.util.List.of(new com.swiftdrop.courier.dto.CourierResponse(id,"Legacy Courier",true,true)));
+        when(legacy.find(id)).thenReturn(java.util.Optional.of(new com.swiftdrop.courier.dto.CourierResponse(id,"Legacy Courier",true,true)));
+        mvc.perform(get("/api/couriers").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_DISPATCHER"))))
+            .andExpect(status().isOk()).andExpect(jsonPath("$[0].courierId").value(id.toString()));
+        mvc.perform(get("/api/couriers/"+id).with(jwt().authorities(new SimpleGrantedAuthority("ROLE_ADMIN"))))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.name").value("Legacy Courier"));
+        mvc.perform(get("/api/couriers").param("availability","AVAILABLE").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_DISPATCHER"))))
+            .andExpect(status().isOk());
+        verify(profiles).list(com.swiftdrop.courier.entity.Availability.AVAILABLE,null,true,0,20);
     }
     @Test void invalidCoordinatesNeverReachService() throws Exception {
         mvc.perform(post("/api/couriers/me/deliveries/"+UUID.randomUUID()+"/status").with(jwt().jwt(j->j.subject("42")).authorities(new SimpleGrantedAuthority("ROLE_COURIER")))

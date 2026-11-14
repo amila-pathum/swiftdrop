@@ -41,7 +41,7 @@
             }
         },
         {
-            "name": "reports.parcel-status-changed",
+            "name": "dispatch.parcel-status-changed",
             "vhost": "/",
             "durable": true,
             "auto_delete": false,
@@ -78,7 +78,7 @@
         {
             "source": "swiftdrop.events",
             "vhost": "/",
-            "destination": "reports.parcel-status-changed",
+            "destination": "dispatch.parcel-status-changed",
             "destination_type": "queue",
             "routing_key": "parcel.status-changed",
             "arguments": {}

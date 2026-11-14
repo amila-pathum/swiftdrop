@@ -43,7 +43,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "DB_HOST=rds-host.invalid",
     "DB_NAME=" + RdsProfileStartupTest.DATABASE,
     "DB_USERNAME=" + RdsProfileStartupTest.USERNAME,
-    "DB_PASSWORD=unused-with-service-connection"
+    "DB_PASSWORD=unused-with-service-connection",
+    "management.health.rabbit.enabled=false"
 })
 @ActiveProfiles("rds")
 @AutoConfigureMockMvc
@@ -85,10 +86,11 @@ class RdsProfileStartupTest {
         assertThat(jdbc.queryForList(
             "SELECT version || ':' || type FROM public.flyway_schema_history"
                 + " WHERE version IS NOT NULL ORDER BY installed_rank",
-            String.class)).containsExactly("1:SQL");
+            String.class)).containsExactly("1:SQL", "2:SQL", "3:SQL", "4:SQL");
         assertThat(jdbc.queryForList(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name",
-            String.class)).containsExactly("flyway_schema_history", "parcel_status_history", "parcels");
+            String.class)).containsExactly("flyway_schema_history", "parcel_event_outbox",
+                "parcel_status_history", "parcels");
     }
 
     @Test

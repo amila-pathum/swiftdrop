@@ -17,7 +17,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(properties = {
     "NOTIFICATION_DB_PASSWORD=unused-with-service-connection",
     "swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
-    "management.health.rabbit.enabled=false"
+    "management.health.rabbit.enabled=false",
+    "spring.rabbitmq.listener.simple.auto-startup=false",
+    "swiftdrop.notifications.consumer-enabled=false"
 })
 @AutoConfigureMockMvc
 @Testcontainers(disabledWithoutDocker = true)

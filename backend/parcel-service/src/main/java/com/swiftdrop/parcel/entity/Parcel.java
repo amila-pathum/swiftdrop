@@ -63,6 +63,10 @@ public class Parcel {
     @Column(name = "assigned_courier_id")
     private Long assignedCourierId;
 
+    // Preserved Courier Service profile identifier, not an Identity user ID.
+    @Column(name = "legacy_assigned_courier_uuid", insertable = false, updatable = false)
+    private UUID legacyAssignedCourierUuid;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -126,6 +130,8 @@ public class Parcel {
 
     public String getMerchantOrderReference() { return merchantOrderReference; }
     public void setMerchantOrderReference(String merchantOrderReference) { this.merchantOrderReference = merchantOrderReference; }
+
+    public UUID getLegacyAssignedCourierUuid() { return legacyAssignedCourierUuid; }
 
     public Long getAssignedCourierId() { return assignedCourierId; }
     public void setAssignedCourierId(Long assignedCourierId) { this.assignedCourierId = assignedCourierId; }

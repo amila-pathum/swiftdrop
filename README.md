@@ -143,7 +143,17 @@ Known limitations (decided by the team before production):
 - Method-level authorization is enabled (`@EnableMethodSecurity`), so endpoints can be restricted with, for example, `@PreAuthorize("hasRole('MERCHANT')")`.
 - `GET /api/users/me` returns only `id`, `name`, `email`, `role`, `status`, and `createdAt`; password hashes are never returned.
 
-Limitation: there is currently no way to create `MERCHANT`, `COURIER`, `DISPATCHER`, or `ADMIN` accounts through the API, and no role-promotion endpoint. Privileged account provisioning requires a future secure administrative workflow. Until then, such accounts can only be prepared directly in the database by an operator.
+The first `ADMIN` is created once from `ADMIN_BOOTSTRAP_EMAIL`,
+`ADMIN_BOOTSTRAP_PASSWORD` and optional `ADMIN_BOOTSTRAP_NAME`. Set both required
+values for the first Identity Service start, verify login, then remove them from
+the environment. The password must be 12–72 characters. Bootstrap never resets
+an existing administrator and fails startup if that email belongs to a non-admin.
+
+An authenticated administrator creates active `DISPATCHER` or additional
+`ADMIN` accounts with `POST /api/admin/users`; there is no public staff
+registration endpoint. Merchant and courier accounts use their public application
+flows and remain pending until approved. The current admin API can retrieve a
+single user by ID but does not provide a list-users endpoint.
 
 ## Creating a new API endpoint
 

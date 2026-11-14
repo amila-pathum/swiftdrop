@@ -3,6 +3,7 @@ package com.swiftdrop.parcel;
 import com.swiftdrop.parcel.client.PricingClient;
 import com.swiftdrop.parcel.repository.ParcelRepository;
 import com.swiftdrop.parcel.repository.ParcelStatusHistoryRepository;
+import com.swiftdrop.parcel.event.ParcelOutboxPublisher;
 import com.swiftdrop.parcel.service.TrackingNumberGenerator;
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -17,6 +18,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -26,68 +29,167 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest(properties = {
     "PARCEL_DB_PASSWORD=unused-with-service-connection",
+    "swiftdrop.events.publisher-enabled=false",
     "swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })
 @AutoConfigureMockMvc
-@Testcontainers(disabledWithoutDocker = true)
+@Testcontainers
 class ParcelCreationApiTest {
     @Container @ServiceConnection
     static final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:18");
     @Autowired MockMvc mvc;
     @Autowired ParcelRepository parcels;
+    @Autowired JdbcTemplate jdbc;
     @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
     ParcelStatusHistoryRepository history;
     @Autowired com.swiftdrop.parcel.service.ParcelCreationService creation;
     @MockitoBean PricingClient pricing;
     @MockitoBean TrackingNumberGenerator tracking;
+    @MockitoBean RabbitTemplate rabbit;
 
     private static final String BODY = """
         {"receiverName":" Nimal ","receiverPhone":"0771234567",
-         "pickupAddress":" Colombo ","deliveryAddress":"Kandy",
+         "pickupAddressLine1":" 10 Main Street ","pickupAddressLine2":"Floor 2","pickupCity":"Colombo",
+         "deliveryAddressLine1":"20 Lake Road","deliveryAddressLine2":"","deliveryCity":"Kandy",
          "weight":2.500,"size":"MEDIUM","parcelType":"STANDARD"}
         """;
 
     @Test
+    void numericMerchantIdentityCreatesOwnParcelWithoutChangingCustomerAuthorization() throws Exception {
+        when(pricing.quote(any(), anyString())).thenReturn(new BigDecimal("450.00"));
+        String number = "SD" + UUID.randomUUID().toString().replace("-", "");
+        when(tracking.generate()).thenReturn(number);
+        mvc.perform(post("/api/parcels/merchant").with(jwt().jwt(j -> j.subject("51"))
+                .authorities(new SimpleGrantedAuthority("ROLE_MERCHANT")))
+                .contentType(MediaType.APPLICATION_JSON).content(BODY))
+            .andExpect(status().isCreated());
+        var parcel = parcels.findByTrackingNumber(number).orElseThrow();
+        assertThat(parcel.getSenderId()).isEqualTo(51L);
+        assertThat(parcel.getCreatedBy()).isEqualTo(51L);
+        assertThat(parcel.getMerchantId()).isEqualTo(51L);
+        assertThat(history.findByParcelIdOrderByChangedAtAsc(parcel.getId()).getFirst().getChangedBy()).isEqualTo(51L);
+        mvc.perform(post("/api/parcels/merchant").with(jwt().jwt(j -> j.subject("42"))
+                .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
+                .contentType(MediaType.APPLICATION_JSON).content(BODY))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void assignmentRequiresStaffAndAssignedNumericCourierCanUpdate() throws Exception {
+        when(pricing.quote(any(), anyString())).thenReturn(new BigDecimal("450.00"));
+        String number = "SD" + UUID.randomUUID().toString().replace("-", "");
+        when(tracking.generate()).thenReturn(number);
+        mvc.perform(post("/api/parcels").header("Authorization", customerToken(42L))
+                .contentType(MediaType.APPLICATION_JSON).content(BODY)).andExpect(status().isCreated());
+        var p = parcels.findByTrackingNumber(number).orElseThrow();
+        var path = "/api/parcels/" + p.getId() + "/courier";
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(path)
+                .header("Authorization", customerToken(42L)).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"courierUserId\":88}")).andExpect(status().isForbidden());
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch(path)
+                .with(jwt().jwt(j -> j.subject("77").claim("role", "DISPATCHER"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_DISPATCHER")))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"courierUserId\":88}"))
+            .andExpect(status().isOk());
+        assertThat(parcels.findById(p.getId()).orElseThrow().getAssignedCourierId()).isEqualTo(88L);
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch("/api/parcels/" + p.getId() + "/status")
+                .with(jwt().jwt(j -> j.subject("88").claim("role", "COURIER"))
+                    .authorities(new SimpleGrantedAuthority("ROLE_COURIER")))
+                .contentType(MediaType.APPLICATION_JSON).content("{\"status\":\"PICKED_UP\"}"))
+            .andExpect(status().isOk());
+        assertThat(history.findByParcelIdOrderByChangedAtAsc(p.getId()).getLast().getChangedBy()).isEqualTo(88L);
+        mvc.perform(get("/api/parcels/track/" + number)).andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("PICKED_UP"))
+            .andExpect(jsonPath("$.trackingHistory.length()").value(2))
+            .andExpect(jsonPath("$.senderId").doesNotExist())
+            .andExpect(jsonPath("$.merchantId").doesNotExist())
+            .andExpect(jsonPath("$.trackingHistory[0].changedBy").doesNotExist());
+    }
+
+    @Test
     void historyFailureRollsBackTheParcelInsert() {
         long before = parcels.count();
-        when(pricing.quote(any())).thenReturn(new BigDecimal("450.00"));
+        long historyBefore = history.count();
+        int outboxBefore = outboxCount();
+        when(pricing.quote(any(), anyString())).thenReturn(new BigDecimal("450.00"));
         String number = "SD" + UUID.randomUUID().toString().replace("-", "");
         when(tracking.generate()).thenReturn(number);
         doThrow(new org.springframework.dao.DataIntegrityViolationException("History write failed"))
                 .when(history).save(any());
         var request = new com.swiftdrop.parcel.dto.request.CreateParcelRequest(
-                "Nimal", "0771234567", "Colombo", "Kandy", new BigDecimal("2.500"), "MEDIUM", "STANDARD");
-        assertThatThrownBy(() -> creation.createCustomerParcel(request, 42L))
+                "Nimal", "0771234567", "10 Main Street", null, "Colombo",
+                "20 Lake Road", null, "Kandy", new BigDecimal("2.500"), "MEDIUM", "STANDARD");
+        assertThatThrownBy(() -> creation.createCustomerParcel(request, 42L, "customer-jwt"))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
         assertThat(parcels.count()).isEqualTo(before);
+        assertThat(history.count()).isEqualTo(historyBefore);
+        assertThat(outboxCount()).isEqualTo(outboxBefore);
         assertThat(parcels.findByTrackingNumber(number)).isEmpty();
     }
 
     @Test
     void createsOrderAndHistoryUsingAuthenticatedCustomerAndServerPrice() throws Exception {
+        long parcelCount = parcels.count();
+        long historyCount = history.count();
+        int outboxCount = outboxCount();
         Long customer = 42L;
         String number = "SD" + UUID.randomUUID().toString().replace("-", "");
-        when(pricing.quote(any())).thenReturn(new BigDecimal("450.00"));
+        String authorization = customerToken(customer);
+        when(pricing.quote(any(), anyString())).thenReturn(new BigDecimal("450.00"));
         when(tracking.generate()).thenReturn(number);
-        mvc.perform(post("/api/parcels").with(jwt().jwt(j -> j.subject(customer.toString()))
-                .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
+        mvc.perform(post("/api/parcels").header("Authorization", authorization)
                 .contentType(MediaType.APPLICATION_JSON).content(BODY))
             .andExpect(status().isCreated()).andExpect(jsonPath("trackingNumber").value(number))
             .andExpect(jsonPath("charge").value(450.00)).andExpect(jsonPath("status").value("CREATED"))
             .andExpect(jsonPath("createdAt").isNotEmpty());
+        verify(pricing).quote(any(), eq(authorization.substring("Bearer ".length())));
         var parcel = parcels.findByTrackingNumber(number).orElseThrow();
+        assertThat(parcels.count()).isEqualTo(parcelCount + 1);
+        assertThat(history.count()).isEqualTo(historyCount + 1);
+        assertThat(parcel.getStatus()).isEqualTo(com.swiftdrop.parcel.entity.ParcelStatus.CREATED);
+        assertThat(parcel.getCharge()).isEqualByComparingTo("450.00");
         assertThat(parcel.getSenderId()).isEqualTo(customer);
         assertThat(parcel.getCreatedBy()).isEqualTo(customer);
         assertThat(parcel.getReceiverName()).isEqualTo("Nimal");
-        assertThat(parcel.getPickupAddress()).isEqualTo("Colombo");
+        assertThat(parcel.getPickupAddress()).isEqualTo("10 Main Street, Floor 2, Colombo");
+        assertThat(parcel.getDeliveryAddress()).isEqualTo("20 Lake Road, Kandy");
         var entries = history.findByParcelIdOrderByChangedAtAsc(parcel.getId());
         assertThat(entries).hasSize(1);
         assertThat(entries.getFirst().getPreviousStatus()).isNull();
+        assertThat(entries.getFirst().getNewStatus()).isEqualTo(com.swiftdrop.parcel.entity.ParcelStatus.CREATED);
         assertThat(entries.getFirst().getChangedBy()).isEqualTo(customer);
+        assertThat(outboxCount()).isEqualTo(outboxCount + 1);
+        String payload = jdbc.queryForObject(
+            "SELECT payload FROM parcel_event_outbox WHERE parcel_id = ?",
+            String.class, parcel.getId());
+        assertThat(payload)
+            .contains("\"eventType\":\"ParcelStatusChanged\"")
+            .contains("\"oldStatus\":null")
+            .contains("\"newStatus\":\"CREATED\"")
+            .contains("\"customerId\":\"42\"")
+            .doesNotContain("0771234567", "10 Main Street", "20 Lake Road");
+    }
+
+    @Test
+    void publishesPendingCreationEventAndMarksItDelivered() throws Exception {
+        when(pricing.quote(any(), anyString())).thenReturn(new BigDecimal("450.00"));
+        String number = "SD" + UUID.randomUUID().toString().replace("-", "");
+        when(tracking.generate()).thenReturn(number);
+        customerPost(BODY).andExpect(status().isCreated());
+        var parcel = parcels.findByTrackingNumber(number).orElseThrow();
+
+        new ParcelOutboxPublisher(jdbc, rabbit).publishPending();
+
+        verify(rabbit, atLeastOnce()).convertAndSend(
+            eq("swiftdrop.events"), eq("parcel.status-changed"), any(byte[].class));
+        assertThat(jdbc.queryForObject(
+            "SELECT published_at IS NOT NULL FROM parcel_event_outbox WHERE parcel_id = ?",
+            Boolean.class, parcel.getId())).isTrue();
     }
 
     @Test
@@ -99,8 +201,19 @@ class ParcelCreationApiTest {
         verifyNoInteractions(pricing);
     }
 
+    @Test
+    void dispatchCanReadCreatedParcelProjection() throws Exception {
+        mvc.perform(get("/api/parcels/dispatch?status=CREATED").with(jwt().jwt(j -> j.subject("42").claim("role", "DISPATCHER"))
+                .authorities(new SimpleGrantedAuthority("ROLE_DISPATCHER"))))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$").isArray());
+        mvc.perform(get("/api/parcels/dispatch").with(jwt()
+                .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER"))))
+            .andExpect(status().isForbidden());
+    }
+
     @ParameterizedTest
-    @ValueSource(strings = {"not-a-number", "1-1-1-1-1", "0", "-1", "01", "9223372036854775808"})
+    @ValueSource(strings = {"not-a-number", "1-1-1-1-1", "0", "-1", "01", "+1", "9223372036854775808", "550e8400-e29b-41d4-a716-446655440000"})
     void rejectsInvalidSubjects(String subject) throws Exception {
         mvc.perform(post("/api/parcels").with(jwt().jwt(j -> j.subject(subject))
                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
@@ -109,7 +222,7 @@ class ParcelCreationApiTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"0", "0.0001", "10000000", "1.1234"})
+    @ValueSource(strings = {"0", "-1", "0.0001", "10000000", "1.1234"})
     void rejectsInvalidWeights(String weight) throws Exception {
         mvc.perform(post("/api/parcels").with(jwt().jwt(j -> j.subject("42"))
                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
@@ -122,10 +235,107 @@ class ParcelCreationApiTest {
     @ValueSource(strings = {"-1", "1.001", "10000000000"})
     void rejectsInvalidQuotesBeforeSaving(String charge) throws Exception {
         long before = parcels.count();
-        when(pricing.quote(any())).thenReturn(new BigDecimal(charge));
+        long historyBefore = history.count();
+        when(pricing.quote(any(), anyString())).thenReturn(new BigDecimal(charge));
         mvc.perform(post("/api/parcels").with(jwt().jwt(j -> j.subject("42"))
                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
                 .contentType(MediaType.APPLICATION_JSON).content(BODY)).andExpect(status().isBadGateway());
         assertThat(parcels.count()).isEqualTo(before);
+        assertThat(history.count()).isEqualTo(historyBefore);
+    }
+
+    @ParameterizedTest
+    @org.junit.jupiter.params.provider.CsvSource({
+        "receiverName,", "receiverName,   ", "receiverPhone,abc",
+        "receiverPhone,123", "pickupAddressLine1,", "pickupCity,Unknown",
+        "deliveryAddressLine1,", "deliveryCity,Unknown",
+        "size,INVALID", "parcelType,INVALID"
+    })
+    void rejectsInvalidDetails(String field, String value) throws Exception {
+        var mapper = new tools.jackson.databind.ObjectMapper();
+        var body = (tools.jackson.databind.node.ObjectNode) mapper.readTree(BODY);
+        if (value == null) body.remove(field); else body.put(field, value);
+        long before = parcels.count();
+        long historyBefore = history.count();
+        customerPost(mapper.writeValueAsString(body)).andExpect(status().isBadRequest());
+        verifyNoInteractions(pricing);
+        assertThat(parcels.count()).isEqualTo(before);
+        assertThat(history.count()).isEqualTo(historyBefore);
+    }
+
+    @Test
+    void unavailablePricingCreatesNoRecords() throws Exception {
+        long before = parcels.count();
+        long historyBefore = history.count();
+        when(pricing.quote(any(), anyString())).thenThrow(new org.springframework.web.server.ResponseStatusException(
+            org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE, "Pricing service unavailable"));
+        customerPost(BODY).andExpect(status().isServiceUnavailable());
+        assertThat(parcels.count()).isEqualTo(before);
+        assertThat(history.count()).isEqualTo(historyBefore);
+    }
+
+    @Test
+    void missingPriceCreatesNoRecords() throws Exception {
+        long before = parcels.count();
+        long historyBefore = history.count();
+        when(pricing.quote(any(), anyString())).thenReturn(null);
+        customerPost(BODY).andExpect(status().isBadGateway());
+        assertThat(parcels.count()).isEqualTo(before);
+        assertThat(history.count()).isEqualTo(historyBefore);
+    }
+
+    @Test
+    void duplicateTrackingNumberFailsWithoutAdditionalRecords() throws Exception {
+        String number = "SD" + UUID.randomUUID().toString().replace("-", "");
+        when(pricing.quote(any(), anyString())).thenReturn(new BigDecimal("450.00"));
+        when(tracking.generate()).thenReturn(number);
+        customerPost(BODY).andExpect(status().isCreated());
+        long before = parcels.count();
+        long historyBefore = history.count();
+        customerPost(BODY).andExpect(status().isConflict())
+            .andExpect(jsonPath("error").value("Parcel could not be created due to a data conflict"));
+        assertThat(parcels.count()).isEqualTo(before);
+        assertThat(history.count()).isEqualTo(historyBefore);
+        assertThat(parcels.findByTrackingNumber(number)).isPresent();
+    }
+
+    @Test
+    void historyFailureThroughApiRollsBackEverything() throws Exception {
+        long before = parcels.count();
+        long historyBefore = history.count();
+        when(pricing.quote(any(), anyString())).thenReturn(new BigDecimal("450.00"));
+        when(tracking.generate()).thenReturn("SD" + UUID.randomUUID().toString().replace("-", ""));
+        doThrow(new org.springframework.dao.DataIntegrityViolationException("History insert failed"))
+            .when(history).save(any());
+        customerPost(BODY).andExpect(status().isConflict());
+        assertThat(parcels.count()).isEqualTo(before);
+        assertThat(history.count()).isEqualTo(historyBefore);
+    }
+
+    @Test
+    void frontendCannotOverridePrice() throws Exception {
+        when(pricing.quote(any(), anyString())).thenReturn(new BigDecimal("450.00"));
+        String number = "SD" + UUID.randomUUID().toString().replace("-", "");
+        when(tracking.generate()).thenReturn(number);
+        customerPost(BODY.replace("\"weight\":2.500", "\"charge\":0.01,\"weight\":2.500"))
+            .andExpect(status().isCreated()).andExpect(jsonPath("charge").value(450.00));
+        assertThat(parcels.findByTrackingNumber(number).orElseThrow().getCharge())
+            .isEqualByComparingTo("450.00");
+    }
+
+    private org.springframework.test.web.servlet.ResultActions customerPost(String body) throws Exception {
+        return mvc.perform(post("/api/parcels").header("Authorization", customerToken(42L))
+            .contentType(MediaType.APPLICATION_JSON).content(body));
+    }
+    private int outboxCount() {
+        return jdbc.queryForObject("SELECT count(*) FROM parcel_event_outbox", Integer.class);
+    }
+    private String customerToken(Long customer) {
+        var key = io.jsonwebtoken.security.Keys.hmacShaKeyFor(java.util.Base64.getDecoder()
+            .decode("AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="));
+        var now = java.time.Instant.now();
+        return "Bearer " + io.jsonwebtoken.Jwts.builder().subject(customer.toString())
+            .claim("role", "CUSTOMER").issuedAt(java.util.Date.from(now))
+            .expiration(java.util.Date.from(now.plusSeconds(300))).signWith(key).compact();
     }
 }

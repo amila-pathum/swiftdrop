@@ -209,6 +209,7 @@ class GatewayIntegrationTest {
         "/api/admin/users",
         "/api/admin/users/42/status",
         "/api/admin/users/42/password-reset",
+        "/api/parcels",
         "/api/parcels/SD-1001/tracking",
         "/api/merchants/42/webhooks",
         "/api/couriers/7/availability",
@@ -221,6 +222,16 @@ class GatewayIntegrationTest {
             .expectStatus().isOk();
         assertThat(path.get()).isEqualTo(requestPath);
         assertThat(method.get()).isEqualTo("POST");
+    }
+
+    @Test
+    @Order(12)
+    void publicTrackingIsForwardedWithoutAuthorization() {
+        client.get().uri("/api/parcels/track/SD-123456").exchange()
+            .expectStatus().isOk().expectBody().jsonPath("$.proxied").isEqualTo(true);
+        assertThat(path.get()).isEqualTo("/api/parcels/track/SD-123456");
+        assertThat(method.get()).isEqualTo("GET");
+        assertThat(authorization.get()).isNull();
     }
 
     @Test

@@ -75,9 +75,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             AuthenticatedUser principal = new AuthenticatedUser(
                 user.getId(), user.getEmail(), user.getRole());
-            List<SimpleGrantedAuthority> authorities = user.getStatus() == UserStatus.ACTIVE
-                ? List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()))
-                : List.of();
+            List<SimpleGrantedAuthority> authorities = switch (user.getStatus()) {
+                case ACTIVE -> List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
+                case PENDING_APPROVAL -> List.of(
+                    new SimpleGrantedAuthority("APPLICANT_" + user.getRole().name()));
+                default -> List.of();
+            };
             var authentication = new UsernamePasswordAuthenticationToken(
                 principal, null, authorities);
             SecurityContextHolder.getContext().setAuthentication(authentication);

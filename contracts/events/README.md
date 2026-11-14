@@ -1,6 +1,6 @@
 # Event contracts
 
-Messages that services publish to RabbitMQ. None exist yet. Describe each event before it is first published, as a JSON Schema file named `<domain>.<event>.v<version>.schema.json`, for example `parcel.status-changed.v1.schema.json`.
+Messages that services publish to RabbitMQ. Describe each event before it is first published, as a JSON Schema file named `<domain>.<event>.v<version>.schema.json`, for example `parcel.status-changed.v1.schema.json`.
 
 Conventions:
 
@@ -30,7 +30,7 @@ The exchange routes a copy of each event to all three durable queues using the r
 |---|---|---|
 | Notifications | `notification.parcel-status-changed` | Member 10 |
 | Webhooks | `webhook.parcel-status-changed` | Member 9 |
-| Reports | `reports.parcel-status-changed` | Member 7 |
+| Dispatch | `dispatch.parcel-status-changed` | Member 7 |
 
 Each consumer processes messages independently from its own queue.
 
@@ -71,3 +71,41 @@ The dead-letter exchange routes failed messages to:
 Consumers in other services must configure their own
 retry policies.
 
+# Parcel Assigned Event
+
+The Dispatch Service publishes `parcel.assigned` to the existing durable
+`swiftdrop.events` topic exchange after its assignment transaction commits.
+Its payload is defined in [parcel.assigned.v1.schema.json](./parcel.assigned.v1.schema.json).
+The current Dispatch implementation updates its own demo projection; Parcel
+Core has no assignment API yet, so this event does not imply that Parcel Core's
+canonical `assigned_courier_id` has changed.
+
+## Creation-aware ParcelStatusChanged v2
+
+[parcel.status-changed.v2.schema.json](./parcel.status-changed.v2.schema.json)
+adds the creation convention without changing the existing v1 schema:
+
+- `oldStatus` remains a required field.
+- When `newStatus` is `CREATED`, `oldStatus` must be JSON null.
+- Otherwise, `oldStatus` must be a nonblank string.
+- Existing field names, identifier types and `occurredAt` are retained.
+- This schema does not replace the Parcel Service transition validator.
+
+The Parcel Service publishes creation and later transition events on the existing
+`parcel.status-changed` routing key. Notification/webhook and Dispatch validators
+accept a null `oldStatus` only when `newStatus` is `CREATED`; other transitions
+still require a nonblank previous status. Dispatch migration V3 also makes its
+report projection's `old_status` nullable so creation events can be persisted.
+
+Parcel persistence, initial status history and the outbox insert share one
+database transaction. A scheduled publisher sends pending outbox rows and marks
+them delivered, retrying failed sends later. Consumer event-ID checks continue
+to provide duplicate protection when a message is delivered more than once.
+
+Contract checks (from repository root):
+
+```powershell
+python -m pip install --target backend/parcel-service/target/schema-validation jsonschema==4.23.0
+$env:PYTHONPATH = "backend/parcel-service/target/schema-validation"
+python -m unittest discover -s backend/parcel-service/verification -p test_creation_event_contract.py
+```

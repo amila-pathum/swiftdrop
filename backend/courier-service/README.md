@@ -21,7 +21,7 @@ This is checkpoint tracking, not continuous live GPS. Address snapshots describe
 | `GET /api/couriers/me` | COURIER | Own profile; userId comes from JWT subject |
 | `PUT /api/couriers/me` | COURIER | Replace editable profile/contact/vehicle fields |
 | `PATCH /api/couriers/me/availability` | COURIER | Set AVAILABLE, BUSY or OFFLINE |
-| `GET /api/couriers` | ADMIN, DISPATCHER | Filter by availability, area, active; paginate with page and size |
+| `GET /api/couriers/profiles` | ADMIN, DISPATCHER | Filter by availability, area, active; paginate with page and size |
 | `PATCH /api/couriers/{id}/active` | ADMIN | Change operational activation; deactivation forces OFFLINE |
 
 Provisioning request:
@@ -86,7 +86,7 @@ Member 3 must implement idempotency and atomically validate assignment identity/
 
 ## Required external contracts (handoffs, not existing functionality)
 
-The adapters forward the caller's JWT and use 3-second connection / 8-second read timeouts. APIs below must be agreed with their service owners. Dispatch/Parcel read and status endpoints are not implemented in the currently reviewed checkout; delivery integration will return an explicit error until those are supplied. Mocks are used only in tests.
+The adapters forward the caller's JWT and use 3-second connection / 8-second read timeouts. APIs below must be agreed with their service owners. Develop now includes Dispatch/Parcel APIs, but their paths, allowed roles and legacy UUID courier identifiers differ from these planned numeric-profile adapter contracts. Reconcile those contracts with their owners before enabling end-to-end courier delivery operations. Mocks are used only in tests.
 
 1. Identity: existing `GET /api/admin/users/{userId}` returns `{id, role, status, ...}` to ADMIN. Add the admin-create-courier provisioning handoff described above.
 2. Dispatch: proposed `GET /api/dispatch/couriers/{courierId}/assignments` returns a JSON array of `{id: UUID, parcelId: UUID, courierId: Long, attemptNo: positive integer, active: boolean, version: nonnegative integer, deliveryDate: YYYY-MM-DD, assignedAt: instant}`. It must authorize COURIER ownership and retain historical assignments. Reattempts have an increased attemptNo. The initial list fan-out is bounded at 200 assignments; agree pagination/bulk reads before larger workloads.
@@ -104,3 +104,7 @@ DB_PROFILE=rds bash infrastructure/scripts/run-service.sh courier-service
 ```
 
 The original Flyway V1 is retained unchanged (checksum 1639178571); V2 adds the new courier profile, checkpoint and proof tables. The legacy couriers table and its three seeded demo records are preserved. Legacy UUID courier records are not automatically treated as authenticated numeric-user profiles; provision those through the profile API with verified identity accounts. Do not use Hibernate `update` against RDS. Unit and MVC authorization tests run without RDS; Testcontainers integration tests use throwaway PostgreSQL 18 and are skipped if Docker is unavailable.
+
+## Dispatch compatibility after develop integration
+
+Unfiltered GET /api/couriers and GET /api/couriers/{courierId} retain develop's UUID-based legacy projection for the existing dispatch client. GET /api/couriers/profiles is the explicit paginated numeric-user profile list. Root requests with availability, area, active, page or size parameters remain aliases for the profile list. Do not treat legacy UUID courier IDs as numeric authenticated user IDs.

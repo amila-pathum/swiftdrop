@@ -30,6 +30,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.swiftdrop.notification.service.NotificationService;
+import com.swiftdrop.notification.service.NotificationStreamService;
 import com.swiftdrop.notification.webhook.retry.WebhookDeliveryStore;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -40,7 +42,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 @SpringBootTest(properties = {
     "swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
     "management.health.rabbit.enabled=false",
-    "spring.autoconfigure.exclude=org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration,org.springframework.boot.data.jpa.autoconfigure.JpaRepositoriesAutoConfiguration"
+    "spring.rabbitmq.listener.simple.auto-startup=false",
+    "swiftdrop.notifications.consumer-enabled=false",
+    "spring.autoconfigure.exclude=org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration,org.springframework.boot.data.jpa.autoconfigure.JpaRepositoriesAutoConfiguration,org.springframework.boot.amqp.autoconfigure.RabbitAutoConfiguration"
 })
 
 @AutoConfigureMockMvc
@@ -51,6 +55,10 @@ class SecurityConfigTest {
 
     @MockitoBean
     WebhookDeliveryStore webhookDeliveryStore;
+    @MockitoBean
+    NotificationService notificationService;
+    @MockitoBean
+    NotificationStreamService notificationStreamService;
     @Autowired MockMvc mockMvc;
 
     /** Test-only endpoint showing the convention for a protected, role-restricted endpoint. */
@@ -186,5 +194,21 @@ class SecurityConfigTest {
             .hasMessage("JWT_SECRET must be valid Base64");
         assertThatThrownBy(() -> SecurityConfig.decoderFor(Base64.getEncoder().encodeToString(bytes(16))))
             .hasMessage("JWT_SECRET must contain at least 256 bits");
+    }
+
+    @Test
+    void publicParcelStreamDoesNotRequireAuthentication() throws Exception {
+        org.mockito.Mockito.when(notificationStreamService.subscribeParcel("SWD-12345"))
+            .thenReturn(new org.springframework.web.servlet.mvc.method.annotation.SseEmitter(1000L));
+
+        mockMvc.perform(get("/api/notifications/parcels/SWD-12345/stream"))
+            .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.request().asyncStarted());
+    }
+
+    @Test
+    void userNotificationsEndpointRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/notifications"))
+            .andExpect(status().isUnauthorized())
+            .andExpect(jsonPath("$.error").value("Authentication is required"));
     }
 }

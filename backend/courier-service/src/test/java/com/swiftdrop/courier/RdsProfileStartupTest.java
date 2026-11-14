@@ -88,6 +88,7 @@ class RdsProfileStartupTest {
         assertThat(jdbc.queryForList(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name",
             String.class)).containsExactly("courier_profiles", "couriers", "delivery_checkpoints", "delivery_proofs", "flyway_schema_history");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM couriers", Integer.class)).isEqualTo(3);
     }
 
     @Test
