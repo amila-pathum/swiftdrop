@@ -89,6 +89,39 @@ export const ENDPOINTS = Object.freeze({
     // ADMIN only. Body: { name, email, password, role: "DISPATCHER" }
     // -> 201 { id, name, email, role, status, createdAt }.
   },
+  listAdminUsers: {
+    method: 'GET',
+    path: '/api/admin/users',
+    available: true,
+    auth: true,
+    // ADMIN only. Query: search, q, role, status, page (0-based), size, sort
+    // -> Page<UserResponse> { content:[{id,name,email,phone,address,role,status,createdAt}],
+    //    totalPages, totalElements, number, size }
+  },
+  getAdminUser: {
+    method: 'GET',
+    path: '/api/admin/users/:id',
+    available: true,
+    auth: true,
+    // ADMIN only. -> UserResponse
+  },
+  changeUserRole: {
+    method: 'PATCH',
+    path: '/api/admin/users/:id/role',
+    available: true,
+    auth: true,
+    // ADMIN only. Body: { role: "CUSTOMER"|"MERCHANT"|"COURIER"|"DISPATCHER"|"ADMIN" }
+    // -> Updated UserResponse. Admin cannot change their own role (403).
+  },
+  changeUserStatus: {
+    method: 'PATCH',
+    path: '/api/admin/users/:id/status',
+    available: true,
+    auth: true,
+    // ADMIN only. Body: { status: "ACTIVE"|"SUSPENDED"|"DISABLED" }
+    // -> Updated UserResponse. Invalidates all existing tokens for the user.
+    // Admin cannot change their own status (403).
+  },
 
   // ---------------------------------------------------------------- Merchant
   merchantApplication: {
