@@ -52,11 +52,30 @@ class ParcelStatusUpdateApiTest {
     }
 
     private String token(String role) {
+        return token(role, 77L);
+    }
+
+    private String token(String role, Long subject) {
         Instant now = Instant.now();
-        return Jwts.builder().subject("77").claim("role", role)
+        return Jwts.builder().subject(subject.toString()).claim("role", role)
             .issuedAt(Date.from(now)).expiration(Date.from(now.plusSeconds(300)))
             .signWith(Keys.hmacShaKeyFor(Base64.getDecoder().decode(
                 "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="))).compact();
+    }
+
+    private HttpResponse<String> post(UUID id, String role, Long subject,
+                                      UUID key, String status, String note) throws Exception {
+        String body = new tools.jackson.databind.ObjectMapper().writeValueAsString(Map.of(
+            "status", status, "note", note, "submissionId", key.toString()));
+        var request = HttpRequest.newBuilder(URI.create(
+                "http://localhost:" + port + "/api/parcels/" + id + "/status"))
+            .timeout(Duration.ofSeconds(15))
+            .header("Content-Type", "application/json")
+            .header("Authorization", "Bearer " + token(role, subject))
+            .header("Idempotency-Key", key.toString())
+            .POST(HttpRequest.BodyPublishers.ofString(body))
+            .build();
+        return client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
     private HttpResponse<String> patch(UUID id, String role, String status) throws Exception {
@@ -147,5 +166,29 @@ class ParcelStatusUpdateApiTest {
         assertThat(entries).hasSize(2);
         assertThat(entries.getLast().getPreviousStatus()).isEqualTo(ParcelStatus.CREATED);
         assertThat(entries.getLast().getNewStatus()).isEqualTo(ParcelStatus.PICKED_UP);
+    }
+
+    @Test void courierRetryWithSameIdempotencyKeyReturnsOriginalResultOnce() throws Exception {
+        UUID id = fixture();
+        UUID key = UUID.randomUUID();
+
+        var first = post(id, "COURIER", 88L, key, "PICKED_UP", "collected");
+        var retry = post(id, "COURIER", 88L, key, "PICKED_UP", "collected");
+
+        assertThat(first.statusCode()).isEqualTo(200);
+        assertThat(retry.statusCode()).isEqualTo(200);
+        assertThat(retry.body()).isEqualTo(first.body());
+        assertThat(histories.findByParcelIdOrderByChangedAtAsc(id)).hasSize(2);
+    }
+
+    @Test void reusingIdempotencyKeyForChangedRequestIsRejected() throws Exception {
+        UUID id = fixture();
+        UUID key = UUID.randomUUID();
+        assertThat(post(id, "COURIER", 88L, key, "PICKED_UP", "collected").statusCode())
+            .isEqualTo(200);
+
+        assertThat(post(id, "COURIER", 88L, key, "IN_TRANSIT", "changed").statusCode())
+            .isEqualTo(409);
+        assertThat(histories.findByParcelIdOrderByChangedAtAsc(id)).hasSize(2);
     }
 }

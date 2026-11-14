@@ -75,6 +75,16 @@ public class ParcelQueryService {
                 .map(ParcelDetailsResponse::from);
     }
 
+    public Page<ParcelDetailsResponse> getMerchantParcels(
+            Long merchantId,
+            Pageable pageable) {
+        if (merchantId == null || merchantId <= 0) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied");
+        }
+        return parcelRepository.findByMerchantId(merchantId, pageable)
+                .map(ParcelDetailsResponse::from);
+    }
+
     // List parcels by status - authorized staff only
     public Page<ParcelDetailsResponse> getParcelsByStatus(
             ParcelStatus status,
@@ -118,6 +128,11 @@ public class ParcelQueryService {
 
         if ("CUSTOMER".equals(role)
                 && userId.equals(parcel.getSenderId())) {
+            return parcel;
+        }
+
+        if ("MERCHANT".equals(role)
+                && userId.equals(parcel.getMerchantId())) {
             return parcel;
         }
 

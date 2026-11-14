@@ -20,8 +20,9 @@ class ParcelStatusUpdateServiceTest {
     private final ParcelStatusHistoryRepository histories = mock(ParcelStatusHistoryRepository.class);
     private final CourierAssignmentVerifier assignments = mock(CourierAssignmentVerifier.class);
     private final ParcelEventOutbox outbox = mock(ParcelEventOutbox.class);
+    private final ParcelStatusIdempotencyStore idempotency = mock(ParcelStatusIdempotencyStore.class);
     private final ParcelStatusUpdateService service = new ParcelStatusUpdateService(
-        parcels, histories, new ParcelStatusTransitionValidator(), assignments, outbox);
+        parcels, histories, new ParcelStatusTransitionValidator(), assignments, outbox, idempotency);
     private final UUID id = UUID.randomUUID();
 
     private Parcel existing(ParcelStatus status) {

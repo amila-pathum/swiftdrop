@@ -6,63 +6,6 @@ import { parcelService } from '../../services/parcelService'
 
 const PAGE_SIZE = 10
 
-const SAMPLE_PARCELS = [
-  {
-    id: '1',
-    trackingNumber: 'SD10480014',
-    deliveryAddress: 'Nugegoda',
-    receiverName: 'Dilani Fonseka',
-    createdAt: '2026-11-13T09:30:00Z',
-    charge: 300,
-    status: 'OUT_FOR_DELIVERY',
-  },
-  {
-    id: '2',
-    trackingNumber: 'SD10480012',
-    deliveryAddress: 'Kurunegala',
-    receiverName: 'Ruwan Dias',
-    createdAt: '2026-11-13T08:15:00Z',
-    charge: 550,
-    status: 'IN_TRANSIT',
-  },
-  {
-    id: '3',
-    trackingNumber: 'SD10480013',
-    deliveryAddress: 'Matara',
-    receiverName: 'Malini Wijesinghe',
-    createdAt: '2026-11-12T14:20:00Z',
-    charge: 350,
-    status: 'FAILED',
-  },
-  {
-    id: '4',
-    trackingNumber: 'SD10480011',
-    deliveryAddress: 'Galle',
-    receiverName: 'Shanika Perera',
-    createdAt: '2026-11-08T11:00:00Z',
-    charge: 450,
-    status: 'DELIVERED',
-  },
-  {
-    id: '5',
-    trackingNumber: 'SD10480024',
-    deliveryAddress: 'Hambantota',
-    receiverName: 'Lahiru Jayasuriya',
-    createdAt: '2026-11-07T16:45:00Z',
-    charge: 450,
-    status: 'DELIVERED',
-  },
-  {
-    id: '6',
-    trackingNumber: 'SD10480029',
-    deliveryAddress: 'Kandy',
-    receiverName: 'Kamal Silva',
-    createdAt: '2026-11-05T10:10:00Z',
-    charge: 350,
-    status: 'CREATED',
-  },
-]
-
 const STATUS_CONFIG = {
   OUT_FOR_DELIVERY: {
     label: 'Out for Delivery',
@@ -198,33 +141,33 @@ export default function DeliveryHistoryPage() {
   const [assistantMessage, setAssistantMessage] = useState(false)
 
   const loadParcels = useCallback(() => {
-    let ignore = false
-    setLoading(true)
-    setError(null)
-    parcelService.getMyParcels()
+    const controller = new AbortController()
+    Promise.resolve()
+      .then(() => {
+        if (controller.signal.aborted) return null
+        setLoading(true)
+        setError(null)
+        return parcelService.getMyParcels(0, 100, controller.signal)
+      })
       .then((data) => {
-        if (!ignore) {
+        if (!controller.signal.aborted && data !== null) {
           const items = Array.isArray(data)
             ? data
             : (Array.isArray(data?.content) ? data.content : [])
-          setParcels(items.length > 0 ? items : SAMPLE_PARCELS)
+          setParcels(items)
           setLoading(false)
         }
       })
       .catch((err) => {
-        if (!ignore && err?.name !== 'AbortError') {
-          // If the backend is unreachable or not yet populated, use preview samples
-          setParcels(SAMPLE_PARCELS)
+        if (!controller.signal.aborted && err?.name !== 'AbortError') {
+          setError(err)
           setLoading(false)
         }
       })
-    return () => { ignore = true }
+    return () => controller.abort()
   }, [])
 
   useEffect(() => loadParcels(), [loadParcels])
-
-  // Reset to page 1 whenever filters change
-  useEffect(() => { setPage(1) }, [search, statusFilter, dateFilter])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -340,7 +283,10 @@ export default function DeliveryHistoryPage() {
             className="delivery-search-input"
             placeholder="Search by tracking number"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value)
+              setPage(1)
+            }}
             aria-label="Search by tracking number"
           />
         </div>
@@ -349,7 +295,10 @@ export default function DeliveryHistoryPage() {
           <select
             className="delivery-filter-select"
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) => {
+              setStatusFilter(e.target.value)
+              setPage(1)
+            }}
             aria-label="Filter by status"
           >
             <option value="ALL">All statuses</option>
@@ -373,7 +322,10 @@ export default function DeliveryHistoryPage() {
           <select
             className="delivery-filter-select"
             value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
+            onChange={(e) => {
+              setDateFilter(e.target.value)
+              setPage(1)
+            }}
             aria-label="Filter by date"
           >
             {DATE_FILTER_OPTIONS.map(({ value, label }) => (
@@ -508,7 +460,7 @@ export default function DeliveryHistoryPage() {
                               </button>
                             )}
                             <Link
-                              to={parcel.trackingNumber ? `/track/${parcel.trackingNumber}` : '#'}
+                              to={`/customer/deliveries/${parcel.id}`}
                               className="delivery-btn-view-details"
                             >
                               View Details
