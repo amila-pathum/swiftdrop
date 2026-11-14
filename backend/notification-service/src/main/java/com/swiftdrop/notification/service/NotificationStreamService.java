@@ -22,6 +22,7 @@ public class NotificationStreamService {
 
     private final Map<String, List<SseEmitter>> userEmitters = new ConcurrentHashMap<>();
     private final Map<String, List<SseEmitter>> parcelEmitters = new ConcurrentHashMap<>();
+    private final Map<String, List<ParcelLiveStatusResponse>> parcelStatusHistory = new ConcurrentHashMap<>();
 
     /**
      * Subscribes an authenticated user to their real-time notification stream.
@@ -96,6 +97,19 @@ public class NotificationStreamService {
             emitter.send(SseEmitter.event()
                     .name("connected")
                     .data("Connected to parcel tracking stream"));
+
+            // Replay previous live status events so newly joined or returning clients see previous updates immediately
+            List<ParcelLiveStatusResponse> history = parcelStatusHistory.get(trackingNumber);
+            if (history != null && !history.isEmpty()) {
+                for (ParcelLiveStatusResponse item : history) {
+                    emitter.send(SseEmitter.event()
+                            .name("status-changed")
+                            .data(item));
+                    emitter.send(SseEmitter.event()
+                            .name("status")
+                            .data(item));
+                }
+            }
         } catch (IOException e) {
             log.warn("Failed to send initial SSE handshake for tracking number {}", trackingNumber, e);
             cleanup.run();
@@ -129,16 +143,19 @@ public class NotificationStreamService {
      * Broadcasts live status and timestamp only for a tracking number (safe for public tracking).
      */
     public void broadcastParcelStatus(String trackingNumber, String status, Instant occurredAt) {
-        List<SseEmitter> emitters = parcelEmitters.get(trackingNumber);
-        if (emitters == null || emitters.isEmpty()) {
-            return;
-        }
-
         ParcelLiveStatusResponse payload = ParcelLiveStatusResponse.builder()
                 .trackingNumber(trackingNumber)
                 .status(status)
                 .occurredAt(occurredAt)
                 .build();
+
+        // Always store in history so newly connected or returning clients can see it
+        parcelStatusHistory.computeIfAbsent(trackingNumber, k -> new CopyOnWriteArrayList<>()).add(payload);
+
+        List<SseEmitter> emitters = parcelEmitters.get(trackingNumber);
+        if (emitters == null || emitters.isEmpty()) {
+            return;
+        }
 
         for (SseEmitter emitter : emitters) {
             try {
