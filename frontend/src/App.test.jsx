@@ -80,6 +80,7 @@ describe('App routing', () => {
 
   afterEach(() => {
     vi.resetAllMocks()
+    vi.unstubAllGlobals()
   })
 
   describe('anonymous users', () => {
@@ -249,16 +250,22 @@ describe('App routing', () => {
       expect(screen.queryByText('Customer dashboard')).not.toBeInTheDocument()
     })
 
-    it.each([
-      ['COURIER', 'Courier dashboard'],
-      ['ADMIN', 'Admin dashboard'],
-    ])('shows a not-available page for %s', (role, title) => {
-      authenticatedAs(role)
+    it('shows a not-available page for COURIER', () => {
+      authenticatedAs('COURIER')
       renderAt('/dashboard')
 
-      expect(heading(title)).toBeInTheDocument()
+      expect(heading('Courier dashboard')).toBeInTheDocument()
       expect(screen.getByText(/future development phase/)).toBeInTheDocument()
       expect(screen.queryByText('Customer dashboard')).not.toBeInTheDocument()
+    })
+
+    it('shows dispatcher account management to ADMIN', () => {
+      authenticatedAs('ADMIN')
+      renderAt('/dashboard')
+
+      expect(heading('Admin dashboard')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: 'Create dispatcher account' })).toBeInTheDocument()
+      expect(screen.getByLabelText('Role')).toHaveValue('DISPATCHER')
     })
 
     it('shows dispatch management to dispatcher users', async () => {
@@ -351,12 +358,18 @@ describe('App routing', () => {
   })
 
   describe('parcel tracking', () => {
-    it('explains that tracking is not available yet instead of faking a result', async () => {
+    it('shows public tracking history without sending credentials', async () => {
       mockAuth()
+      const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+        trackingNumber: 'SD-2026-000123', status: 'PICKED_UP',
+        trackingHistory: [{ status: 'CREATED', timestamp: '2026-01-01T00:00:00Z',
+          description: null, location: null }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      vi.stubGlobal('fetch', fetchMock)
       renderAt('/track/SD-2026-000123')
-
-      expect(await screen.findByText('Tracking coming soon')).toBeInTheDocument()
-      expect(screen.getByText(/Online parcel tracking is not available yet/)).toBeInTheDocument()
+      expect(await screen.findByText('Picked up')).toBeInTheDocument()
+      expect(screen.getByText('Created')).toBeInTheDocument()
+      expect(fetchMock.mock.calls[0][1].headers.Authorization).toBeUndefined()
     })
 
     it('rejects a malformed tracking number in the URL', () => {

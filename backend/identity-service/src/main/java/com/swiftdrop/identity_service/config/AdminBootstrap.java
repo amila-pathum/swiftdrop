@@ -23,9 +23,10 @@ import java.util.Locale;
  *
  * <p>Runs only when both ADMIN_BOOTSTRAP_EMAIL and ADMIN_BOOTSTRAP_PASSWORD are
  * set; startup fails if only one is, or if the password is too short. It never
- * changes an existing account: if the email is already registered, nothing
- * happens (the password is not reset and the role is not changed). Remove the
- * two variables once the administrator exists.
+ * changes an existing account. An existing ADMIN is left untouched; an
+ * existing non-admin causes startup to fail because silently continuing would
+ * leave the installation without the administrator the operator configured.
+ * Remove the two variables once the administrator exists.
  */
 @Component
 public class AdminBootstrap implements ApplicationRunner {
@@ -75,9 +76,15 @@ public class AdminBootstrap implements ApplicationRunner {
         var existing = userRepository.findByEmail(email);
         if (existing.isPresent()) {
             if (existing.get().getRole() != Role.ADMIN) {
-                log.warn("Admin bootstrap skipped: the bootstrap email belongs to an existing "
-                    + "non-admin account, which is never promoted automatically");
+                throw new IllegalStateException(
+                    "ADMIN_BOOTSTRAP_EMAIL belongs to an existing non-admin account; "
+                    + "choose a different email or resolve the account explicitly");
             }
+            log.info("Admin bootstrap skipped: the administrator account already exists");
+            return;
+        }
+        if (userRepository.existsByRole(Role.ADMIN)) {
+            log.info("Admin bootstrap skipped: an administrator account already exists");
             return;
         }
         userRepository.save(new User(name.trim(), email, passwordEncoder.encode(password),

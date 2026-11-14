@@ -35,7 +35,7 @@ import java.util.Objects;
 
 /**
  * Every endpoint requires a valid JWT issued by the Identity Service, except
- * {@code GET /actuator/health}. This service verifies the token itself with the
+ * {@code GET /actuator/health} and public parcel tracking. This service verifies the token itself with the
  * shared JWT_SECRET; it does not rely on the API Gateway having checked it.
  *
  * <p>The token's {@code role} claim becomes the authority {@code ROLE_<role>} when
@@ -71,6 +71,8 @@ public class SecurityConfig {
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/parcels/track/{trackingNumber}").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/parcels").hasAnyRole("DISPATCHER", "ADMIN")
                 .anyRequest().authenticated())
             .oauth2ResourceServer(oauth -> oauth
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))

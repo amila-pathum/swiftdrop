@@ -53,16 +53,40 @@ class AdminBootstrapTest {
     }
 
     @Test
-    void neverChangesAnExistingAccount() {
+    void failsWithoutChangingAnExistingNonAdminAccount() {
         User customer = new User("Someone", "admin@example.com", "existing-hash",
             Role.CUSTOMER, UserStatus.ACTIVE);
         when(repository.findByEmail("admin@example.com")).thenReturn(Optional.of(customer));
 
-        bootstrap("admin@example.com", "a-long-password").run(null);
+        assertThatThrownBy(() -> bootstrap("admin@example.com", "a-long-password").run(null))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("existing non-admin account");
 
         verify(repository, never()).save(any());
         assertThat(customer.getRole()).isEqualTo(Role.CUSTOMER);
         assertThat(customer.getPasswordHash()).isEqualTo("existing-hash");
+    }
+
+    @Test
+    void neverChangesAnExistingAdministrator() {
+        User admin = new User("Existing Admin", "admin@example.com", "existing-hash",
+            Role.ADMIN, UserStatus.ACTIVE);
+        when(repository.findByEmail("admin@example.com")).thenReturn(Optional.of(admin));
+
+        bootstrap("admin@example.com", "a-different-password").run(null);
+
+        verify(repository, never()).save(any());
+        assertThat(admin.getPasswordHash()).isEqualTo("existing-hash");
+    }
+
+    @Test
+    void doesNotCreateAnotherAdministratorUnderADifferentEmail() {
+        when(repository.findByEmail("new-admin@example.com")).thenReturn(Optional.empty());
+        when(repository.existsByRole(Role.ADMIN)).thenReturn(true);
+
+        bootstrap("new-admin@example.com", "a-long-password").run(null);
+
+        verify(repository, never()).save(any());
     }
 
     @Test

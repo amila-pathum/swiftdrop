@@ -286,6 +286,10 @@ class AccountLifecycleApiTest {
         long customerId = registerCustomer(customerEmail);
         String dispatcherEmail = uniqueEmail("dispatcher");
         createStaff(adminToken(), dispatcherEmail, "DISPATCHER").andExpect(status().isCreated());
+        String merchantEmail = uniqueEmail("merchant");
+        register("/api/auth/register/merchant", body(merchantEmail)).andExpect(status().isCreated());
+        String courierEmail = uniqueEmail("courier");
+        register("/api/auth/register/courier", body(courierEmail)).andExpect(status().isCreated());
 
         // Anonymous: 401.
         createStaff(null, uniqueEmail("x"), "ADMIN").andExpect(status().isUnauthorized());
@@ -293,7 +297,8 @@ class AccountLifecycleApiTest {
 
         // Signed in without the ADMIN role: 403, and nothing is created or changed.
         for (String token : new String[] {
-            token(customerEmail, PASSWORD), token(dispatcherEmail, "staff-password-123")}) {
+            token(customerEmail, PASSWORD), token(dispatcherEmail, "staff-password-123"),
+            token(merchantEmail, PASSWORD), token(courierEmail, PASSWORD)}) {
             createStaff(token, uniqueEmail("x"), "ADMIN").andExpect(status().isForbidden());
             mockMvc.perform(get("/api/admin/users/" + customerId)
                     .header("Authorization", "Bearer " + token))

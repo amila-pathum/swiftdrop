@@ -81,6 +81,14 @@ export const ENDPOINTS = Object.freeze({
     // Body: { token, newPassword } -> { message }. 400 for an unknown, used or
     // expired token. The token comes from a reset link: /reset-password#token=...
   },
+  createStaffUser: {
+    method: 'POST',
+    path: '/api/admin/users',
+    available: true,
+    auth: true,
+    // ADMIN only. Body: { name, email, password, role: "DISPATCHER" }
+    // -> 201 { id, name, email, role, status, createdAt }.
+  },
 
   // ---------------------------------------------------------------- Merchant
   merchantApplication: {
@@ -133,9 +141,9 @@ export const ENDPOINTS = Object.freeze({
   trackParcel: {
     method: 'GET',
     path: '/api/parcels/track/:trackingNumber',
-    available: false,
-    // PLANNED (Parcel Service, public). -> { trackingNumber, status,
-    //   lastUpdatedAt, history: [{ status, occurredAt, note }] }; 404 if unknown.
+    available: true,
+    // Public. -> { trackingNumber, status, createdAt, estimatedDeliveryDate, origin,
+    //   destination, trackingHistory: [{ status, description, location, timestamp }] }; 404 if unknown.
   },
 })
 
