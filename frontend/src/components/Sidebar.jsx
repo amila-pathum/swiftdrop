@@ -107,7 +107,6 @@ export default function Sidebar({ open = false, onNavigate }) {
         </div>
         <div className="sidebar-section-title">WORKSPACE</div>
         <MerchantNav onNavigate={onNavigate} />
-        <SidebarFooter />
       </nav>
     )
   }
