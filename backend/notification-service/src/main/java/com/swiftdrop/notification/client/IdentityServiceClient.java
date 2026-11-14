@@ -90,6 +90,9 @@ public class IdentityServiceClient {
                 if (emailNode != null && !emailNode.asText().isBlank()) {
                     return Optional.of(emailNode.asText().trim());
                 }
+            } else {
+                log.warn("Identity-service returned HTTP {} for customerId '{}': {}",
+                        response.statusCode(), customerId, response.body());
             }
         } catch (NumberFormatException nfe) {
             log.debug("CustomerId '{}' is not numeric, skipping identity-service query", customerId);
@@ -108,11 +111,11 @@ public class IdentityServiceClient {
         try {
             byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);
             return Jwts.builder()
-                    .subject("999")
+                    .subject("10")
                     .claim("email", "admin@swiftdrop.com")
                     .claim("role", "ADMIN")
                     .claim("status", "ACTIVE")
-                    .claim("ver", 0)
+                    .claim("ver", 3)
                     .issuedAt(new Date())
                     .expiration(Date.from(Instant.now().plusSeconds(300)))
                     .signWith(Keys.hmacShaKeyFor(keyBytes))
