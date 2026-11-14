@@ -170,3 +170,13 @@ PARCEL_PATH=/api/parcels/dispatch/{parcelId}
 Customer cancellation is retained at `PATCH /api/parcels/{id}/cancel`, using the
 numeric Identity subject. Existing paginated customer reads and Phase 3 status
 updates retain their original contracts.
+
+## Merchant parcel listing
+
+`GET /api/parcels/merchant?page=0&size=10` requires an authenticated MERCHANT
+JWT and returns only parcels whose `merchant_id` equals the numeric token subject,
+newest first. Merchants may read the details and history of those parcels but
+receive 404 for parcels owned by another merchant. CUSTOMER, COURIER and anonymous
+callers cannot use the listing endpoint. The frontend route `/merchant/orders`
+uses this API directly and does not substitute sample orders when the result is
+empty or unavailable.

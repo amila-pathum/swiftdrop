@@ -21,6 +21,12 @@ export const parcelService = {
       auth: true,
     }),
 
+  getMerchantParcels: (page = 0, size = 10, signal) =>
+    request(`/api/parcels/merchant?page=${encodeURIComponent(page)}&size=${encodeURIComponent(size)}`, {
+      auth: true,
+      signal,
+    }),
+
   getParcelHistory: (id) =>
     request(`/api/parcels/${encodeURIComponent(id)}/history`, {
       auth: true,

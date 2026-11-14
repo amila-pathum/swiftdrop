@@ -72,6 +72,16 @@ public class ParcelController {
         return service.createMerchantParcel(request, parseUserId(jwt), jwt.getTokenValue());
     }
 
+    @GetMapping("/merchant")
+    @PreAuthorize("hasRole('MERCHANT')")
+    public Page<ParcelDetailsResponse> getMerchantParcels(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        return queryService.getMerchantParcels(parseUserId(jwt),
+            createPageRequest(page, size, Sort.by("createdAt").descending()));
+    }
+
     @PatchMapping("/{id}/courier")
     @PreAuthorize("hasAnyRole('DISPATCHER', 'ADMIN')")
     public ParcelResponse assignCourier(@PathVariable UUID id,
@@ -103,13 +113,13 @@ public class ParcelController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'DISPATCHER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'MERCHANT', 'DISPATCHER', 'ADMIN')")
     public ParcelDetailsResponse getParcelById(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
         return queryService.getParcelById(id, parseUserId(jwt), jwt.getClaimAsString("role"));
     }
 
     @GetMapping("/{id}/history")
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'DISPATCHER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'MERCHANT', 'DISPATCHER', 'ADMIN')")
     public List<ParcelHistoryResponse> getParcelHistory(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
         return queryService.getParcelHistory(id, parseUserId(jwt), jwt.getClaimAsString("role"));
     }

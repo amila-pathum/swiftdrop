@@ -278,7 +278,9 @@ class SecurityConfigTest {
             "/api/parcels/00000000-0000-0000-0000-000000000001/history"};
         for (String path : paths) {
             mockMvc.perform(get(path)).andExpect(status().isUnauthorized());
-            for (String role : new String[]{"MERCHANT", "COURIER"}) {
+            String[] disallowed = path.equals("/api/parcels/my") || path.contains("status=")
+                ? new String[]{"MERCHANT", "COURIER"} : new String[]{"COURIER"};
+            for (String role : disallowed) {
                 mockMvc.perform(get(path).header("Authorization", signed(identityToken(role), KEY)))
                     .andExpect(status().isForbidden());
             }
