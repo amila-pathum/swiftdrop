@@ -214,6 +214,8 @@ class GatewayIntegrationTest {
         "/api/merchants/42/webhooks",
         "/api/couriers/7/availability",
         "/api/dispatch/zones",
+        "/api/zones",
+        "/api/zones/00000000-0000-0000-0000-000000000001/disable",
         "/api/pricing/quotes"
     })
     void serviceRoutesPreservePathAndMethod(String requestPath) {
