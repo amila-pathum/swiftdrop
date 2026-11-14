@@ -44,10 +44,19 @@ public class HttpMerchantParcelClient implements MerchantParcelClient {
     @Override
     public List<MerchantParcelDto> getParcelsByMerchant(Long userId, Long merchantId) {
         try {
-            Map<String, Object> pageResponse = restClient.get()
-                    .uri("/api/parcels/my?page=0&size=50")
-                    .retrieve()
-                    .body(new ParameterizedTypeReference<>() {});
+            Map<String, Object> pageResponse = null;
+            try {
+                pageResponse = restClient.get()
+                        .uri("/api/parcels/merchant?page=0&size=50")
+                        .retrieve()
+                        .body(new ParameterizedTypeReference<>() {});
+            } catch (RestClientException ex) {
+                log.debug("GET /api/parcels/merchant failed, trying /api/parcels/my fallback: {}", ex.getMessage());
+                pageResponse = restClient.get()
+                        .uri("/api/parcels/my?page=0&size=50")
+                        .retrieve()
+                        .body(new ParameterizedTypeReference<>() {});
+            }
 
             if (pageResponse != null && pageResponse.containsKey("content")) {
                 Object content = pageResponse.get("content");
