@@ -2,9 +2,11 @@ package com.swiftdrop.identity_service.service;
 
 import com.swiftdrop.identity_service.dto.PasswordResetTokenResponse;
 import com.swiftdrop.identity_service.entity.PasswordResetToken;
+import com.swiftdrop.identity_service.entity.Role;
 import com.swiftdrop.identity_service.entity.User;
 import com.swiftdrop.identity_service.exception.AccountNotActiveException;
 import com.swiftdrop.identity_service.exception.InvalidResetTokenException;
+import com.swiftdrop.identity_service.exception.InvalidStatusChangeException;
 import com.swiftdrop.identity_service.exception.PasswordResetUnavailableException;
 import com.swiftdrop.identity_service.exception.UserNotFoundException;
 import com.swiftdrop.identity_service.repository.PasswordResetTokenRepository;
@@ -46,6 +48,7 @@ public class PasswordResetService {
     private final UserRepository users;
     private final PasswordEncoder passwordEncoder;
     private final PasswordResetDelivery delivery;
+    private final AuditLogService auditLog;
     private final String frontendOrigin;
     private final Clock clock;
     private final SecureRandom random = new SecureRandom();
@@ -53,32 +56,36 @@ public class PasswordResetService {
     @Autowired
     public PasswordResetService(PasswordResetTokenRepository tokens, UserRepository users,
             PasswordEncoder passwordEncoder, ObjectProvider<PasswordResetDelivery> delivery,
+            AuditLogService auditLog,
             @Value("${swiftdrop.frontend-origin}") String frontendOrigin) {
-        this(tokens, users, passwordEncoder, delivery.getIfAvailable(), frontendOrigin,
+        this(tokens, users, passwordEncoder, delivery.getIfAvailable(), auditLog, frontendOrigin,
             Clock.systemUTC());
     }
 
     PasswordResetService(PasswordResetTokenRepository tokens, UserRepository users,
             PasswordEncoder passwordEncoder, PasswordResetDelivery delivery,
-            String frontendOrigin, Clock clock) {
+            AuditLogService auditLog, String frontendOrigin, Clock clock) {
         this.tokens = tokens;
         this.users = users;
         this.passwordEncoder = passwordEncoder;
         this.delivery = delivery;
+        this.auditLog = auditLog;
         this.frontendOrigin = frontendOrigin.replaceAll("/+$", "");
         this.clock = clock;
     }
 
-    /**
-     * Issues a token for a user chosen by an administrator, who passes it on
-     * out of band. The raw token is returned once and never stored.
-     */
     @Transactional
-    public PasswordResetTokenResponse issueFor(long userId) {
+    public PasswordResetTokenResponse issueFor(long adminId, long userId) {
         User user = users.findById(userId).orElseThrow(UserNotFoundException::new);
         if (!user.getStatus().canSignIn()) {
             throw new AccountNotActiveException();
         }
+        if (user.getRole() == Role.ADMIN) {
+            throw new InvalidStatusChangeException(
+                "Password resets for admin accounts are not allowed");
+        }
+        auditLog.logAdminAction(adminId, "ISSUE_PASSWORD_RESET", userId,
+            "role=" + user.getRole());
         return issue(user);
     }
 

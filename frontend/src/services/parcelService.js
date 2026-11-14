@@ -32,7 +32,7 @@ export const parcelService = {
     }),
 }
 
-// Public parcel tracking through the API Gateway; no authentication required.
+// Public parcel tracking through the API Gateway.
 
 // Tracking numbers: letters, digits and dashes, 6 to 40 characters.
 export const TRACKING_NUMBER_PATTERN = /^[A-Za-z0-9-]{6,40}$/

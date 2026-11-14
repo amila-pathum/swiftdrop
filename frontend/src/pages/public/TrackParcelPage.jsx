@@ -53,7 +53,6 @@ function TrackingResult({ parcel }) {
       })
     }
   }, [liveStatus, liveUpdatedAt, parcel.status])
-
   return (
     <section className="card tracking-result" aria-labelledby="tracking-result-title">
       <header className="tracking-result-head">
@@ -88,6 +87,9 @@ function TrackingResult({ parcel }) {
           <span className="pill pill-info">{formatStatus(currentStatus)}</span>
         </div>
       </header>
+      {parcel.estimatedDeliveryDate && (
+        <p>Estimated delivery: {parcel.estimatedDeliveryDate}</p>
+      )}
       {history.length === 0 ? (
         <EmptyState title="No updates yet" description="Status updates will appear here." />
       ) : (

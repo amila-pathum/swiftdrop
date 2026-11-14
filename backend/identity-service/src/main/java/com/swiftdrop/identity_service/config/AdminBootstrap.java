@@ -77,8 +77,9 @@ public class AdminBootstrap implements ApplicationRunner {
         if (existing.isPresent()) {
             if (existing.get().getRole() != Role.ADMIN) {
                 throw new IllegalStateException(
-                    "ADMIN_BOOTSTRAP_EMAIL belongs to an existing non-admin account; "
-                    + "choose a different email or resolve the account explicitly");
+                    "Admin bootstrap failed: the bootstrap email belongs to an existing "
+                    + "non-admin account (role " + existing.get().getRole()
+                    + "). Remove ADMIN_BOOTSTRAP_EMAIL or resolve the conflict.");
             }
             log.info("Admin bootstrap skipped: the administrator account already exists");
             return;

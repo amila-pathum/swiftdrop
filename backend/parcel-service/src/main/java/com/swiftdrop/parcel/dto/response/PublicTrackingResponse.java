@@ -5,7 +5,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 
-public record PublicTrackingResponse(String trackingNumber, ParcelStatus status, Instant createdAt,
-        LocalDate estimatedDeliveryDate, String origin, String destination, List<Entry> trackingHistory) {
-    public record Entry(ParcelStatus status, String description, String location, Instant timestamp) {}
+/** Explicit public allowlist; never serialize entities or internal history notes. */
+public record PublicTrackingResponse(String trackingNumber, ParcelStatus status,
+        Instant createdAt, LocalDate estimatedDeliveryDate, String origin, String destination,
+        List<TrackingEntry> trackingHistory) {
+    public record TrackingEntry(ParcelStatus status, String description, String location,
+                                Instant timestamp) { }
 }

@@ -358,18 +358,33 @@ describe('App routing', () => {
   })
 
   describe('parcel tracking', () => {
-    it('shows public tracking history without sending credentials', async () => {
+    it('loads public tracking and renders the backend history contract', async () => {
       mockAuth()
       const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-        trackingNumber: 'SD-2026-000123', status: 'PICKED_UP',
+        trackingNumber: 'SD-2026-000123', status: 'IN_TRANSIT',
+        createdAt: '2026-01-01T00:00:00Z', estimatedDeliveryDate: null,
+        origin: null, destination: null,
         history: [{ status: 'CREATED', timestamp: '2026-01-01T00:00:00Z',
           description: null, location: null }],
       }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
       vi.stubGlobal('fetch', fetchMock)
       renderAt('/track/SD-2026-000123')
-      expect(await screen.findByText('Picked up')).toBeInTheDocument()
+
+      expect(await screen.findByText('In transit')).toBeInTheDocument()
       expect(screen.getByText('Created')).toBeInTheDocument()
-      expect(fetchMock.mock.calls[0][1].headers.Authorization).toBeUndefined()
+      const [url, init] = fetchMock.mock.calls[0]
+      expect(url).toContain('/api/parcels/track/SD-2026-000123')
+      expect(init.headers.Authorization).toBeUndefined()
+    })
+
+    it('shows the tracking not found response', async () => {
+      mockAuth()
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
+        JSON.stringify({ error: 'Parcel not found' }),
+        { status: 404, headers: { 'Content-Type': 'application/json' } },
+      )))
+      renderAt('/track/SD-UNKNOWN')
+      expect(await screen.findByRole('alert')).toHaveTextContent('We could not find a parcel')
     })
 
     it('rejects a malformed tracking number in the URL', () => {
