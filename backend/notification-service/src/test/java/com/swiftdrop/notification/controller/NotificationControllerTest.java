@@ -24,6 +24,7 @@ class NotificationControllerTest {
     private Jwt createMockJwt(String subject) {
         Jwt jwt = mock(Jwt.class);
         when(jwt.getSubject()).thenReturn(subject);
+        when(jwt.getClaimAsString("email")).thenReturn(subject + "@example.com");
         return jwt;
     }
 
@@ -40,24 +41,24 @@ class NotificationControllerTest {
                 .createdAt(Instant.now())
                 .build();
 
-        when(notificationService.getMyNotifications("user-42")).thenReturn(List.of(res));
+        when(notificationService.getMyNotifications("user-42", "user-42@example.com")).thenReturn(List.of(res));
 
         List<NotificationResponse> result = controller.listMyNotifications(jwt);
 
         assertThat(result).hasSize(1);
         assertThat(result.get(0).trackingNumber()).isEqualTo("SD-123");
-        verify(notificationService).getMyNotifications("user-42");
+        verify(notificationService).getMyNotifications("user-42", "user-42@example.com");
     }
 
     @Test
     void getUnreadCountReturnsCountForAuthenticatedUser() {
         Jwt jwt = createMockJwt("user-42");
-        when(notificationService.getUnreadCount("user-42")).thenReturn(3L);
+        when(notificationService.getUnreadCount("user-42", "user-42@example.com")).thenReturn(3L);
 
         UnreadCountResponse response = controller.getUnreadCount(jwt);
 
         assertThat(response.unreadCount()).isEqualTo(3L);
-        verify(notificationService).getUnreadCount("user-42");
+        verify(notificationService).getUnreadCount("user-42", "user-42@example.com");
     }
 
     @Test
@@ -74,24 +75,24 @@ class NotificationControllerTest {
                 .createdAt(Instant.now())
                 .build();
 
-        when(notificationService.markAsRead(id, "user-42")).thenReturn(res);
+        when(notificationService.markAsRead(id, "user-42", "user-42@example.com")).thenReturn(res);
 
         NotificationResponse response = controller.markAsRead(id, jwt);
 
         assertThat(response.isRead()).isTrue();
-        verify(notificationService).markAsRead(id, "user-42");
+        verify(notificationService).markAsRead(id, "user-42", "user-42@example.com");
     }
 
     @Test
     void streamUserNotificationsReturnsEmitter() {
         Jwt jwt = createMockJwt("user-42");
         SseEmitter emitter = new SseEmitter();
-        when(notificationStreamService.subscribeUser("user-42")).thenReturn(emitter);
+        when(notificationStreamService.subscribeUser("user-42", "user-42@example.com")).thenReturn(emitter);
 
         SseEmitter result = controller.streamUserNotifications(jwt);
 
         assertThat(result).isSameAs(emitter);
-        verify(notificationStreamService).subscribeUser("user-42");
+        verify(notificationStreamService).subscribeUser("user-42", "user-42@example.com");
     }
 
     @Test
