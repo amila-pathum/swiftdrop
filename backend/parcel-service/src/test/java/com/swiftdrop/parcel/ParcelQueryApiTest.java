@@ -90,6 +90,38 @@ class ParcelQueryApiTest {
             .andExpect(jsonPath("content[1].id").value(older.getId().toString()));
     }
 
+    @Test void merchantListingAndDetailsContainOnlyOwnedMerchantParcels() throws Exception {
+        Parcel older = parcel(51, ParcelStatus.CREATED, 1);
+        older.setMerchantId(51L);
+        parcels.saveAndFlush(older);
+        Parcel other = parcel(77, ParcelStatus.CREATED, 3);
+        other.setMerchantId(77L);
+        parcels.saveAndFlush(other);
+        Parcel newer = parcel(51, ParcelStatus.IN_TRANSIT, 2);
+        newer.setMerchantId(51L);
+        parcels.saveAndFlush(newer);
+
+        read("/api/parcels/merchant", 51, "MERCHANT")
+            .andExpect(status().isOk()).andExpect(jsonPath("totalElements").value(2))
+            .andExpect(jsonPath("content[0].id").value(newer.getId().toString()))
+            .andExpect(jsonPath("content[1].id").value(older.getId().toString()));
+        read("/api/parcels/" + newer.getId(), 51, "MERCHANT")
+            .andExpect(status().isOk()).andExpect(jsonPath("merchantId").value(51));
+        history(newer, ParcelStatus.CREATED, ParcelStatus.IN_TRANSIT, 4);
+        read("/api/parcels/" + newer.getId() + "/history", 51, "MERCHANT")
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].newStatus").value("IN_TRANSIT"));
+        read("/api/parcels/" + other.getId(), 51, "MERCHANT")
+            .andExpect(status().isNotFound());
+        read("/api/parcels/" + other.getId() + "/history", 51, "MERCHANT")
+            .andExpect(status().isNotFound());
+    }
+
+    @Test void customerCannotUseMerchantListing() throws Exception {
+        read("/api/parcels/merchant", 42, "CUSTOMER")
+            .andExpect(status().isForbidden());
+    }
+
     private void history(Parcel p, ParcelStatus previous, ParcelStatus next, int minute) {
         var entry = histories.saveAndFlush(new ParcelStatusHistory(p, previous, next, 42L, "Timeline"));
         jdbc.update("UPDATE parcel_status_history SET changed_at = ? WHERE id = ?",

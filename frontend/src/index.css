@@ -4731,6 +4731,118 @@ a.button {
   margin: 0 auto;
 }
 
+.parcel-details-tracking {
+  margin: 6px 0 0;
+  color: #64748b;
+  font-weight: 600;
+}
+
+.parcel-details-tracking-row,
+.delivery-tracking-copy-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.delivery-tracking-copy-row .delivery-tracking-number {
+  margin: 0;
+}
+
+.tracking-copy-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.tracking-copy-button:hover:not(:disabled) {
+  border-color: #2563eb;
+  color: #1d4ed8;
+  background: #eff6ff;
+}
+
+.tracking-copy-button:focus-visible {
+  outline: 3px solid rgba(37, 99, 235, 0.25);
+  outline-offset: 2px;
+}
+
+.tracking-copy-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.parcel-details-status {
+  padding: 7px 14px;
+  border: 1px solid #bfdbfe;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.parcel-details-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: 20px;
+}
+
+.parcel-details-card {
+  padding: 22px;
+}
+
+.parcel-details-card h2 {
+  margin: 0 0 20px;
+  color: #0f172a;
+  font-size: 18px;
+}
+
+.parcel-details-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px 28px;
+  margin: 0;
+}
+
+.parcel-detail-item dt {
+  margin-bottom: 5px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.parcel-detail-item dd {
+  margin: 0;
+  color: #0f172a;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.parcel-history-timeline {
+  margin-left: 6px;
+}
+
+.parcel-history-empty {
+  color: #64748b;
+}
+
+@media (max-width: 800px) {
+  .parcel-details-layout,
+  .parcel-details-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .delivery-breadcrumb {
   display: flex;
   align-items: center;
@@ -5160,6 +5272,210 @@ a.button {
 .delivery-floating-assistant:hover {
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
   transform: translateY(-1px);
+}
+
+/* ===================================================================
+   Customer Dashboard Modern UI
+   =================================================================== */
+
+.customer-dashboard-container {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.customer-dashboard-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.customer-dashboard-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.customer-dashboard-greeting-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.customer-dashboard-title {
+  font-size: 26px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.25;
+}
+
+.customer-dashboard-subtitle {
+  font-size: 14px;
+  color: #64748b;
+  margin: 0;
+}
+
+.customer-dashboard-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.customer-track-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 10px 18px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+}
+
+.customer-track-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.customer-track-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 200px;
+}
+
+.customer-track-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.customer-track-label {
+  font-size: 13.5px;
+  color: #334155;
+  line-height: 1.4;
+}
+
+.customer-track-label strong {
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.customer-track-input-wrap {
+  min-width: 260px;
+  max-width: 380px;
+  flex: 1;
+}
+
+.customer-track-input-wrap .tracking-search {
+  max-width: none;
+}
+
+.customer-track-input-wrap .tracking-search-row {
+  padding: 3px 3px 3px 12px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  box-shadow: none;
+  background: #f8fafc;
+  transition: all 0.15s ease;
+}
+
+.customer-track-input-wrap .tracking-search-row:focus-within {
+  background: #ffffff;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+.customer-track-input-wrap .tracking-search-input {
+  height: 32px;
+  font-size: 13px;
+}
+
+.customer-track-input-wrap .tracking-search-input::placeholder {
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.customer-track-input-wrap .button-sm {
+  height: 30px;
+  padding: 0 14px;
+  font-size: 12.5px;
+}
+
+.customer-dashboard-empty-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 48px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.customer-dashboard-empty-icon {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: #eff6ff;
+  color: #2563eb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+  box-shadow: inset 0 0 0 1px #dbeafe;
+}
+
+.customer-dashboard-empty-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 8px;
+}
+
+.customer-dashboard-empty-desc {
+  font-size: 14px;
+  color: #64748b;
+  max-width: 500px;
+  margin: 0 auto;
+  line-height: 1.5;
+}
+
+@media (max-width: 640px) {
+  .customer-dashboard-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .customer-dashboard-header-actions {
+    width: 100%;
+    display: flex;
+  }
+  .customer-dashboard-header-actions .button {
+    flex: 1;
+    justify-content: center;
+  }
+  .customer-track-content {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .customer-track-input-wrap {
+    width: 100%;
+    max-width: none;
+  }
 }
 
 

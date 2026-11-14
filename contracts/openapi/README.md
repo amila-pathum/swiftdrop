@@ -1,6 +1,11 @@
 # REST API contracts
 
-One OpenAPI 3.1 document per service, named after the service directory, for example `parcel-service.yaml`. None exist yet; each team adds its document with its first endpoints.
+One OpenAPI 3.1 document per service, named after the service directory, for example `parcel-service.yaml`.
+
+Available contracts:
+
+- [`parcel-service.yaml`](parcel-service.yaml)
+- [`dispatch-service.yaml`](dispatch-service.yaml)
 
 Conventions:
 
