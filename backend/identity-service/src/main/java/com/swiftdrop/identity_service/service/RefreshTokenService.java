@@ -4,6 +4,8 @@ import com.swiftdrop.identity_service.entity.RefreshToken;
 import com.swiftdrop.identity_service.entity.User;
 import com.swiftdrop.identity_service.exception.InvalidRefreshTokenException;
 import com.swiftdrop.identity_service.repository.RefreshTokenRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -26,18 +28,19 @@ import java.util.UUID;
  * <p>Only SHA-256 hashes are stored. A token is accepted only while the user's
  * token version is the one it was issued under, so everything that invalidates
  * access tokens (logout, password change or reset, role or status change) also
- * ends refresh. Presenting an already-used token after {@link #REUSE_GRACE}
- * is treated as theft and revokes every token from that sign-in.
+ * ends refresh.
+ *
+ * <p>Presenting an already-used token is treated as theft, whenever it happens:
+ * every token from that sign-in (its family) is revoked, so whichever of the
+ * thief and the real user refreshed first is cut off too. Other sign-ins of the
+ * same user are left alone. The frontend never sends one token twice (one
+ * refresh at a time per tab, serialized across tabs), so legitimate use does
+ * not trip this.
  */
 @Service
 public class RefreshTokenService {
 
-    /**
-     * Two tabs sharing a remembered session may refresh at the same moment; the
-     * loser must not sign both out. Within this window a reused token is only
-     * refused.
-     */
-    static final Duration REUSE_GRACE = Duration.ofSeconds(30);
+    private static final Logger log = LoggerFactory.getLogger(RefreshTokenService.class);
 
     private static final Base64.Encoder BASE64URL = Base64.getUrlEncoder().withoutPadding();
 
@@ -95,11 +98,16 @@ public class RefreshTokenService {
         Instant now = clock.instant();
         String tokenHash = sha256Hex(rawToken);
 
+        // The single UPDATE also serializes concurrent attempts: a second request
+        // with the same token waits for the first to commit, then sees it used.
         if (tokens.markUsed(tokenHash, now) != 1) {
             tokens.findByTokenHash(tokenHash)
-                .filter(token -> token.getUsedAt() != null
-                    && token.getUsedAt().plus(REUSE_GRACE).isBefore(now))
-                .ifPresent(token -> tokens.deleteByFamilyId(token.getFamilyId()));
+                .filter(token -> token.getUsedAt() != null)
+                .ifPresent(token -> {
+                    tokens.deleteByFamilyId(token.getFamilyId());
+                    log.warn("Refresh token reuse detected for user {}; sign-in revoked",
+                        token.getUser().getId());
+                });
             throw new InvalidRefreshTokenException();
         }
 

@@ -140,7 +140,8 @@ Login, Google sign-in and password change return a refresh token next to the acc
 Rules (Identity Service, `RefreshTokenService`):
 
 - A refresh token is opaque (256 random bits), not a JWT; only its SHA-256 hash is stored (`refresh_tokens` table). Domain services never see it.
-- **Rotation:** each refresh token works once. Presenting a used token again more than 30 seconds later is treated as theft and revokes every token from that sign-in. Within those 30 seconds it is only refused, so two browser tabs refreshing at the same moment do not sign each other out.
+- **Rotation and reuse detection:** each refresh token works once. Presenting a used token again, at any time, is treated as theft: every token from that sign-in is revoked, so whichever of the thief and the real user refreshed first is cut off too. The user's other sign-ins (other devices) are not affected. Each such event is logged as a warning.
+- **No false alarms from the frontend:** requests in one tab share a single refresh, and tabs take turns through a Web Lock (`swiftdrop.refresh`). A tab that waited while another tab renewed the shared session uses the new tokens instead of sending the old one. Two cases still end the sign-in, failing safe: a refresh whose response was lost in the network and is retried with the old token, and a duplicated tab of a session without "Remember me" (the browser copies its storage) refreshing in both tabs.
 - **Revocation:** a refresh token is bound to the user's token version. Logout, password change, password reset, and an admin changing the user's role or status all end refresh as well as access tokens. A suspended or disabled account cannot refresh.
 - Refreshing does not invalidate access tokens already issued; they expire on their own (`JWT_EXPIRATION_MS`).
 

@@ -364,6 +364,83 @@ describe('apiClient', () => {
       expect(unauthorized).not.toHaveBeenCalled()
     })
 
+    describe('across tabs', () => {
+      // A minimal Web Locks stand-in: one holder at a time, in request order.
+      function installLocks() {
+        let tail = Promise.resolve()
+        const request = vi.fn((name, callback) => {
+          const run = tail.then(() => callback())
+          tail = run.catch(() => {})
+          return run
+        })
+        vi.stubGlobal('navigator', { ...globalThis.navigator, locks: { request } })
+        return request
+      }
+
+      it('refreshes while holding the shared refresh lock', async () => {
+        const request = installLocks()
+        saveExpiredSession({ persistent: true })
+        fetchMock.mockResolvedValueOnce(jsonResponse(200, refreshed()))
+
+        await expect(refreshSession()).resolves.toMatchObject({ accessToken: 'access-2' })
+        expect(request).toHaveBeenCalledWith('swiftdrop.refresh', expect.any(Function))
+        expect(fetchMock).toHaveBeenCalledTimes(1)
+      })
+
+      it('never sends a refresh token another tab already used', async () => {
+        installLocks()
+        saveExpiredSession({ persistent: true })
+        // Another tab holds the lock and renews the shared session first.
+        let release
+        const otherTab = navigator.locks.request('swiftdrop.refresh', () => new Promise((resolve) => {
+          release = () => {
+            saveSession('access-other-tab', 900, undefined, {
+              persistent: true, refreshToken: 'refresh-other-tab', refreshExpiresInSeconds: 86_400,
+            })
+            resolve()
+          }
+        }))
+
+        const pending = refreshSession()
+        await Promise.resolve()
+        release()
+        await otherTab
+
+        await expect(pending).resolves.toMatchObject({ accessToken: 'access-other-tab' })
+        expect(fetchMock).not.toHaveBeenCalled()
+        expect(unauthorized).not.toHaveBeenCalled()
+      })
+
+      it('sends the newest token when the other tab only renewed earlier', async () => {
+        installLocks()
+        saveExpiredSession({ persistent: true })
+        fetchMock.mockResolvedValueOnce(jsonResponse(200, refreshed()))
+
+        await refreshSession()
+
+        expect(JSON.parse(fetchMock.mock.calls[0][1].body))
+          .toEqual({ refreshToken: 'refresh-1' })
+      })
+
+      it('lets tabs take turns: the second refresh uses the first one\'s new token', async () => {
+        installLocks()
+        saveExpiredSession({ persistent: true })
+        fetchMock
+          .mockResolvedValueOnce(jsonResponse(200, refreshed(2)))
+          .mockResolvedValueOnce(jsonResponse(200, refreshed(3)))
+
+        await refreshSession()
+        // The renewed access token expires; the next refresh must send refresh-2.
+        saveSession('access-2', 1, Date.now() - 5_000, {
+          persistent: true, refreshToken: 'refresh-2', refreshExpiresInSeconds: 86_400,
+        })
+        await refreshSession()
+
+        expect(fetchMock.mock.calls.map(([, init]) => JSON.parse(init.body).refreshToken))
+          .toEqual(['refresh-1', 'refresh-2'])
+      })
+    })
+
     it('rejects an incomplete refresh response without storing it', async () => {
       saveExpiredSession()
       fetchMock.mockResolvedValueOnce(jsonResponse(200, { ...refreshed(), refreshToken: '' }))

@@ -126,24 +126,55 @@ class RefreshTokenPersistenceTest {
     }
 
     @Test
-    void aTokenCanBeUsedOnlyOnce() {
+    void aSequenceOfRefreshesKeepsWorking() {
+        User user = user("a@example.com", Role.CUSTOMER, UserStatus.ACTIVE);
+        IssuedRefreshToken token = refreshTokens.issue(user, false);
+        for (int i = 0; i < 5; i++) {
+            clock.advance(Duration.ofMinutes(15));
+            token = refreshTokens.rotate(token.token()).refreshToken();
+        }
+        assertThat(refreshTokens.rotate(token.token()).user().getId()).isEqualTo(user.getId());
+    }
+
+    @Test
+    void reuseRevokesTheSignInImmediately() {
         User user = user("a@example.com", Role.CUSTOMER, UserStatus.ACTIVE);
         IssuedRefreshToken first = refreshTokens.issue(user, false);
         IssuedRefreshToken second = refreshTokens.rotate(first.token()).refreshToken();
 
+        // No grace period: even an instant reuse is treated as theft.
         assertThatThrownBy(() -> refreshTokens.rotate(first.token()))
             .isInstanceOf(InvalidRefreshTokenException.class);
-        // Within the grace period the replacement keeps working (two tabs racing).
-        assertThat(refreshTokens.rotate(second.token()).user().getId()).isEqualTo(user.getId());
+        assertThatThrownBy(() -> refreshTokens.rotate(second.token()))
+            .isInstanceOf(InvalidRefreshTokenException.class);
+        assertThat(storedTokens()).isZero();
     }
 
     @Test
-    void reuseAfterTheGracePeriodRevokesTheWholeSignInButNotOtherDevices() {
+    void anAttackerWhoRefreshesFirstIsCutOffWhenTheUserRefreshes() {
+        User user = user("a@example.com", Role.CUSTOMER, UserStatus.ACTIVE);
+        IssuedRefreshToken stolen = refreshTokens.issue(user, true);
+
+        // The attacker uses the stolen token first and keeps rotating.
+        IssuedRefreshToken attacker = refreshTokens.rotate(stolen.token()).refreshToken();
+        attacker = refreshTokens.rotate(attacker.token()).refreshToken();
+        clock.advance(Duration.ofSeconds(1));
+
+        // The real user still holds the original token; presenting it revokes
+        // the whole sign-in, including the attacker's latest token.
+        assertThatThrownBy(() -> refreshTokens.rotate(stolen.token()))
+            .isInstanceOf(InvalidRefreshTokenException.class);
+        String attackerToken = attacker.token();
+        assertThatThrownBy(() -> refreshTokens.rotate(attackerToken))
+            .isInstanceOf(InvalidRefreshTokenException.class);
+    }
+
+    @Test
+    void reuseRevokesOnlyThatSignInNotTheUsersOtherDevices() {
         User user = user("a@example.com", Role.CUSTOMER, UserStatus.ACTIVE);
         IssuedRefreshToken stolen = refreshTokens.issue(user, false);
         IssuedRefreshToken otherDevice = refreshTokens.issue(user, false);
         IssuedRefreshToken legitimate = refreshTokens.rotate(stolen.token()).refreshToken();
-        clock.advance(RefreshTokenService.REUSE_GRACE.plusSeconds(1));
 
         assertThatThrownBy(() -> refreshTokens.rotate(stolen.token()))
             .isInstanceOf(InvalidRefreshTokenException.class);
@@ -151,6 +182,20 @@ class RefreshTokenPersistenceTest {
             .isInstanceOf(InvalidRefreshTokenException.class);
         assertThat(refreshTokens.rotate(otherDevice.token()).user().getId())
             .isEqualTo(user.getId());
+    }
+
+    @Test
+    void reusingATokenOfARevokedSignInIsRefused() {
+        User user = user("a@example.com", Role.CUSTOMER, UserStatus.ACTIVE);
+        IssuedRefreshToken first = refreshTokens.issue(user, false);
+        refreshTokens.rotate(first.token());
+        assertThatThrownBy(() -> refreshTokens.rotate(first.token()))
+            .isInstanceOf(InvalidRefreshTokenException.class);
+
+        // Rows are gone; later attempts are plain unknown tokens.
+        assertThatThrownBy(() -> refreshTokens.rotate(first.token()))
+            .isInstanceOf(InvalidRefreshTokenException.class);
+        assertThat(refreshTokens.issue(user, false).token()).isNotBlank();
     }
 
     @Test
@@ -194,34 +239,42 @@ class RefreshTokenPersistenceTest {
     }
 
     @Test
-    void concurrentRefreshesWithOneTokenHaveExactlyOneWinner() throws Exception {
-        IssuedRefreshToken issued = refreshTokens.issue(
-            user("a@example.com", Role.CUSTOMER, UserStatus.ACTIVE), false);
+    void concurrentUseOfOneTokenHasOneWinnerAndThenRevokesTheSignIn() throws Exception {
+        User user = user("a@example.com", Role.CUSTOMER, UserStatus.ACTIVE);
+        IssuedRefreshToken issued = refreshTokens.issue(user, false);
+        IssuedRefreshToken otherDevice = refreshTokens.issue(user, false);
         int attempts = 8;
         CountDownLatch start = new CountDownLatch(1);
-        List<Future<Boolean>> results = new ArrayList<>();
+        List<Future<IssuedRefreshToken>> results = new ArrayList<>();
 
         try (var executor = Executors.newFixedThreadPool(attempts)) {
-            Callable<Boolean> attempt = () -> {
+            Callable<IssuedRefreshToken> attempt = () -> {
                 start.await();
                 try {
-                    refreshTokens.rotate(issued.token());
-                    return true;
+                    return refreshTokens.rotate(issued.token()).refreshToken();
                 } catch (InvalidRefreshTokenException expected) {
-                    return false;
+                    return null;
                 }
             };
             for (int i = 0; i < attempts; i++) {
                 results.add(executor.submit(attempt));
             }
             start.countDown();
-            int winners = 0;
-            for (Future<Boolean> result : results) {
-                if (result.get()) {
-                    winners++;
+            List<IssuedRefreshToken> winners = new ArrayList<>();
+            for (Future<IssuedRefreshToken> result : results) {
+                if (result.get() != null) {
+                    winners.add(result.get());
                 }
             }
-            assertThat(winners).isEqualTo(1);
+            assertThat(winners).hasSize(1);
+
+            // The other attempts were reuse: the winner's new token is revoked
+            // too, since the same token was presented more than once.
+            String winnerToken = winners.getFirst().token();
+            assertThatThrownBy(() -> refreshTokens.rotate(winnerToken))
+                .isInstanceOf(InvalidRefreshTokenException.class);
+            assertThat(refreshTokens.rotate(otherDevice.token()).user().getId())
+                .isEqualTo(user.getId());
         }
     }
 

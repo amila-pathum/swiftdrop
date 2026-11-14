@@ -84,12 +84,19 @@ const notifyUnauthorized = () => unauthorizedListeners.forEach((listener) => lis
 // Statuses with which the Identity Service refuses a refresh token for good.
 const REFRESH_REFUSED_STATUSES = new Set([400, 401, 403])
 
+// Web Lock shared by every tab of this origin.
+const REFRESH_LOCK = 'swiftdrop.refresh'
+
 let refreshInFlight = null
 
 /**
  * Exchanges the stored refresh token for new tokens and stores them in the same
- * place (sessionStorage, or localStorage for "Remember me"). Concurrent callers
- * share one request, so a refresh token is never sent twice by this tab.
+ * place (sessionStorage, or localStorage for "Remember me").
+ *
+ * The server treats a refresh token sent twice as stolen and ends the sign-in,
+ * so a token is never sent twice: concurrent callers in this tab share one
+ * request, and tabs take turns through a Web Lock. A tab that waited for the
+ * lock while another tab renewed the shared session uses that tab's result.
  *
  * If the server refuses the refresh token, the unauthorized listeners are told
  * (AuthContext ends the session) and the promise rejects with status 401.
@@ -98,14 +105,42 @@ let refreshInFlight = null
  */
 export function refreshSession() {
   if (refreshInFlight === null) {
-    refreshInFlight = performRefresh().finally(() => {
+    const presented = getRefreshToken()
+    refreshInFlight = withRefreshLock(() => performRefresh(presented)).finally(() => {
       refreshInFlight = null
     })
   }
   return refreshInFlight
 }
 
-async function performRefresh() {
+// Without Web Locks (old browsers) tabs are not serialized; performRefresh
+// still recovers when another tab won the race, as far as the server allows.
+function withRefreshLock(task) {
+  const locks = globalThis.navigator?.locks
+  if (typeof locks?.request !== 'function') {
+    return task()
+  }
+  return locks.request(REFRESH_LOCK, () => task())
+}
+
+// The session another tab stored after renewing it, if the stored refresh
+// token is no longer `presented` and the access token is valid.
+function renewedElsewhere(presented) {
+  const session = getSession()
+  if (session === null || session.refreshToken === undefined
+      || session.refreshToken === presented || Date.now() >= session.expiresAt) {
+    return null
+  }
+  return { accessToken: session.accessToken, expiresAt: session.expiresAt, user: undefined }
+}
+
+async function performRefresh(presented) {
+  if (presented !== null) {
+    const renewed = renewedElsewhere(presented)
+    if (renewed !== null) {
+      return renewed
+    }
+  }
   const refreshToken = getRefreshToken()
   if (refreshToken === null) {
     throw new ApiError(MESSAGES.noSession, { status: 401, kind: ApiErrorKind.UNAUTHENTICATED })
@@ -126,12 +161,11 @@ async function performRefresh() {
   const data = await readJson(response)
 
   if (!response.ok) {
-    // Another tab sharing this remembered session may have used the token
-    // first; its replacement is already in storage.
-    const session = getSession()
-    if (session?.refreshToken && session.refreshToken !== refreshToken
-        && getAccessToken() !== null) {
-      return { accessToken: session.accessToken, expiresAt: session.expiresAt, user: undefined }
+    // Without Web Locks, another tab sharing this remembered session may have
+    // renewed it meanwhile; its replacement is already in storage.
+    const renewed = renewedElsewhere(refreshToken)
+    if (renewed !== null) {
+      return renewed
     }
     if (REFRESH_REFUSED_STATUSES.has(response.status)) {
       if (generation === sessionGeneration()) {
