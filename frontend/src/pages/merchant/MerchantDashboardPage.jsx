@@ -5,12 +5,53 @@ import LoadingSpinner from '../../components/LoadingSpinner'
 import { useAuth } from '../../context/AuthContext'
 import { merchantService } from '../../services/merchantService'
 
+function formatDate(value) {
+  if (!value) return '—'
+  const date = new Date(value)
+  return !Number.isNaN(date.getTime())
+    ? date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+    : '—'
+}
+
+function formatDateTime(value) {
+  if (!value) return '—'
+  const date = new Date(value)
+  return !Number.isNaN(date.getTime())
+    ? date.toLocaleString(undefined, {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : '—'
+}
+
+function renderStatusBadge(status) {
+  const s = String(status || '').toUpperCase()
+  if (s === 'DELIVERED') {
+    return <span className="badge badge-success">Delivered</span>
+  }
+  if (s === 'IN_TRANSIT' || s === 'DISPATCHED' || s === 'PICKED_UP') {
+    return <span className="badge badge-info">In transit</span>
+  }
+  if (s === 'PENDING' || s === 'REGISTERED') {
+    return <span className="badge badge-warning">Pending</span>
+  }
+  if (s === 'CANCELLED' || s === 'FAILED' || s === 'RETURNED') {
+    return <span className="badge badge-error">{status}</span>
+  }
+  return <span className="badge badge-muted">{status || 'Unknown'}</span>
+}
+
 export default function MerchantDashboardPage() {
   const { user } = useAuth()
   const [merchant, setMerchant] = useState(null)
+  const [dashboardData, setDashboardData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [showProfileModal, setShowProfileModal] = useState(false)
+  const [selectedOrder, setSelectedOrder] = useState(null)
   const [dateRange, setDateRange] = useState('Nov 1 – Nov 12, 2026')
   const [showDateDropdown, setShowDateDropdown] = useState(false)
 
@@ -20,6 +61,18 @@ export default function MerchantDashboardPage() {
     merchantService.getMyMerchant()
       .then((data) => {
         setMerchant(data)
+        if (data?.status === 'APPROVED') {
+          return merchantService.getMyDashboard()
+            .then((dash) => {
+              setDashboardData(dash)
+              setLoading(false)
+            })
+            .catch(() => {
+              setDashboardData(null)
+              setLoading(false)
+            })
+        }
+        setDashboardData(null)
         setLoading(false)
       })
       .catch((err) => {
@@ -36,7 +89,24 @@ export default function MerchantDashboardPage() {
       .then((data) => {
         if (!ignore) {
           setMerchant(data)
-          setLoading(false)
+          if (data?.status === 'APPROVED') {
+            merchantService.getMyDashboard(controller.signal)
+              .then((dash) => {
+                if (!ignore) {
+                  setDashboardData(dash)
+                  setLoading(false)
+                }
+              })
+              .catch(() => {
+                if (!ignore) {
+                  setDashboardData(null)
+                  setLoading(false)
+                }
+              })
+          } else {
+            setDashboardData(null)
+            setLoading(false)
+          }
         }
       })
       .catch((err) => {
@@ -186,26 +256,42 @@ export default function MerchantDashboardPage() {
             <div className="stats-grid">
               <div className="stat-card stat-card-blue">
                 <span className="stat-label">Total Orders</span>
-                <span className="stat-value">—</span>
-                <span className="stat-subtext">Unavailable (Parcel Service pending)</span>
+                <span className="stat-value">
+                  {dashboardData != null ? dashboardData.totalOrders.toLocaleString() : '—'}
+                </span>
+                <span className="stat-subtext">
+                  {dashboardData != null
+                    ? `${dashboardData.totalOrders} total registered deliveries`
+                    : 'Unavailable (Parcel Service pending)'}
+                </span>
               </div>
 
               <div className="stat-card stat-card-amber">
                 <span className="stat-label">Pending Orders</span>
-                <span className="stat-value">—</span>
+                <span className="stat-value">
+                  {dashboardData != null ? dashboardData.pendingOrders.toLocaleString() : '—'}
+                </span>
                 <span className="stat-subtext">Awaiting pickup</span>
               </div>
 
               <div className="stat-card stat-card-blue">
                 <span className="stat-label">In Transit Orders</span>
-                <span className="stat-value">—</span>
+                <span className="stat-value">
+                  {dashboardData != null ? dashboardData.inTransitOrders.toLocaleString() : '—'}
+                </span>
                 <span className="stat-subtext">On the way to customers</span>
               </div>
 
               <div className="stat-card stat-card-green">
                 <span className="stat-label">Delivered Orders</span>
-                <span className="stat-value">—</span>
-                <span className="stat-subtext">Delivered</span>
+                <span className="stat-value">
+                  {dashboardData != null ? dashboardData.deliveredOrders.toLocaleString() : '—'}
+                </span>
+                <span className="stat-subtext">
+                  {dashboardData != null && dashboardData.totalOrders > 0
+                    ? `${Math.round((dashboardData.deliveredOrders / dashboardData.totalOrders) * 100)}% of all orders`
+                    : 'Delivered'}
+                </span>
               </div>
             </div>
           </section>
@@ -214,7 +300,7 @@ export default function MerchantDashboardPage() {
           <section className="card-table" aria-label="Recent orders">
             <div className="card-table-header">
               <div className="card-table-title">
-                Recent orders <span className="card-table-subtitle">Latest 4 orders</span>
+                Recent orders <span className="card-table-subtitle">Latest {dashboardData?.recentOrders?.length || 4} orders</span>
               </div>
               <span style={{ fontSize: '13px', color: 'var(--color-text-muted)' }}>
                 View all orders →
@@ -233,12 +319,50 @@ export default function MerchantDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  <tr>
-                    <td colSpan="5" className="table-empty-state">
-                      <p className="table-empty-title">Order data currently unavailable</p>
-                      <p>Order statistics and real-time delivery tracking will appear here once the Parcel Service integration is ready.</p>
-                    </td>
-                  </tr>
+                  {dashboardData?.recentOrders?.length > 0 ? (
+                    dashboardData.recentOrders.map((order) => (
+                      <tr key={order.id || order.trackingNumber}>
+                        <td>
+                          <button
+                            type="button"
+                            className="action-link action-link-primary"
+                            style={{
+                              background: 'none',
+                              border: 'none',
+                              padding: 0,
+                              fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                              fontSize: '13px',
+                              fontWeight: 600,
+                              cursor: 'pointer',
+                              textAlign: 'left',
+                            }}
+                            onClick={() => setSelectedOrder(order)}
+                            title="Click to view status history"
+                          >
+                            {order.trackingNumber}
+                          </button>
+                        </td>
+                        <td>{order.customerName || '—'}</td>
+                        <td>{order.destination || '—'}</td>
+                        <td>{renderStatusBadge(order.status)}</td>
+                        <td>{formatDate(order.createdAt)}</td>
+                      </tr>
+                    ))
+                  ) : dashboardData != null ? (
+                    <tr>
+                      <td colSpan="5" className="table-empty-state">
+                        <p className="table-empty-title">No orders found</p>
+                        <p>You haven't placed any parcel orders yet. Use our API to create your first order.</p>
+                      </td>
+                    </tr>
+                  ) : (
+                    <tr>
+                      <td colSpan="5" className="table-empty-state">
+                        <p className="table-empty-title">Order data currently unavailable</p>
+                        <p>Order statistics and real-time delivery tracking will appear here once the Parcel Service integration is ready.</p>
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -321,8 +445,74 @@ export default function MerchantDashboardPage() {
               </div>
             </div>
           )}
+
+          {/* Order Status History Modal */}
+          {selectedOrder && (
+            <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="modal-order-history-title">
+              <div className="modal-dialog" style={{ maxWidth: '540px' }}>
+                <div className="modal-header">
+                  <div>
+                    <h2 id="modal-order-history-title" className="modal-title">Order Status History</h2>
+                    <p className="modal-subtitle">
+                      {selectedOrder.trackingNumber} · {selectedOrder.customerName || 'Customer'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="modal-close-btn"
+                    onClick={() => setSelectedOrder(null)}
+                    aria-label="Close dialog"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="modal-body">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', background: '#f8fafc', borderRadius: '6px', border: '1px solid var(--color-border)' }}>
+                    <div>
+                      <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)', display: 'block' }}>Destination</span>
+                      <strong style={{ fontSize: '13px', color: 'var(--color-text)' }}>{selectedOrder.destination || '—'}</strong>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '11px', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--color-text-muted)', display: 'block' }}>Current Status</span>
+                      {renderStatusBadge(selectedOrder.status)}
+                    </div>
+                  </div>
+
+                  <div className="order-timeline" aria-label="Status history timeline">
+                    {selectedOrder.statusHistory && selectedOrder.statusHistory.length > 0 ? (
+                      selectedOrder.statusHistory.map((item, idx) => (
+                        <div key={idx} className="timeline-item">
+                          <div className="timeline-dot" />
+                          <div className="timeline-header">
+                            <span className="timeline-title">{item.status}</span>
+                            <span className="timeline-time">{formatDateTime(item.timestamp)}</span>
+                          </div>
+                          {item.description && <p className="timeline-desc">{item.description}</p>}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="timeline-item">
+                        <div className="timeline-dot" />
+                        <div className="timeline-header">
+                          <span className="timeline-title">{selectedOrder.status || 'CREATED'}</span>
+                          <span className="timeline-time">{formatDateTime(selectedOrder.createdAt)}</span>
+                        </div>
+                        <p className="timeline-desc">Parcel registered in the system. Additional milestone updates will appear as the courier processes the parcel.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="modal-footer">
+                  <Button variant="secondary" onClick={() => setSelectedOrder(null)}>
+                    Close
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </>
       )}
     </div>
   )
 }
+

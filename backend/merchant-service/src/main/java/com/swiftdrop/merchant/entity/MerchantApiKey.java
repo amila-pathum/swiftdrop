@@ -38,6 +38,7 @@ public class MerchantApiKey {
     }
 
     public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
     public Merchant getMerchant() { return merchant; }
     public void setMerchant(Merchant merchant) { this.merchant = merchant; }
     public String getKeyName() { return keyName; }
@@ -50,5 +51,6 @@ public class MerchantApiKey {
     public OffsetDateTime getRevokedAt() { return revokedAt; }
     public void setRevokedAt(OffsetDateTime revokedAt) { this.revokedAt = revokedAt; }
     public OffsetDateTime getLastUsedAt() { return lastUsedAt; }
+    public void setLastUsedAt(OffsetDateTime lastUsedAt) { this.lastUsedAt = lastUsedAt; }
     public boolean isRevoked() { return revokedAt != null; }
 }
