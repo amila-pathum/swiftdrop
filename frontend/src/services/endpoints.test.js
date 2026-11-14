@@ -20,19 +20,21 @@ describe('endpoint registry', () => {
     vi.unstubAllGlobals()
   })
 
-  it('marks only the implemented Identity and Notification endpoints as available', () => {
-    // Merchant, courier and parcel endpoints, and emailed reset links, are still planned.
+  it('marks only implemented and routed endpoints as available', () => {
+    // Merchant, courier and parcel tracking endpoints, and emailed reset links, are still planned.
     const available = Object.entries(ENDPOINTS)
       .filter(([, endpoint]) => endpoint.available)
       .map(([name]) => name)
     expect(available.sort()).toEqual([
       'confirmPasswordReset', 'currentUser', 'googleExchange', 'login', 'logout',
       'markNotificationAsRead', 'notifications',
-      'register', 'registerCourier', 'registerMerchant', 'unreadNotificationsCount',
+      'pricingQuote', 'register', 'registerCourier', 'registerMerchant',
+      'unreadNotificationsCount',
     ])
     expect(available.every((name) => ENDPOINTS[name].path.startsWith('/api/auth/')
       || ENDPOINTS[name].path.startsWith('/api/notifications')
-      || ENDPOINTS[name].path === '/api/users/me')).toBe(true)
+      || ENDPOINTS[name].path === '/api/users/me'
+      || ENDPOINTS[name].path === '/api/pricing/quote')).toBe(true)
   })
 
   it.each(Object.entries(ENDPOINTS).filter(([, e]) => !e.available))(
