@@ -19,7 +19,7 @@ class ParcelServiceTest {
     private final ParcelStatusHistoryRepository history = mock(ParcelStatusHistoryRepository.class);
     private final ParcelService service = new ParcelService(parcels, history,
             new ParcelStatusTransitionValidator());
-    private final UUID actor = UUID.randomUUID();
+    private final Long actor = 42L;
 
     @Test
     void creationRecordsNullPreviousStatus() {

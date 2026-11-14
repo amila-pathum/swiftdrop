@@ -26,11 +26,11 @@ public class ParcelController {
     @PreAuthorize("hasRole('CUSTOMER')")
     public ParcelResponse create(@Valid @RequestBody CreateParcelRequest request,
                                  @AuthenticationPrincipal Jwt jwt) {
-        UUID userId;
+        Long userId;
         try {
-            userId = UUID.fromString(jwt.getSubject());
-            if (!userId.toString().equalsIgnoreCase(jwt.getSubject())) {
-                throw new IllegalArgumentException("Non-canonical UUID");
+            userId = Long.valueOf(jwt.getSubject());
+            if (userId <= 0 || !userId.toString().equals(jwt.getSubject())) {
+                throw new IllegalArgumentException("Invalid numeric user ID");
             }
         } catch (IllegalArgumentException exception) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,

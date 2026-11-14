@@ -61,7 +61,7 @@ class ParcelCreationApiTest {
                 .when(history).save(any());
         var request = new com.swiftdrop.parcel.dto.request.CreateParcelRequest(
                 "Nimal", "0771234567", "Colombo", "Kandy", new BigDecimal("2.500"), "MEDIUM", "STANDARD");
-        assertThatThrownBy(() -> creation.createCustomerParcel(request, UUID.randomUUID()))
+        assertThatThrownBy(() -> creation.createCustomerParcel(request, 42L))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
         assertThat(parcels.count()).isEqualTo(before);
         assertThat(parcels.findByTrackingNumber(number)).isEmpty();
@@ -69,7 +69,7 @@ class ParcelCreationApiTest {
 
     @Test
     void createsOrderAndHistoryUsingAuthenticatedCustomerAndServerPrice() throws Exception {
-        UUID customer = UUID.randomUUID();
+        Long customer = 42L;
         String number = "SD" + UUID.randomUUID().toString().replace("-", "");
         when(pricing.quote(any())).thenReturn(new BigDecimal("450.00"));
         when(tracking.generate()).thenReturn(number);
@@ -100,7 +100,7 @@ class ParcelCreationApiTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"not-a-uuid", "1-1-1-1-1"})
+    @ValueSource(strings = {"not-a-number", "1-1-1-1-1", "0", "-1", "01", "9223372036854775808"})
     void rejectsInvalidSubjects(String subject) throws Exception {
         mvc.perform(post("/api/parcels").with(jwt().jwt(j -> j.subject(subject))
                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
@@ -111,7 +111,7 @@ class ParcelCreationApiTest {
     @ParameterizedTest
     @ValueSource(strings = {"0", "0.0001", "10000000", "1.1234"})
     void rejectsInvalidWeights(String weight) throws Exception {
-        mvc.perform(post("/api/parcels").with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))
+        mvc.perform(post("/api/parcels").with(jwt().jwt(j -> j.subject("42"))
                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
                 .contentType(MediaType.APPLICATION_JSON).content(BODY.replace("2.500", weight)))
             .andExpect(status().isBadRequest());
@@ -123,7 +123,7 @@ class ParcelCreationApiTest {
     void rejectsInvalidQuotesBeforeSaving(String charge) throws Exception {
         long before = parcels.count();
         when(pricing.quote(any())).thenReturn(new BigDecimal(charge));
-        mvc.perform(post("/api/parcels").with(jwt().jwt(j -> j.subject(UUID.randomUUID().toString()))
+        mvc.perform(post("/api/parcels").with(jwt().jwt(j -> j.subject("42"))
                 .authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))
                 .contentType(MediaType.APPLICATION_JSON).content(BODY)).andExpect(status().isBadGateway());
         assertThat(parcels.count()).isEqualTo(before);

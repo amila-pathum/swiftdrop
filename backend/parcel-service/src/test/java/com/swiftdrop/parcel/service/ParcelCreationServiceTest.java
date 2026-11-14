@@ -26,7 +26,7 @@ class ParcelCreationServiceTest {
         when(tracking.generate()).thenReturn("SDTEST001");
         when(parcels.saveAndFlush(any(Parcel.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        UUID userId = UUID.randomUUID();
+        Long userId = 42L;
         CreateParcelRequest request = new CreateParcelRequest("Nimal", "0771234567",
             "Colombo", "Kandy", new BigDecimal("2.500"), "MEDIUM", "STANDARD");
         var response = new ParcelCreationService(parcels, history, pricing, tracking)

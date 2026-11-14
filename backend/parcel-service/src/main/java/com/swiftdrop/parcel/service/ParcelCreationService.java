@@ -33,7 +33,7 @@ public class ParcelCreationService {
     }
 
     @Transactional
-    public ParcelResponse createCustomerParcel(CreateParcelRequest request, UUID userId) {
+    public ParcelResponse createCustomerParcel(CreateParcelRequest request, Long userId) {
         // Quote before writing to the database; never trust a client-supplied charge.
         BigDecimal charge = pricing.quote(request);
         if (charge == null || charge.signum() < 0 || charge.scale() > 2
