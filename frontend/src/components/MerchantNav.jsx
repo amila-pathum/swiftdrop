@@ -60,7 +60,7 @@ const MERCHANT_LINKS = [
   { to: '/profile', label: 'Business profile', icon: BusinessIcon },
 ]
 
-export default function MerchantNav({ className = '' }) {
+export default function MerchantNav({ className = '', onNavigate }) {
   const { pathname } = useLocation()
   return (
     <ul className={`merchant-nav-list ${className}`.trim()}>
@@ -70,6 +70,7 @@ export default function MerchantNav({ className = '' }) {
             to={to === '/merchant/webhooks' && pathname === '/merchant/webhook-deliveries' ? pathname : to}
             end={to === '/dashboard'}
             className={({ isActive }) => (isActive ? 'active' : '')}
+            onClick={onNavigate}
           >
             <Icon />
             <span>{label}</span>

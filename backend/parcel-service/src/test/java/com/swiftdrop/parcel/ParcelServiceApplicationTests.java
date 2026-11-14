@@ -42,7 +42,7 @@ class ParcelServiceApplicationTests {
 
     @Test
     void persistsParcelAndCompleteStatusHistory() {
-        UUID actor = UUID.randomUUID();
+        Long actor = 42L;
         Parcel parcel = new Parcel();
         parcel.setTrackingNumber("T-" + UUID.randomUUID());
         parcel.setSenderId(actor);

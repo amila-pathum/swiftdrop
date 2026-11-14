@@ -88,23 +88,23 @@ export const ENDPOINTS = Object.freeze({
     path: '/api/merchants/applications',
     available: false,
     auth: true,
-    // PLANNED (Merchant Service). Called with the new merchant's own token,
-    // straight after registerMerchant + login; the user id is the token subject.
+    // PLANNED (Merchant Service). Called with the new merchant's own token.
     // Body: { businessName, businessRegistrationNumber, businessEmail,
     //         businessPhone, businessAddress }
-    // -> 201 { id, status: "PENDING", submittedAt }. 409 if this user already
-    // applied or the registration number is already used.
-    // The caller's token has role MERCHANT and status PENDING_APPROVAL, so this
-    // endpoint must not require hasRole('MERCHANT'); read the "role" claim.
+    // -> 201 { id, status: "PENDING", submittedAt }. 409 if already applied.
+    //
+    // Permission contract: the caller has authority APPLICANT_MERCHANT (pending)
+    // or ROLE_MERCHANT (active). Use:
+    //   @PreAuthorize("hasAnyAuthority('APPLICANT_MERCHANT','ROLE_MERCHANT')")
+    // Never read the raw JWT "role" claim to authorize this endpoint.
   },
   myMerchantApplication: {
     method: 'GET',
     path: '/api/merchants/me/application',
     available: false,
     auth: true,
-    // PLANNED (Merchant Service; token role claim MERCHANT, any account status).
-    // -> { status: "PENDING" | "APPROVED" | "REJECTED", submittedAt, reviewedAt, reviewNote }
-    // 404 when this user has not submitted an application.
+    // PLANNED (Merchant Service). Requires APPLICANT_MERCHANT or ROLE_MERCHANT.
+    // -> { status, submittedAt, reviewedAt, reviewNote }. 404 if none submitted.
   },
 
   // ----------------------------------------------------------------- Courier
@@ -113,29 +113,63 @@ export const ENDPOINTS = Object.freeze({
     path: '/api/couriers/applications',
     available: false,
     auth: true,
-    // PLANNED (Courier Service). Called with the new courier's own token,
-    // straight after registerCourier + login; the user id is the token subject.
+    // PLANNED (Courier Service). Called with the new courier's own token.
     // Body: { vehicleType, vehicleRegistrationNumber, preferredArea }
-    // -> 201 { id, status: "PENDING", submittedAt }. 409 if this user already applied.
-    // The caller's token has role COURIER and status PENDING_APPROVAL, so this
-    // endpoint must not require hasRole('COURIER'); read the "role" claim.
+    // -> 201 { id, status: "PENDING", submittedAt }. 409 if already applied.
+    //
+    // Permission contract: the caller has authority APPLICANT_COURIER (pending)
+    // or ROLE_COURIER (active). Use:
+    //   @PreAuthorize("hasAnyAuthority('APPLICANT_COURIER','ROLE_COURIER')")
+    // Never read the raw JWT "role" claim to authorize this endpoint.
   },
   myCourierApplication: {
     method: 'GET',
     path: '/api/couriers/me/application',
     available: false,
     auth: true,
-    // PLANNED (Courier Service; token role claim COURIER, any account status).
-    // Same shape as myMerchantApplication.
+    // PLANNED (Courier Service). Requires APPLICANT_COURIER or ROLE_COURIER.
+    // -> { status, submittedAt, reviewedAt, reviewNote }. 404 if none submitted.
   },
 
   // ------------------------------------------------------------------ Parcel
+  pricingQuote: {
+    method: 'POST',
+    path: '/api/pricing/quote',
+    available: true,
+    auth: true,
+    // Body: { pickupCity, deliveryCity, weight, serviceType: 'STANDARD' | 'EXPRESS' }
+    // -> { amount, currency: 'LKR', breakdown: { baseFee, weightFee, expressFee } }
+  },
   trackParcel: {
     method: 'GET',
     path: '/api/parcels/track/:trackingNumber',
-    available: false,
-    // PLANNED (Parcel Service, public). -> { trackingNumber, status,
-    //   lastUpdatedAt, history: [{ status, occurredAt, note }] }; 404 if unknown.
+    available: true,
+    // Public, no token. -> { trackingNumber, status, createdAt, estimatedDeliveryDate,
+    //   origin, destination, trackingHistory: [{ status, description, location, timestamp }] }.
+    // Unsupported ETA/location/description fields are null; invalid or unknown -> 404.
+  },
+
+  // ------------------------------------------------------------ Notification
+  notifications: {
+    method: 'GET',
+    path: '/api/notifications',
+    available: true,
+    auth: true,
+    // Notification Service. -> Array of NotificationResponse { id, userId, trackingNumber, title, message, read, createdAt }
+  },
+  unreadNotificationsCount: {
+    method: 'GET',
+    path: '/api/notifications/unread-count',
+    available: true,
+    auth: true,
+    // Notification Service. -> { count: number }
+  },
+  markNotificationAsRead: {
+    method: 'PATCH',
+    path: '/api/notifications/:id/read',
+    available: true,
+    auth: true,
+    // Notification Service. -> Updated NotificationResponse { id, ..., read: true }
   },
 })
 

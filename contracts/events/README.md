@@ -1,6 +1,6 @@
 # Event contracts
 
-Messages that services publish to RabbitMQ. None exist yet. Describe each event before it is first published, as a JSON Schema file named `<domain>.<event>.v<version>.schema.json`, for example `parcel.status-changed.v1.schema.json`.
+Messages that services publish to RabbitMQ. Describe each event before it is first published, as a JSON Schema file named `<domain>.<event>.v<version>.schema.json`, for example `parcel.status-changed.v1.schema.json`.
 
 Conventions:
 
@@ -30,7 +30,7 @@ The exchange routes a copy of each event to all three durable queues using the r
 |---|---|---|
 | Notifications | `notification.parcel-status-changed` | Member 10 |
 | Webhooks | `webhook.parcel-status-changed` | Member 9 |
-| Reports | `reports.parcel-status-changed` | Member 7 |
+| Dispatch | `dispatch.parcel-status-changed` | Member 7 |
 
 Each consumer processes messages independently from its own queue.
 
@@ -71,3 +71,47 @@ The dead-letter exchange routes failed messages to:
 Consumers in other services must configure their own
 retry policies.
 
+# Parcel Assigned Event
+
+The Dispatch Service publishes `parcel.assigned` to the existing durable
+`swiftdrop.events` topic exchange after its assignment transaction commits.
+Its payload is defined in [parcel.assigned.v1.schema.json](./parcel.assigned.v1.schema.json).
+The current Dispatch implementation updates its own demo projection; Parcel
+Core has no assignment API yet, so this event does not imply that Parcel Core's
+canonical `assigned_courier_id` has changed.
+
+## Proposed creation-aware ParcelStatusChanged v2
+
+[parcel.status-changed.v2.schema.json](./parcel.status-changed.v2.schema.json)
+adds the creation convention without changing the existing v1 schema:
+
+- `oldStatus` remains a required field.
+- When `newStatus` is `CREATED`, `oldStatus` must be JSON null.
+- Otherwise, `oldStatus` must be a nonblank string.
+- Existing field names, identifier types and `occurredAt` are retained.
+- This schema does not replace the Parcel Service transition validator.
+
+**Rollout pending:** Notification/webhook and Dispatch owners must update their
+validators to accept null only for creation. The webhook validator currently
+rejects null before checking whether the parcel has a merchant. Dispatch's
+`dispatch_report_events.old_status` persistence constraint must also be reviewed
+for null support. Add consumer tests for creation, normal transitions, invalid
+null previous statuses and duplicate event IDs.
+
+The existing routing key remains `parcel.status-changed` for v1. No v2 routing,
+header or payload version discriminator is agreed yet. Do not publish creation
+events on that key until all bound consumers support them, or until an explicit
+versioned routing and binding strategy is agreed. A schema file named v2 alone
+does not let consumers distinguish versions at runtime.
+
+Only the producer-owned contract is changed here; consumer implementations and
+broker definitions remain unchanged. This is not confirmation from Members 7,
+9 or 10 and does not complete the coordinated rollout.
+
+Contract checks (from repository root):
+
+```powershell
+python -m pip install --target backend/parcel-service/target/schema-validation jsonschema==4.23.0
+$env:PYTHONPATH = "backend/parcel-service/target/schema-validation"
+python -m unittest discover -s backend/parcel-service/verification -p test_creation_event_contract.py
+```

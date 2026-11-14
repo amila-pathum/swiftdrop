@@ -13,7 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
 import java.math.BigDecimal;
-import java.util.UUID;
 
 @Service
 public class ParcelCreationService {
@@ -33,7 +32,7 @@ public class ParcelCreationService {
     }
 
     @Transactional
-    public ParcelResponse createCustomerParcel(CreateParcelRequest request, UUID userId) {
+    public ParcelResponse createCustomerParcel(CreateParcelRequest request, Long userId) {
         // Quote before writing to the database; never trust a client-supplied charge.
         BigDecimal charge = pricing.quote(request);
         if (charge == null || charge.signum() < 0 || charge.scale() > 2

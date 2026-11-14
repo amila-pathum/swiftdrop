@@ -29,7 +29,7 @@ public class ParcelStatusHistory {
     private Instant changedAt;
 
     @Column(name = "changed_by", nullable = false)
-    private UUID changedBy;
+    private Long changedBy;
 
     @Column(name = "note", columnDefinition = "text")
     private String note;
@@ -37,7 +37,7 @@ public class ParcelStatusHistory {
     protected ParcelStatusHistory() { }
 
     public ParcelStatusHistory(Parcel parcel, ParcelStatus previousStatus,
-                               ParcelStatus newStatus, UUID changedBy, String note) {
+                               ParcelStatus newStatus, Long changedBy, String note) {
         this.parcel = parcel;
         this.previousStatus = previousStatus;
         this.newStatus = newStatus;
@@ -51,6 +51,6 @@ public class ParcelStatusHistory {
     public ParcelStatus getPreviousStatus() { return previousStatus; }
     public ParcelStatus getNewStatus() { return newStatus; }
     public Instant getChangedAt() { return changedAt; }
-    public UUID getChangedBy() { return changedBy; }
+    public Long getChangedBy() { return changedBy; }
     public String getNote() { return note; }
 }

@@ -1,11 +1,23 @@
 import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { useAuth } from './context/AuthContext'
 import { ApiError, ApiErrorKind } from './services/apiClient'
+import { dispatchService } from './services/dispatchService'
 
 vi.mock('./context/AuthContext', () => ({ useAuth: vi.fn() }))
+vi.mock('./services/dispatchService', () => ({
+  dispatchService: {
+    getUnassigned: vi.fn().mockResolvedValue({ content: [], page: 0, totalPages: 0, totalElements: 0 }),
+    getParcels: vi.fn().mockResolvedValue({ content: [], page: 0, totalPages: 0, totalElements: 0 }),
+    getCouriers: vi.fn().mockResolvedValue([]),
+    getParcel: vi.fn().mockResolvedValue({ parcel: {}, history: [] }),
+    assignCourier: vi.fn(),
+    getReport: vi.fn().mockResolvedValue([]),
+    exportReport: vi.fn().mockResolvedValue(''),
+  },
+}))
 
 const USER = {
   id: 1,
@@ -54,8 +66,21 @@ const currentPath = () => screen.getByTestId('location').textContent
 const heading = (name) => screen.getByRole('heading', { level: 1, name })
 
 describe('App routing', () => {
+  beforeEach(() => {
+    dispatchService.getUnassigned.mockResolvedValue({
+      content: [], page: 0, totalPages: 0, totalElements: 0,
+    })
+    dispatchService.getParcels.mockResolvedValue({
+      content: [], page: 0, totalPages: 0, totalElements: 0,
+    })
+    dispatchService.getCouriers.mockResolvedValue([])
+    dispatchService.getParcel.mockResolvedValue({ parcel: {}, history: [] })
+    dispatchService.getReport.mockResolvedValue([])
+  })
+
   afterEach(() => {
     vi.resetAllMocks()
+    vi.unstubAllGlobals()
   })
 
   describe('anonymous users', () => {
@@ -227,7 +252,6 @@ describe('App routing', () => {
 
     it.each([
       ['COURIER', 'Courier dashboard'],
-      ['DISPATCHER', 'Dispatcher dashboard'],
       ['ADMIN', 'Admin dashboard'],
     ])('shows a not-available page for %s', (role, title) => {
       authenticatedAs(role)
@@ -236,6 +260,28 @@ describe('App routing', () => {
       expect(heading(title)).toBeInTheDocument()
       expect(screen.getByText(/future development phase/)).toBeInTheDocument()
       expect(screen.queryByText('Customer dashboard')).not.toBeInTheDocument()
+    })
+
+    it('shows dispatch management to dispatcher users', async () => {
+      authenticatedAs('DISPATCHER')
+      renderAt('/dashboard')
+
+      expect(await screen.findByRole('heading', { level: 1, name: 'Dispatch dashboard' }))
+        .toBeInTheDocument()
+      expect(currentPath()).toBe('/dispatcher/dashboard')
+      expect(screen.getByRole('link', { name: 'Reports' })).toHaveAttribute('href', '/reports')
+    })
+
+    it('allows admins to open reports and redirects other roles away', async () => {
+      authenticatedAs('ADMIN')
+      renderAt('/reports')
+      expect(await screen.findByRole('heading', { level: 1, name: 'Dispatch reports' }))
+        .toBeInTheDocument()
+
+      authenticatedAs('CUSTOMER')
+      renderAt('/reports')
+      expect(await screen.findByRole('heading', { level: 1, name: 'Customer dashboard' }))
+        .toBeInTheDocument()
     })
 
     it.each([
@@ -306,12 +352,33 @@ describe('App routing', () => {
   })
 
   describe('parcel tracking', () => {
-    it('explains that tracking is not available yet instead of faking a result', async () => {
+    it('loads public tracking and renders the backend history contract', async () => {
       mockAuth()
+      const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+        trackingNumber: 'SD-2026-000123', status: 'IN_TRANSIT',
+        createdAt: '2026-01-01T00:00:00Z', estimatedDeliveryDate: null,
+        origin: null, destination: null,
+        history: [{ status: 'CREATED', timestamp: '2026-01-01T00:00:00Z',
+          description: null, location: null }],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      vi.stubGlobal('fetch', fetchMock)
       renderAt('/track/SD-2026-000123')
 
-      expect(await screen.findByText('Tracking coming soon')).toBeInTheDocument()
-      expect(screen.getByText(/Online parcel tracking is not available yet/)).toBeInTheDocument()
+      expect(await screen.findByText('In transit')).toBeInTheDocument()
+      expect(screen.getByText('Created')).toBeInTheDocument()
+      const [url, init] = fetchMock.mock.calls[0]
+      expect(url).toContain('/api/parcels/track/SD-2026-000123')
+      expect(init.headers.Authorization).toBeUndefined()
+    })
+
+    it('shows the tracking not found response', async () => {
+      mockAuth()
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(
+        JSON.stringify({ error: 'Parcel not found' }),
+        { status: 404, headers: { 'Content-Type': 'application/json' } },
+      )))
+      renderAt('/track/SD-UNKNOWN')
+      expect(await screen.findByRole('alert')).toHaveTextContent('We could not find a parcel')
     })
 
     it('rejects a malformed tracking number in the URL', () => {

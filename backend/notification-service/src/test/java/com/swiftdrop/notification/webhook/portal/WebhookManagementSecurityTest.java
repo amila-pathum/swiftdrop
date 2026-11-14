@@ -1,6 +1,8 @@
 package com.swiftdrop.notification.webhook.portal;
 
 import com.swiftdrop.notification.webhook.retry.*;
+import com.swiftdrop.notification.service.NotificationService;
+import com.swiftdrop.notification.service.NotificationStreamService;
 import java.util.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
     "swiftdrop.internal.webhook-token=test-internal-token-at-least-32-characters",
     "spring.rabbitmq.listener.simple.auto-startup=false",
+    "swiftdrop.notifications.consumer-enabled=false",
     "spring.autoconfigure.exclude=org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration,org.springframework.boot.data.jpa.autoconfigure.JpaRepositoriesAutoConfiguration"
 })
 @AutoConfigureMockMvc
@@ -26,6 +29,8 @@ class WebhookManagementSecurityTest {
     @Autowired MockMvc mvc;
     @MockitoBean WebhookDeliveryStore store;
     @MockitoBean MerchantWebhookSettingsLookup settings;
+    @MockitoBean NotificationService notificationService;
+    @MockitoBean NotificationStreamService notificationStreamService;
 
     @Test void missingWrongAndJwtOnlyCredentialsAreRejected() throws Exception {
         mvc.perform(get(PATH)).andExpect(status().isUnauthorized());
