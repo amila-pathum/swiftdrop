@@ -19,10 +19,14 @@ public class MerchantOrderStore {
                 """, merchant, reference, hash) == 1;
     }
     public Reservation reservation(String merchant, String reference) {
-        return jdbc.queryForObject("""
+        return findReservation(merchant, reference).orElseThrow(() ->
+                new org.springframework.dao.EmptyResultDataAccessException(1));
+    }
+    public Optional<Reservation> findReservation(String merchant, String reference) {
+        return jdbc.query("""
                 SELECT * FROM merchant_integration_orders WHERE merchant_id=? AND merchant_order_reference=?
                 """, (rs,row) -> new Reservation(rs.getString("request_hash"),
-                rs.getString("tracking_number") == null ? null : response(rs)), merchant, reference);
+                rs.getString("tracking_number") == null ? null : response(rs)), merchant, reference).stream().findFirst();
     }
     public void complete(String merchant, MerchantOrderResponse result) {
         jdbc.update("""

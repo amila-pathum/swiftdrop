@@ -29,28 +29,21 @@ public class MerchantOrderService {
             String merchantId,
             CreateMerchantOrderRequest request
     ) {
-        ParcelOrderClient client = parcelClients.getIfAvailable();
-
-        if (client == null) {
-            throw new ResponseStatusException(
-                    HttpStatus.SERVICE_UNAVAILABLE,
-                    "Parcel order creation is unavailable"
-            );
-        }
-
         String hash;
         try {
             hash = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
                     .digest(mapper.writeValueAsBytes(request)));
         } catch (java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
+        // Returning a completed duplicate does not require an available downstream client.
+        var existing = store.findReservation(merchantId, request.merchantOrderReference());
+        if (existing.isPresent()) return existingResult(existing.get(), hash);
+        ParcelOrderClient client = parcelClients.getIfAvailable();
+        if (client == null) {
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Parcel order creation is unavailable");
+        }
         if (!store.reserve(merchantId, request.merchantOrderReference(), hash)) {
-            var existing = store.reservation(merchantId, request.merchantOrderReference());
-            if (!hash.equals(existing.hash())) {
-                throw new ResponseStatusException(HttpStatus.CONFLICT, "Order reference already used with different details");
-            }
-            if (existing.result() != null) return existing.result();
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Order creation is pending reconciliation; do not submit a new reference");
+            return existingResult(store.reservation(merchantId, request.merchantOrderReference()), hash);
         }
         // Reservation is committed before HTTP. Never replay an ambiguous remote operation.
         var result = client.createOrder(merchantId, request);
@@ -61,6 +54,15 @@ public class MerchantOrderService {
         }
         store.complete(merchantId, result);
         return result;
+    }
+
+    private MerchantOrderResponse existingResult(MerchantOrderStore.Reservation existing, String hash) {
+        if (!hash.equals(existing.hash())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Order reference already used with different details");
+        }
+        if (existing.result() != null) return existing.result();
+        throw new ResponseStatusException(HttpStatus.CONFLICT,
+                "Order creation is pending reconciliation; do not submit a new reference");
     }
 
     public MerchantOrderStore.Page list(String merchant, int page, int size) {

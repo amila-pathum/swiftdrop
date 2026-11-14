@@ -46,4 +46,33 @@ class MerchantOrderServiceTest {
         assertThrows(ResponseStatusException.class, () -> service.createOrder("1",request));
         verify(client,times(1)).createOrder("1",request);
     }
+
+    @Test void completedDuplicateWorksEvenWithoutAParcelClient() throws Exception {
+        var mapper = new ObjectMapper();
+        var hash = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                .digest(mapper.writeValueAsBytes(request)));
+        var result = new MerchantOrderResponse("SHOP-1", "SD-1", "CREATED");
+        when(store.findReservation("1", "SHOP-1")).thenReturn(java.util.Optional.of(
+                new MerchantOrderStore.Reservation(hash, result)));
+        var noClients = new StaticListableBeanFactory();
+        service = new MerchantOrderService(noClients.getBeanProvider(ParcelOrderClient.class), store, mapper);
+        assertEquals(result, service.createOrder("1", request));
+        verify(store, never()).reserve(anyString(), anyString(), anyString());
+    }
+
+    @Test void unavailableClientDoesNotLeaveANewOrderReserved() {
+        var noClients = new StaticListableBeanFactory();
+        service = new MerchantOrderService(noClients.getBeanProvider(ParcelOrderClient.class), store, new ObjectMapper());
+        var failure = assertThrows(ResponseStatusException.class, () -> service.createOrder("1", request));
+        assertEquals(503, failure.getStatusCode().value());
+        verify(store, never()).reserve(anyString(), anyString(), anyString());
+    }
+
+    @Test void successfulCreationPersistsResult() {
+        var result = new MerchantOrderResponse("SHOP-1", "SD-1", "CREATED");
+        when(store.reserve(eq("1"), eq("SHOP-1"), anyString())).thenReturn(true);
+        when(client.createOrder("1", request)).thenReturn(result);
+        assertEquals(result, service.createOrder("1", request));
+        verify(store).complete("1", result);
+    }
 }
