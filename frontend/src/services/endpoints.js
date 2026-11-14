@@ -179,6 +179,86 @@ export const ENDPOINTS = Object.freeze({
     auth: true,
     // Notification Service. -> Updated NotificationResponse { id, ..., read: true }
   },
+
+  // --------------------------------------------------------- Pricing & Zones
+  getZones: {
+    method: 'GET',
+    path: '/api/zones',
+    available: true,
+    auth: true,
+    // -> [{ id, name, city, district, active, createdAt, updatedAt }]
+  },
+  getZoneById: {
+    method: 'GET',
+    path: '/api/zones/:id',
+    available: true,
+    auth: true,
+    // -> { id, name, city, district, active, createdAt, updatedAt }
+  },
+  createZone: {
+    method: 'POST',
+    path: '/api/zones',
+    available: true,
+    auth: true,
+    // Admin only. Body: { name, city, district } -> 201 Zone
+  },
+  updateZone: {
+    method: 'PUT',
+    path: '/api/zones/:id',
+    available: true,
+    auth: true,
+    // Admin only. Body: { name, city, district } -> Zone
+  },
+  disableZone: {
+    method: 'PATCH',
+    path: '/api/zones/:id/disable',
+    available: true,
+    auth: true,
+    // Admin only. -> Zone
+  },
+  getPricingRules: {
+    method: 'GET',
+    path: '/api/pricing/rules',
+    available: true,
+    auth: true,
+    // -> [{ id, zoneId, zoneName, baseFee, pricePerKg, expressMultiplier, active, createdAt, updatedAt }]
+  },
+  getPricingRuleById: {
+    method: 'GET',
+    path: '/api/pricing/rules/:id',
+    available: true,
+    auth: true,
+    // -> { id, zoneId, zoneName, baseFee, pricePerKg, expressMultiplier, active, createdAt, updatedAt }
+  },
+  createPricingRule: {
+    method: 'POST',
+    path: '/api/pricing/rules',
+    available: true,
+    auth: true,
+    // Admin only. Body: { zoneId, baseFee, pricePerKg, expressMultiplier } -> 201 PricingRule
+  },
+  updatePricingRule: {
+    method: 'PUT',
+    path: '/api/pricing/rules/:id',
+    available: true,
+    auth: true,
+    // Admin only. Body: { baseFee, pricePerKg, expressMultiplier } -> PricingRule
+  },
+  disablePricingRule: {
+    method: 'PATCH',
+    path: '/api/pricing/rules/:id/disable',
+    available: true,
+    auth: true,
+    // Admin only. -> PricingRule
+  },
+  calculateQuote: {
+    method: 'POST',
+    path: '/api/pricing/quote',
+    available: true,
+    auth: true,
+    // Body: { pickupCity, deliveryCity, weight, serviceType }
+    // -> { charge, currency, breakdown }
+  },
 })
 
 /** Substitutes `:name` segments with URL-encoded values. */
