@@ -10,8 +10,10 @@ import com.swiftdrop.identity_service.exception.AccountNotActiveException;
 import com.swiftdrop.identity_service.exception.DuplicateEmailException;
 import com.swiftdrop.identity_service.exception.InvalidCredentialsException;
 import com.swiftdrop.identity_service.exception.InvalidLoginCodeException;
+import com.swiftdrop.identity_service.exception.RateLimitExceededException;
 import com.swiftdrop.identity_service.repository.UserRepository;
 import com.swiftdrop.identity_service.security.JwtService;
+import com.swiftdrop.identity_service.security.RateLimiter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -32,12 +34,13 @@ class AuthServiceTest {
     private final PasswordEncoder encoder = mock(PasswordEncoder.class);
     private final JwtService jwtService = mock(JwtService.class);
     private final OAuthLoginCodeService loginCodes = mock(OAuthLoginCodeService.class);
+    private final RateLimiter rateLimiter = new RateLimiter(100, 900);
     private AuthService authService;
     private User activeUser;
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(repository, encoder, jwtService, loginCodes);
+        authService = new AuthService(repository, encoder, jwtService, loginCodes, rateLimiter);
         activeUser = user(UserStatus.ACTIVE);
     }
 
@@ -97,12 +100,13 @@ class AuthServiceTest {
     }
 
     @Test
-    void loginRejectsUnknownEmail() {
+    void loginRejectsUnknownEmailWithDummyHashComparison() {
         when(repository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.login(
             new LoginRequest("missing@example.com", "password123")))
             .isInstanceOf(InvalidCredentialsException.class);
+        verify(encoder).matches(eq("password123"), eq(AuthService.DUMMY_HASH));
     }
 
     @Test

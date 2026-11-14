@@ -6,6 +6,7 @@ import com.swiftdrop.identity_service.entity.User;
 import com.swiftdrop.identity_service.entity.UserStatus;
 import com.swiftdrop.identity_service.exception.AccountNotActiveException;
 import com.swiftdrop.identity_service.exception.InvalidResetTokenException;
+import com.swiftdrop.identity_service.exception.InvalidStatusChangeException;
 import com.swiftdrop.identity_service.exception.PasswordResetUnavailableException;
 import com.swiftdrop.identity_service.repository.PasswordResetTokenRepository;
 import com.swiftdrop.identity_service.repository.UserRepository;
@@ -39,10 +40,11 @@ class PasswordResetServiceTest {
     private final UserRepository users = mock(UserRepository.class);
     private final PasswordEncoder encoder = mock(PasswordEncoder.class);
     private final PasswordResetDelivery delivery = mock(PasswordResetDelivery.class);
+    private final AuditLogService auditLog = mock(AuditLogService.class);
 
     private PasswordResetService service(PasswordResetDelivery configuredDelivery) {
         return new PasswordResetService(tokens, users, encoder, configuredDelivery,
-            "https://swiftdrop.example/", Clock.fixed(NOW, ZoneOffset.UTC));
+            auditLog, "https://swiftdrop.example/", Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
@@ -50,8 +52,8 @@ class PasswordResetServiceTest {
         User user = user(UserStatus.ACTIVE);
         when(users.findById(1L)).thenReturn(Optional.of(user));
 
-        var first = service(null).issueFor(1L);
-        var second = service(null).issueFor(1L);
+        var first = service(null).issueFor(99L, 1L);
+        var second = service(null).issueFor(99L, 1L);
 
         assertThat(first.token()).hasSize(43).isNotEqualTo(second.token());
         assertThat(first.expiresAt()).isEqualTo(NOW.plusSeconds(1800));
@@ -62,7 +64,6 @@ class PasswordResetServiceTest {
         verify(tokens, org.mockito.Mockito.times(2)).save(saved.capture());
         assertThat(saved.getAllValues().get(0).getTokenHash())
             .hasSize(64).isNotEqualTo(first.token()).doesNotContain(first.token());
-        // Earlier tokens of the user are removed first.
         verify(tokens, org.mockito.Mockito.times(2)).deleteByUserId(1L);
     }
 
@@ -70,8 +71,20 @@ class PasswordResetServiceTest {
     void tokensAreNotIssuedForAccountsThatCannotSignIn() {
         when(users.findById(1L)).thenReturn(Optional.of(user(UserStatus.DISABLED)));
 
-        assertThatThrownBy(() -> service(null).issueFor(1L))
+        assertThatThrownBy(() -> service(null).issueFor(99L, 1L))
             .isInstanceOf(AccountNotActiveException.class);
+        verify(tokens, never()).save(any());
+    }
+
+    @Test
+    void tokensAreNotIssuedForAdminAccounts() {
+        User admin = new User("Admin", "admin@example.com", "hash", Role.ADMIN, UserStatus.ACTIVE);
+        ReflectionTestUtils.setField(admin, "id", 2L);
+        when(users.findById(2L)).thenReturn(Optional.of(admin));
+
+        assertThatThrownBy(() -> service(null).issueFor(99L, 2L))
+            .isInstanceOf(InvalidStatusChangeException.class)
+            .hasMessageContaining("admin");
         verify(tokens, never()).save(any());
     }
 

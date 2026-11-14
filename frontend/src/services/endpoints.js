@@ -81,6 +81,14 @@ export const ENDPOINTS = Object.freeze({
     // Body: { token, newPassword } -> { message }. 400 for an unknown, used or
     // expired token. The token comes from a reset link: /reset-password#token=...
   },
+  createStaffUser: {
+    method: 'POST',
+    path: '/api/admin/users',
+    available: true,
+    auth: true,
+    // ADMIN only. Body: { name, email, password, role: "DISPATCHER" }
+    // -> 201 { id, name, email, role, status, createdAt }.
+  },
 
   // ---------------------------------------------------------------- Merchant
   merchantApplication: {
@@ -88,23 +96,23 @@ export const ENDPOINTS = Object.freeze({
     path: '/api/merchants/applications',
     available: false,
     auth: true,
-    // PLANNED (Merchant Service). Called with the new merchant's own token,
-    // straight after registerMerchant + login; the user id is the token subject.
+    // PLANNED (Merchant Service). Called with the new merchant's own token.
     // Body: { businessName, businessRegistrationNumber, businessEmail,
     //         businessPhone, businessAddress }
-    // -> 201 { id, status: "PENDING", submittedAt }. 409 if this user already
-    // applied or the registration number is already used.
-    // The caller's token has role MERCHANT and status PENDING_APPROVAL, so this
-    // endpoint must not require hasRole('MERCHANT'); read the "role" claim.
+    // -> 201 { id, status: "PENDING", submittedAt }. 409 if already applied.
+    //
+    // Permission contract: the caller has authority APPLICANT_MERCHANT (pending)
+    // or ROLE_MERCHANT (active). Use:
+    //   @PreAuthorize("hasAnyAuthority('APPLICANT_MERCHANT','ROLE_MERCHANT')")
+    // Never read the raw JWT "role" claim to authorize this endpoint.
   },
   myMerchantApplication: {
     method: 'GET',
     path: '/api/merchants/me/application',
     available: false,
     auth: true,
-    // PLANNED (Merchant Service; token role claim MERCHANT, any account status).
-    // -> { status: "PENDING" | "APPROVED" | "REJECTED", submittedAt, reviewedAt, reviewNote }
-    // 404 when this user has not submitted an application.
+    // PLANNED (Merchant Service). Requires APPLICANT_MERCHANT or ROLE_MERCHANT.
+    // -> { status, submittedAt, reviewedAt, reviewNote }. 404 if none submitted.
   },
 
   // ----------------------------------------------------------------- Courier
@@ -113,20 +121,22 @@ export const ENDPOINTS = Object.freeze({
     path: '/api/couriers/applications',
     available: false,
     auth: true,
-    // PLANNED (Courier Service). Called with the new courier's own token,
-    // straight after registerCourier + login; the user id is the token subject.
+    // PLANNED (Courier Service). Called with the new courier's own token.
     // Body: { vehicleType, vehicleRegistrationNumber, preferredArea }
-    // -> 201 { id, status: "PENDING", submittedAt }. 409 if this user already applied.
-    // The caller's token has role COURIER and status PENDING_APPROVAL, so this
-    // endpoint must not require hasRole('COURIER'); read the "role" claim.
+    // -> 201 { id, status: "PENDING", submittedAt }. 409 if already applied.
+    //
+    // Permission contract: the caller has authority APPLICANT_COURIER (pending)
+    // or ROLE_COURIER (active). Use:
+    //   @PreAuthorize("hasAnyAuthority('APPLICANT_COURIER','ROLE_COURIER')")
+    // Never read the raw JWT "role" claim to authorize this endpoint.
   },
   myCourierApplication: {
     method: 'GET',
     path: '/api/couriers/me/application',
     available: false,
     auth: true,
-    // PLANNED (Courier Service; token role claim COURIER, any account status).
-    // Same shape as myMerchantApplication.
+    // PLANNED (Courier Service). Requires APPLICANT_COURIER or ROLE_COURIER.
+    // -> { status, submittedAt, reviewedAt, reviewNote }. 404 if none submitted.
   },
 
   // ------------------------------------------------------------------ Parcel
@@ -141,9 +151,10 @@ export const ENDPOINTS = Object.freeze({
   trackParcel: {
     method: 'GET',
     path: '/api/parcels/track/:trackingNumber',
-    available: false,
-    // PLANNED (Parcel Service, public). -> { trackingNumber, status,
-    //   lastUpdatedAt, history: [{ status, occurredAt, note }] }; 404 if unknown.
+    available: true,
+    // Public, no token. -> { trackingNumber, status, createdAt, estimatedDeliveryDate,
+    //   origin, destination, trackingHistory: [{ status, description, location, timestamp }] }.
+    // Unsupported ETA/location/description fields are null; invalid or unknown -> 404.
   },
 
   // ------------------------------------------------------------ Notification
@@ -167,6 +178,86 @@ export const ENDPOINTS = Object.freeze({
     available: true,
     auth: true,
     // Notification Service. -> Updated NotificationResponse { id, ..., read: true }
+  },
+
+  // --------------------------------------------------------- Pricing & Zones
+  getZones: {
+    method: 'GET',
+    path: '/api/zones',
+    available: true,
+    auth: true,
+    // -> [{ id, name, city, district, active, createdAt, updatedAt }]
+  },
+  getZoneById: {
+    method: 'GET',
+    path: '/api/zones/:id',
+    available: true,
+    auth: true,
+    // -> { id, name, city, district, active, createdAt, updatedAt }
+  },
+  createZone: {
+    method: 'POST',
+    path: '/api/zones',
+    available: true,
+    auth: true,
+    // Admin only. Body: { name, city, district } -> 201 Zone
+  },
+  updateZone: {
+    method: 'PUT',
+    path: '/api/zones/:id',
+    available: true,
+    auth: true,
+    // Admin only. Body: { name, city, district } -> Zone
+  },
+  disableZone: {
+    method: 'PATCH',
+    path: '/api/zones/:id/disable',
+    available: true,
+    auth: true,
+    // Admin only. -> Zone
+  },
+  getPricingRules: {
+    method: 'GET',
+    path: '/api/pricing/rules',
+    available: true,
+    auth: true,
+    // -> [{ id, zoneId, zoneName, baseFee, pricePerKg, expressMultiplier, active, createdAt, updatedAt }]
+  },
+  getPricingRuleById: {
+    method: 'GET',
+    path: '/api/pricing/rules/:id',
+    available: true,
+    auth: true,
+    // -> { id, zoneId, zoneName, baseFee, pricePerKg, expressMultiplier, active, createdAt, updatedAt }
+  },
+  createPricingRule: {
+    method: 'POST',
+    path: '/api/pricing/rules',
+    available: true,
+    auth: true,
+    // Admin only. Body: { zoneId, baseFee, pricePerKg, expressMultiplier } -> 201 PricingRule
+  },
+  updatePricingRule: {
+    method: 'PUT',
+    path: '/api/pricing/rules/:id',
+    available: true,
+    auth: true,
+    // Admin only. Body: { baseFee, pricePerKg, expressMultiplier } -> PricingRule
+  },
+  disablePricingRule: {
+    method: 'PATCH',
+    path: '/api/pricing/rules/:id/disable',
+    available: true,
+    auth: true,
+    // Admin only. -> PricingRule
+  },
+  calculateQuote: {
+    method: 'POST',
+    path: '/api/pricing/quote',
+    available: true,
+    auth: true,
+    // Body: { pickupCity, deliveryCity, weight, serviceType }
+    // -> { charge, currency, breakdown }
   },
 })
 

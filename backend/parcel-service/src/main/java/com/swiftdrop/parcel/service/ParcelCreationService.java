@@ -38,6 +38,20 @@ public class ParcelCreationService {
     @Transactional
     public ParcelResponse createCustomerParcel(CreateParcelRequest request, Long userId,
                                                 String accessToken) {
+        return create(request, userId, null, accessToken);
+    }
+
+    @Transactional
+    public ParcelResponse createMerchantParcel(CreateParcelRequest request, Long userId,
+                                                String accessToken) {
+        return create(request, userId, userId, accessToken);
+    }
+
+    private ParcelResponse create(CreateParcelRequest request, Long userId, Long merchantId,
+                                  String accessToken) {
+        if (userId == null || userId <= 0) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid authenticated user identifier");
+        }
         // Quote before writing to the database; never trust a client-supplied charge.
         BigDecimal charge = pricing.quote(request, accessToken);
         if (charge == null || charge.signum() < 0 || charge.scale() > 2
@@ -50,6 +64,7 @@ public class ParcelCreationService {
         parcel.setTrackingNumber(tracking.generate());
         parcel.setSenderId(userId);
         parcel.setCreatedBy(userId);
+        parcel.setMerchantId(merchantId);
         parcel.setReceiverName(request.receiverName().trim());
         parcel.setReceiverPhone(request.receiverPhone().trim());
         parcel.setPickupAddress(formatAddress(request.pickupAddressLine1(),

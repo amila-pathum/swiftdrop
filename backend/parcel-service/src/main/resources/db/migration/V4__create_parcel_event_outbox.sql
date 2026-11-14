@@ -1,12 +1,12 @@
 CREATE TABLE parcel_event_outbox (
     event_id UUID PRIMARY KEY,
     parcel_id UUID NOT NULL REFERENCES parcels(id),
-    routing_key VARCHAR(120) NOT NULL,
+    routing_key VARCHAR(100) NOT NULL,
     payload TEXT NOT NULL,
     occurred_at TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     published_at TIMESTAMPTZ,
-    attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+    attempts INTEGER NOT NULL DEFAULT 0,
     next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     last_error VARCHAR(1000)
 );

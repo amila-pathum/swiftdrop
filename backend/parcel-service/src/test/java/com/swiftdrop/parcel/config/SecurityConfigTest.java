@@ -168,6 +168,7 @@ class SecurityConfigTest {
     }
 
     @ParameterizedTest
+    @org.junit.jupiter.params.provider.NullSource
     @ValueSource(strings = {"0", "-1", "01", "+1", "9223372036854775808", "550e8400-e29b-41d4-a716-446655440000"})
     void creationRejectsNonIdentitySubjects(String subject) throws Exception {
         mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/parcels")

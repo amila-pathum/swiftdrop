@@ -29,10 +29,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/**
- * Account administration. ADMIN only: enforced here and, for the whole
- * {@code /api/admin/**} prefix, in SecurityConfig.
- */
 @RestController
 @RequestMapping("/api/admin/users")
 @PreAuthorize("hasRole('ADMIN')")
@@ -67,9 +63,11 @@ public class AdminUserController {
 
     /** Creates a DISPATCHER or ADMIN account. */
     @PostMapping
-    public ResponseEntity<UserResponse> createStaff(@Valid @RequestBody CreateStaffRequest request) {
+    public ResponseEntity<UserResponse> createStaff(
+            @AuthenticationPrincipal AuthenticatedUser admin,
+            @Valid @RequestBody CreateStaffRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED)
-            .body(adminUserService.createStaff(request));
+            .body(adminUserService.createStaff(admin.id(), request));
     }
 
     @GetMapping("/{id}")
@@ -97,10 +95,31 @@ public class AdminUserController {
         return adminUserService.changeStatus(admin.id(), id, request.status());
     }
 
-    /** Issues a one-time password reset token for the administrator to pass on. */
+    /**
+     * Activates a PENDING_APPROVAL merchant or courier. The Merchant or Courier
+     * Service forwards the approving admin's own Authorization header.
+     */
+    @PostMapping("/{id}/activate")
+    public UserResponse activate(@AuthenticationPrincipal AuthenticatedUser admin,
+            @PathVariable long id) {
+        return adminUserService.activate(admin.id(), id);
+    }
+
+    /**
+     * Records that the admin rejected an application. The identity account
+     * stays PENDING_APPROVAL; application status is in the business service.
+     */
+    @PostMapping("/{id}/reject")
+    public UserResponse reject(@AuthenticationPrincipal AuthenticatedUser admin,
+            @PathVariable long id) {
+        return adminUserService.reject(admin.id(), id);
+    }
+
     @PostMapping("/{id}/password-reset")
-    public ResponseEntity<PasswordResetTokenResponse> issuePasswordReset(@PathVariable long id) {
+    public ResponseEntity<PasswordResetTokenResponse> issuePasswordReset(
+            @AuthenticationPrincipal AuthenticatedUser admin,
+            @PathVariable long id) {
         return ResponseEntity.status(HttpStatus.CREATED)
-            .body(passwordResetService.issueFor(id));
+            .body(passwordResetService.issueFor(admin.id(), id));
     }
 }

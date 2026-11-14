@@ -16,6 +16,7 @@ public record DispatchParcelResponse(
     String size,
     String status,
     UUID courierId,
+    Long courierUserId,
     String courierName,
     BigDecimal charge,
     Instant createdAt,
@@ -25,6 +26,7 @@ public record DispatchParcelResponse(
         return new DispatchParcelResponse(parcel.getId(), parcel.getTrackingNumber(),
             parcel.getPickupAddress(), parcel.getDeliveryAddress(), parcel.getPickupAddress(),
             parcel.getDeliveryAddress(), parcel.getSize(), parcel.getStatus().name(),
+            parcel.getAssignedCourierId() == null ? parcel.getLegacyAssignedCourierUuid() : null,
             parcel.getAssignedCourierId(), null, parcel.getCharge(), parcel.getCreatedAt(),
             parcel.getUpdatedAt());
     }
