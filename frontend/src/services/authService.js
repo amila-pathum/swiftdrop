@@ -98,6 +98,19 @@ export function updateProfile(details) {
 }
 
 /**
+ * Changes the signed-in user's password.
+ * @param {{currentPassword: string, newPassword: string, confirmPassword?: string, confirmNewPassword?: string}} details
+ * @returns {Promise<{message: string}>}
+ */
+export function changePassword(details) {
+  return request('/api/users/me/change-password', {
+    method: 'PUT',
+    body: details,
+    auth: true,
+  })
+}
+
+/**
  * Tells the backend to invalidate every access token of the signed-in user.
  * The caller clears the local session whether or not this succeeds.
  */

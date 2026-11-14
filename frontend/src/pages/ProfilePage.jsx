@@ -579,7 +579,11 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              <div>
+              <div className="profile-hero-actions">
+                <ButtonLink to="/change-password" variant="outline">
+                  <LockIcon size={15} />
+                  <span>Change Password</span>
+                </ButtonLink>
                 <Button variant="primary" onClick={handleStartEdit}>
                   <span>Edit Profile</span>
                 </Button>

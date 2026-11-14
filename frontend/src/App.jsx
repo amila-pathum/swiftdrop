@@ -19,6 +19,7 @@ import ResetPasswordPage from './pages/auth/ResetPasswordPage'
 import CourierDashboardPage from './pages/courier/CourierDashboardPage'
 import CustomerDashboardPage from './pages/customer/CustomerDashboardPage'
 import DeliveryHistoryPage from './pages/customer/DeliveryHistoryPage'
+import ChangePasswordPage from './pages/customer/ChangePasswordPage'
 import DispatcherDashboardPage from './pages/dispatcher/DispatcherDashboardPage'
 import DispatchReportsPage from './pages/dispatcher/DispatchReportsPage'
 import OngoingDeliveriesPage from './pages/dispatcher/OngoingDeliveriesPage'
@@ -92,6 +93,7 @@ function App() {
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<DashboardRedirect />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/change-password" element={<ChangePasswordPage />} />
         </Route>
       </Route>
 
@@ -116,6 +118,7 @@ function App() {
       <Route element={<ProtectedRoute allowedRoles={['CUSTOMER']} />}>
         <Route element={<AppLayout />}>
           <Route path="/customer/deliveries" element={<DeliveryHistoryPage />} />
+          <Route path="/customer/change-password" element={<ChangePasswordPage />} />
         </Route>
       </Route>
 
