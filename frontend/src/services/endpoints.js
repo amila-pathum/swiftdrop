@@ -43,7 +43,8 @@ export const ENDPOINTS = Object.freeze({
     method: 'POST',
     path: '/api/auth/login',
     available: true,
-    // Body: { email, password } -> LoginResponse { accessToken, tokenType, expiresIn, user }
+    // Body: { email, password, rememberMe? } -> LoginResponse { accessToken,
+    // tokenType, expiresIn, refreshToken, refreshExpiresIn, user }
     // ACTIVE and PENDING_APPROVAL accounts may sign in; SUSPENDED and DISABLED get 403.
   },
   logout: {
@@ -51,7 +52,16 @@ export const ENDPOINTS = Object.freeze({
     path: '/api/auth/logout',
     available: true,
     auth: true,
-    // -> 204. Invalidates every access token of the signed-in user.
+    // -> 204. Invalidates every access and refresh token of the signed-in user.
+  },
+  refresh: {
+    method: 'POST',
+    path: '/api/auth/refresh',
+    available: true,
+    // Body: { refreshToken } -> LoginResponse with a new access token and a
+    // new refresh token; the old refresh token cannot be used again. 401 when
+    // the refresh token is unknown, used, expired or revoked. Called only by
+    // apiClient.refreshSession.
   },
   googleExchange: {
     method: 'POST',

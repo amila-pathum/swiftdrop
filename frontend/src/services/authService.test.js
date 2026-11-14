@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, ApiErrorKind } from './apiClient'
 import {
+  changePassword,
   confirmPasswordReset,
   exchangeGoogleCode,
   getCurrentUser,
@@ -100,6 +101,7 @@ describe('authService', () => {
       expect(JSON.parse(init.body)).toEqual({
         email: 'customer@example.com',
         password: 'password123',
+        rememberMe: false,
       })
       expect(result.user).toEqual(USER)
       expect(result).not.toHaveProperty('accessToken')
@@ -232,7 +234,7 @@ describe('authService', () => {
       expect(localStorage.getItem('swiftdrop.accessToken')).toBe('remembered-token')
       expect(sessionStorage.getItem('swiftdrop.accessToken')).toBeNull()
       expect(JSON.parse(fetchMock.mock.calls[0][1].body))
-        .toEqual({ email: 'customer@example.com', password: 'password123' })
+        .toEqual({ email: 'customer@example.com', password: 'password123', rememberMe: true })
     })
   })
 
@@ -281,6 +283,67 @@ describe('authService', () => {
       expect(url).toBe(`${API_BASE_URL}/api/auth/password-reset/confirm`)
       expect(JSON.parse(init.body)).toEqual({ token: 'one-time-token', newPassword: 'new-password-456' })
       expect(init.headers.Authorization).toBeUndefined()
+    })
+  })
+
+  describe('refresh tokens', () => {
+    const withRefresh = {
+      accessToken: 'access-1',
+      tokenType: 'Bearer',
+      expiresIn: 900,
+      refreshToken: 'refresh-1',
+      refreshExpiresIn: 86_400,
+      user: USER,
+    }
+
+    beforeEach(() => {
+      localStorage.clear()
+    })
+
+    it('stores the refresh token from a login', async () => {
+      fetchMock.mockResolvedValue(jsonResponse(200, withRefresh))
+
+      await login('customer@example.com', 'password123')
+
+      expect(getSession()).toMatchObject({ accessToken: 'access-1', refreshToken: 'refresh-1' })
+    })
+
+    it('stores the refresh token from a Google sign-in', async () => {
+      fetchMock.mockResolvedValue(jsonResponse(200, withRefresh))
+
+      await exchangeGoogleCode('code', 'v'.repeat(43))
+
+      expect(getSession()).toMatchObject({ refreshToken: 'refresh-1' })
+    })
+
+    it('rejects a login response with an unusable refresh token', async () => {
+      fetchMock.mockResolvedValue(jsonResponse(200, { ...withRefresh, refreshExpiresIn: 0 }))
+
+      const error = await login('customer@example.com', 'password123').catch((e) => e)
+
+      expect(error.kind).toBe(ApiErrorKind.INVALID_RESPONSE)
+      expect(getSession()).toBeNull()
+    })
+
+    it('keeps this session signed in after a password change', async () => {
+      saveSession('access-1', 900, undefined, {
+        persistent: true, refreshToken: 'refresh-1', refreshExpiresInSeconds: 86_400,
+      })
+      fetchMock.mockResolvedValue(jsonResponse(200, {
+        ...withRefresh, accessToken: 'access-2', refreshToken: 'refresh-2',
+      }))
+
+      await changePassword({
+        currentPassword: 'password123', newPassword: 'new-password-1',
+        confirmPassword: 'new-password-1',
+      })
+
+      const [url, init] = fetchMock.mock.calls[0]
+      expect(url).toBe(`${API_BASE_URL}/api/users/me/change-password`)
+      expect(init.headers.Authorization).toBe('Bearer access-1')
+      expect(JSON.parse(init.body)).toMatchObject({ rememberMe: true })
+      expect(localStorage.getItem('swiftdrop.accessToken')).toBe('access-2')
+      expect(localStorage.getItem('swiftdrop.refreshToken')).toBe('refresh-2')
     })
   })
 })
