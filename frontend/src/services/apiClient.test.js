@@ -24,6 +24,19 @@ describe('apiClient', () => {
   })
 
   describe('successful requests', () => {
+    it('lets the browser provide multipart boundaries for image uploads', async () => {
+      fetchMock.mockResolvedValue(jsonResponse(202, { syncStatus: 'PENDING' }))
+      const body = new FormData()
+      body.append('photo', new File(['bytes'], 'pod.png', { type: 'image/png' }))
+      await request('/upload', { method: 'POST', body })
+      expect(fetchMock.mock.calls[0][1].body).toBe(body)
+      expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty('Content-Type')
+    })
+    it('reads private image responses as blobs', async () => {
+      const blob = new Blob(['bytes'], { type: 'image/png' })
+      fetchMock.mockResolvedValue({ ok: true, blob: async () => blob })
+      expect(await request('/photo', { responseType: 'blob' })).toBe(blob)
+    })
     it('sends GET requests to the gateway and parses JSON', async () => {
       fetchMock.mockResolvedValue(jsonResponse(200, { ok: true }))
 
