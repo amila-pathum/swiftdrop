@@ -16,6 +16,10 @@ public record NotificationResponse(
     boolean isRead,
     Instant createdAt
 ) {
+    public boolean getRead() {
+        return isRead;
+    }
+
     public static NotificationResponse from(Notification n) {
         return NotificationResponse.builder()
             .id(n.getId())

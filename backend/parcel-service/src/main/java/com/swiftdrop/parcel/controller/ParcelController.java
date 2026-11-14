@@ -61,17 +61,24 @@ public class ParcelController {
     @PreAuthorize("hasRole('CUSTOMER')")
     public ParcelResponse create(@Valid @RequestBody CreateParcelRequest request,
                                  @AuthenticationPrincipal Jwt jwt) {
-        Long userId;
-        try {
-            userId = Long.valueOf(jwt.getSubject());
-            if (userId <= 0 || !userId.toString().equals(jwt.getSubject())) {
-                throw new IllegalArgumentException("Non-canonical user ID");
-            }
-        } catch (IllegalArgumentException exception) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,
-                "Token subject is not a valid user identifier");
-        }
-        return service.createCustomerParcel(request, userId);
+        return service.createCustomerParcel(request, parseUserId(jwt), jwt.getTokenValue());
+    }
+
+    @PostMapping("/merchant")
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasRole('MERCHANT')")
+    public ParcelResponse createMerchant(@Valid @RequestBody CreateParcelRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        return service.createMerchantParcel(request, parseUserId(jwt), jwt.getTokenValue());
+    }
+
+    @PatchMapping("/{id}/courier")
+    @PreAuthorize("hasAnyRole('DISPATCHER', 'ADMIN')")
+    public ParcelResponse assignCourier(@PathVariable UUID id,
+            @Valid @RequestBody com.swiftdrop.parcel.dto.request.AssignCourierRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+        parseUserId(jwt);
+        return ParcelResponse.from(parcelService.assignCourier(id, request.courierUserId()));
     }
 
     @PatchMapping("/{id}/status")
@@ -79,15 +86,7 @@ public class ParcelController {
     public ParcelStatusUpdateResponse updateStatus(@PathVariable java.util.UUID id,
             @Valid @RequestBody UpdateParcelStatusRequest request,
             @AuthenticationPrincipal Jwt jwt) {
-        Long actorId;
-        try {
-            actorId = Long.valueOf(jwt.getSubject());
-            if (actorId <= 0 || !actorId.toString().equals(jwt.getSubject())) {
-                throw new NumberFormatException("Invalid subject");
-            }
-        } catch (NumberFormatException exception) {
-            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid authenticated user identifier");
-        }
+        Long actorId = parseUserId(jwt);
         String role = jwt.getClaimAsString("role");
         return statusUpdates.update(id, request, actorId, role);
     }
@@ -117,7 +116,7 @@ public class ParcelController {
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<byte[]> getReceipt(@PathVariable("id") UUID id,
                                             @AuthenticationPrincipal Jwt jwt) {
-        ParcelReceipt receipt = parcelService.generateReceipt(id, extractUserId(jwt));
+        ParcelReceipt receipt = parcelService.generateReceipt(id, parseUserId(jwt));
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);
         headers.setContentDisposition(ContentDisposition.attachment().filename(receipt.filename()).build());
@@ -147,7 +146,7 @@ public class ParcelController {
 
     private Long parseUserId(Jwt jwt) {
         try {
-            Long userId = Long.valueOf(jwt.getSubject());
+            Long userId = Long.valueOf(jwt == null ? null : jwt.getSubject());
             if (userId <= 0 || !userId.toString().equals(jwt.getSubject())) {
                 throw new NumberFormatException("Invalid user ID");
             }

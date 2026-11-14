@@ -51,6 +51,7 @@ describe('App with the real AuthProvider', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.unstubAllGlobals()
   })
 
   it('sends a visitor without a session to login', async () => {
@@ -198,6 +199,9 @@ describe('App with the real AuthProvider', () => {
 
   describe('accounts awaiting approval', () => {
     it('signs a pending merchant in to the application status page, not the dashboard', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+        status: 'PENDING', createdAt: '2026-01-01T00:00:00Z', rejectionReason: null,
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })))
       const pending = { ...USER, role: 'MERCHANT', status: 'PENDING_APPROVAL' }
       authService.login.mockImplementation(async () => ({
         user: pending, expiresAt: saveSession('pending-token', 900),

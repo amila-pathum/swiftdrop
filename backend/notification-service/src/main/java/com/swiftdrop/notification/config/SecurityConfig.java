@@ -21,6 +21,8 @@ import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
@@ -75,6 +77,7 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/notifications/parcels/*/stream").permitAll()
                 .anyRequest().authenticated())
             .oauth2ResourceServer(oauth -> oauth
+                .bearerTokenResolver(bearerTokenResolver())
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
                 .authenticationEntryPoint(unauthenticated)
                 .accessDeniedHandler(denied))
@@ -82,6 +85,13 @@ public class SecurityConfig {
                 .authenticationEntryPoint(unauthenticated)
                 .accessDeniedHandler(denied))
             .build();
+    }
+
+    @Bean
+    BearerTokenResolver bearerTokenResolver() {
+        DefaultBearerTokenResolver resolver = new DefaultBearerTokenResolver();
+        resolver.setAllowUriQueryParameter(true);
+        return resolver;
     }
 
     @Bean

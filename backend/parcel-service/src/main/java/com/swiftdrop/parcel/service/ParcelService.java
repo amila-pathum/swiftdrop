@@ -9,6 +9,7 @@ import com.swiftdrop.parcel.entity.ParcelStatus;
 import com.swiftdrop.parcel.entity.ParcelStatusHistory;
 import com.swiftdrop.parcel.repository.ParcelRepository;
 import com.swiftdrop.parcel.repository.ParcelStatusHistoryRepository;
+import com.swiftdrop.parcel.event.ParcelEventOutbox;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,12 +26,29 @@ public class ParcelService {
     private final ParcelRepository parcels;
     private final ParcelStatusHistoryRepository history;
     private final ParcelStatusTransitionValidator transitions;
+    private final ParcelEventOutbox outbox;
 
     public ParcelService(ParcelRepository parcels, ParcelStatusHistoryRepository history,
-                         ParcelStatusTransitionValidator transitions) {
+                         ParcelStatusTransitionValidator transitions,
+                         ParcelEventOutbox outbox) {
         this.parcels = parcels;
         this.history = history;
         this.transitions = transitions;
+        this.outbox = outbox;
+    }
+
+    @Transactional
+    public Parcel assignCourier(UUID parcelId, Long courierUserId) {
+        if (courierUserId == null || courierUserId <= 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid courier user identifier");
+        }
+        Parcel parcel = parcels.findForStatusUpdateById(parcelId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Parcel not found"));
+        if (parcel.getStatus() == ParcelStatus.DELIVERED || parcel.getStatus() == ParcelStatus.CANCELLED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot assign a closed parcel");
+        }
+        parcel.setAssignedCourierId(courierUserId);
+        return parcel;
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
@@ -46,7 +64,6 @@ public class ParcelService {
             .map(entry -> new TrackingEntry(
                 entry.getNewStatus(), null, null, entry.getChangedAt()))
             .toList();
-        // No public location, ETA or description is stored in the current schema.
         return new PublicTrackingResponse(
             parcel.getTrackingNumber(), parcel.getStatus(), parcel.getCreatedAt(),
             null, null, null, entries);
@@ -61,9 +78,11 @@ public class ParcelService {
         }
         Objects.requireNonNull(parcel.getCreatedBy(), "createdBy is required");
         parcel.setStatus(ParcelStatus.CREATED);
-        Parcel saved = parcels.save(parcel);
-        history.save(new ParcelStatusHistory(saved, null, ParcelStatus.CREATED,
-                saved.getCreatedBy(), "Parcel created"));
+        Parcel saved = parcels.saveAndFlush(parcel);
+        ParcelStatusHistory entry = new ParcelStatusHistory(saved, null,
+                ParcelStatus.CREATED, saved.getCreatedBy(), "Parcel created");
+        history.save(entry);
+        outbox.enqueueStatusChanged(saved, null, ParcelStatus.CREATED, entry.getChangedAt());
         return saved;
     }
 
@@ -109,7 +128,7 @@ public class ParcelService {
      * Generates a downloadable PDF receipt for a delivered parcel owned by the customer.
      */
     @Transactional(readOnly = true)
-    public ParcelReceipt generateReceipt(UUID parcelId, UUID customerId) {
+    public ParcelReceipt generateReceipt(UUID parcelId, Long customerId) {
         Objects.requireNonNull(parcelId, "parcelId is required");
         Objects.requireNonNull(customerId, "customerId is required");
 
@@ -146,7 +165,10 @@ public class ParcelService {
         ParcelStatus previousStatus = parcel.getStatus();
         transitions.validate(previousStatus, newStatus);
         parcel.setStatus(newStatus);
-        history.save(new ParcelStatusHistory(parcel, previousStatus, newStatus, changedBy, note));
+        ParcelStatusHistory entry = new ParcelStatusHistory(
+            parcel, previousStatus, newStatus, changedBy, note);
+        history.save(entry);
+        outbox.enqueueStatusChanged(parcel, previousStatus, newStatus, entry.getChangedAt());
         return parcel;
     }
 }

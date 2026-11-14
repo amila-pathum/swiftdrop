@@ -6,6 +6,7 @@ import com.swiftdrop.parcel.entity.ParcelStatus;
 import com.swiftdrop.parcel.entity.ParcelStatusHistory;
 import com.swiftdrop.parcel.repository.ParcelRepository;
 import com.swiftdrop.parcel.repository.ParcelStatusHistoryRepository;
+import com.swiftdrop.parcel.event.ParcelEventOutbox;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.web.server.ResponseStatusException;
@@ -18,8 +19,9 @@ class ParcelStatusUpdateServiceTest {
     private final ParcelRepository parcels = mock(ParcelRepository.class);
     private final ParcelStatusHistoryRepository histories = mock(ParcelStatusHistoryRepository.class);
     private final CourierAssignmentVerifier assignments = mock(CourierAssignmentVerifier.class);
+    private final ParcelEventOutbox outbox = mock(ParcelEventOutbox.class);
     private final ParcelStatusUpdateService service = new ParcelStatusUpdateService(
-        parcels, histories, new ParcelStatusTransitionValidator(), assignments);
+        parcels, histories, new ParcelStatusTransitionValidator(), assignments, outbox);
     private final UUID id = UUID.randomUUID();
 
     private Parcel existing(ParcelStatus status) {
@@ -42,6 +44,8 @@ class ParcelStatusUpdateServiceTest {
         assertThat(captor.getValue().getChangedBy()).isEqualTo(42L);
         assertThat(captor.getValue().getPreviousStatus()).isEqualTo(ParcelStatus.CREATED);
         assertThat(captor.getValue().getNote()).isEqualTo("collected");
+        verify(outbox).enqueueStatusChanged(p, ParcelStatus.CREATED, ParcelStatus.PICKED_UP,
+            captor.getValue().getChangedAt());
     }
 
     @Test
@@ -51,6 +55,7 @@ class ParcelStatusUpdateServiceTest {
             .isInstanceOf(ResponseStatusException.class).hasMessageContaining("403");
         assertThat(p.getStatus()).isEqualTo(ParcelStatus.CREATED);
         verifyNoInteractions(histories);
+        verifyNoInteractions(outbox);
     }
 
     @Test
@@ -68,6 +73,7 @@ class ParcelStatusUpdateServiceTest {
             .isInstanceOf(ResponseStatusException.class).hasMessageContaining("409");
         assertThat(p.getStatus()).isEqualTo(ParcelStatus.CREATED);
         verifyNoInteractions(histories);
+        verifyNoInteractions(outbox);
     }
 
     @Test
@@ -76,6 +82,7 @@ class ParcelStatusUpdateServiceTest {
         assertThatThrownBy(() -> service.update(id, new UpdateParcelStatusRequest(ParcelStatus.CANCELLED, null), 42L, "ADMIN"))
             .isInstanceOf(ResponseStatusException.class).hasMessageContaining("409");
         verifyNoInteractions(histories);
+        verifyNoInteractions(outbox);
     }
 
     @Test

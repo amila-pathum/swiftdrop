@@ -73,6 +73,7 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.GET, "/actuator/health").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/parcels/track/{trackingNumber}").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/parcels").hasAnyRole("DISPATCHER", "ADMIN")
                 .anyRequest().authenticated())
             .oauth2ResourceServer(oauth -> oauth
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))

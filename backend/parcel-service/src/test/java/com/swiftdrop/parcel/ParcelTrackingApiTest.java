@@ -34,7 +34,7 @@ class ParcelTrackingApiTest {
     Parcel parcel() {
         Parcel p = new Parcel();
         p.setTrackingNumber("SD" + UUID.randomUUID().toString().replace("-", "").toUpperCase());
-        p.setSenderId(UUID.randomUUID()); p.setCreatedBy(p.getSenderId());
+        p.setSenderId(System.nanoTime()); p.setCreatedBy(p.getSenderId());
         p.setReceiverName("Private recipient"); p.setReceiverPhone("0771234567");
         p.setPickupAddress("Private pickup address"); p.setDeliveryAddress("Private delivery address");
         p.setWeight(BigDecimal.ONE); p.setCharge(BigDecimal.TEN);
@@ -51,7 +51,7 @@ class ParcelTrackingApiTest {
         jdbc.update("update parcel_status_history set changed_at = '2026-01-01T00:00:00Z' where id = ?", earlier.getId());
         jdbc.update("update parcel_status_history set changed_at = '2026-01-02T00:00:00Z' where id = ?", later.getId());
         history.saveAndFlush(new ParcelStatusHistory(parcel(), null, ParcelStatus.CREATED,
-            UUID.randomUUID(), "Another parcel"));
+            System.nanoTime(), "Another parcel"));
         String body = mvc.perform(get("/api/parcels/track/" + p.getTrackingNumber()))
             .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
             .andExpect(jsonPath("$.trackingNumber").value(p.getTrackingNumber()))
