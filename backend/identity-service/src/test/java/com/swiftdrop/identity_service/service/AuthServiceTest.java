@@ -2,6 +2,7 @@ package com.swiftdrop.identity_service.service;
 
 import com.swiftdrop.identity_service.dto.GoogleExchangeRequest;
 import com.swiftdrop.identity_service.dto.LoginRequest;
+import com.swiftdrop.identity_service.dto.RefreshRequest;
 import com.swiftdrop.identity_service.dto.RegisterRequest;
 import com.swiftdrop.identity_service.entity.Role;
 import com.swiftdrop.identity_service.entity.User;
@@ -10,16 +11,19 @@ import com.swiftdrop.identity_service.exception.AccountNotActiveException;
 import com.swiftdrop.identity_service.exception.DuplicateEmailException;
 import com.swiftdrop.identity_service.exception.InvalidCredentialsException;
 import com.swiftdrop.identity_service.exception.InvalidLoginCodeException;
+import com.swiftdrop.identity_service.exception.InvalidRefreshTokenException;
 import com.swiftdrop.identity_service.exception.RateLimitExceededException;
 import com.swiftdrop.identity_service.repository.UserRepository;
 import com.swiftdrop.identity_service.security.JwtService;
 import com.swiftdrop.identity_service.security.RateLimiter;
+import com.swiftdrop.identity_service.service.RefreshTokenService.IssuedRefreshToken;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Instant;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,13 +39,18 @@ class AuthServiceTest {
     private final JwtService jwtService = mock(JwtService.class);
     private final OAuthLoginCodeService loginCodes = mock(OAuthLoginCodeService.class);
     private final RateLimiter rateLimiter = new RateLimiter(100, 900);
+    private final RefreshTokenService refreshTokens = mock(RefreshTokenService.class);
+    private final IssuedRefreshToken issuedRefresh =
+        new IssuedRefreshToken("refresh-token", Instant.parse("2026-01-02T00:00:00Z"), 86_400);
     private AuthService authService;
     private User activeUser;
 
     @BeforeEach
     void setUp() {
-        authService = new AuthService(repository, encoder, jwtService, loginCodes, rateLimiter);
+        authService = new AuthService(repository, encoder, jwtService, loginCodes, rateLimiter,
+            refreshTokens);
         activeUser = user(UserStatus.ACTIVE);
+        when(refreshTokens.issue(any(User.class), anyBoolean())).thenReturn(issuedRefresh);
     }
 
     @Test
@@ -79,13 +88,62 @@ class AuthServiceTest {
         when(jwtService.generateToken(activeUser)).thenReturn("signed-token");
         when(jwtService.getExpirationSeconds()).thenReturn(900L);
 
-        var response = authService.login(new LoginRequest(" USER@example.com ", "password123"));
+        var response = authService.login(new LoginRequest(" USER@example.com ", "password123", null));
 
         assertThat(response.accessToken()).isEqualTo("signed-token");
         assertThat(response.tokenType()).isEqualTo("Bearer");
         assertThat(response.expiresIn()).isEqualTo(900);
         assertThat(response.user().email()).isEqualTo("user@example.com");
         assertThat(response.user().role()).isEqualTo(Role.CUSTOMER);
+        assertThat(response.refreshToken()).isEqualTo("refresh-token");
+        assertThat(response.refreshExpiresIn()).isEqualTo(86_400);
+        verify(refreshTokens).issue(activeUser, false);
+    }
+
+    @Test
+    void loginWithRememberMeIssuesAPersistentRefreshToken() {
+        when(repository.findByEmail("user@example.com")).thenReturn(Optional.of(activeUser));
+        when(encoder.matches("password123", "hash")).thenReturn(true);
+
+        authService.login(new LoginRequest("user@example.com", "password123", true));
+
+        verify(refreshTokens).issue(activeUser, true);
+    }
+
+    @Test
+    void failedLoginIssuesNoRefreshToken() {
+        when(repository.findByEmail("user@example.com")).thenReturn(Optional.of(activeUser));
+        when(encoder.matches(anyString(), anyString())).thenReturn(false);
+
+        assertThatThrownBy(() -> authService.login(
+            new LoginRequest("user@example.com", "wrong-password", true)))
+            .isInstanceOf(InvalidCredentialsException.class);
+        verify(refreshTokens, never()).issue(any(), anyBoolean());
+    }
+
+    @Test
+    void refreshReturnsANewAccessTokenAndTheRotatedRefreshToken() {
+        when(refreshTokens.rotate("old-refresh"))
+            .thenReturn(new RefreshTokenService.Rotation(activeUser, issuedRefresh));
+        when(jwtService.generateToken(activeUser)).thenReturn("new-access");
+        when(jwtService.getExpirationSeconds()).thenReturn(900L);
+
+        var response = authService.refresh(new RefreshRequest("old-refresh"));
+
+        assertThat(response.accessToken()).isEqualTo("new-access");
+        assertThat(response.tokenType()).isEqualTo("Bearer");
+        assertThat(response.expiresIn()).isEqualTo(900);
+        assertThat(response.refreshToken()).isEqualTo("refresh-token");
+        assertThat(response.user().id()).isEqualTo(1L);
+    }
+
+    @Test
+    void refreshIssuesNoAccessTokenWhenTheRefreshTokenIsRejected() {
+        when(refreshTokens.rotate("bad")).thenThrow(new InvalidRefreshTokenException());
+
+        assertThatThrownBy(() -> authService.refresh(new RefreshRequest("bad")))
+            .isInstanceOf(InvalidRefreshTokenException.class);
+        verify(jwtService, never()).generateToken(any());
     }
 
     @Test
@@ -94,7 +152,7 @@ class AuthServiceTest {
         when(encoder.matches(anyString(), anyString())).thenReturn(false);
 
         assertThatThrownBy(() -> authService.login(
-            new LoginRequest("user@example.com", "wrong-password")))
+            new LoginRequest("user@example.com", "wrong-password", null)))
             .isInstanceOf(InvalidCredentialsException.class);
         verify(jwtService, never()).generateToken(any());
     }
@@ -104,7 +162,7 @@ class AuthServiceTest {
         when(repository.findByEmail("missing@example.com")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> authService.login(
-            new LoginRequest("missing@example.com", "password123")))
+            new LoginRequest("missing@example.com", "password123", null)))
             .isInstanceOf(InvalidCredentialsException.class);
         verify(encoder).matches(eq("password123"), eq(AuthService.DUMMY_HASH));
     }
@@ -116,7 +174,7 @@ class AuthServiceTest {
         when(repository.findByEmail("user@example.com")).thenReturn(Optional.of(googleOnly));
 
         assertThatThrownBy(() -> authService.login(
-            new LoginRequest("user@example.com", "any-password")))
+            new LoginRequest("user@example.com", "any-password", null)))
             .isInstanceOf(InvalidCredentialsException.class);
         verify(encoder, never()).matches(anyString(), any());
         verify(jwtService, never()).generateToken(any());
@@ -129,7 +187,7 @@ class AuthServiceTest {
         when(encoder.matches(anyString(), anyString())).thenReturn(true);
 
         assertThatThrownBy(() -> authService.login(
-            new LoginRequest("user@example.com", "password123")))
+            new LoginRequest("user@example.com", "password123", null)))
             .isInstanceOf(AccountNotActiveException.class);
         verify(jwtService, never()).generateToken(any());
     }
@@ -147,6 +205,8 @@ class AuthServiceTest {
         assertThat(response.tokenType()).isEqualTo("Bearer");
         assertThat(response.expiresIn()).isEqualTo(900);
         assertThat(response.user().email()).isEqualTo("user@example.com");
+        assertThat(response.refreshToken()).isEqualTo("refresh-token");
+        verify(refreshTokens).issue(activeUser, false);
     }
 
     @Test
@@ -202,7 +262,7 @@ class AuthServiceTest {
         when(encoder.matches("password123", "hash")).thenReturn(true);
         when(jwtService.generateToken(pending)).thenReturn("signed-token");
 
-        var response = authService.login(new LoginRequest("user@example.com", "password123"));
+        var response = authService.login(new LoginRequest("user@example.com", "password123", null));
 
         assertThat(response.accessToken()).isEqualTo("signed-token");
         assertThat(response.user().status()).isEqualTo(UserStatus.PENDING_APPROVAL);
@@ -215,7 +275,7 @@ class AuthServiceTest {
         when(encoder.matches(anyString(), anyString())).thenReturn(true);
 
         assertThatThrownBy(() -> authService.login(
-            new LoginRequest("user@example.com", "password123")))
+            new LoginRequest("user@example.com", "password123", null)))
             .isInstanceOf(AccountNotActiveException.class);
         verify(jwtService, never()).generateToken(any());
     }
@@ -228,5 +288,6 @@ class AuthServiceTest {
 
         assertThat(activeUser.getTokenVersion()).isEqualTo(1);
         verify(repository).save(activeUser);
+        verify(refreshTokens).revokeAll(1L);
     }
 }
