@@ -1,25 +1,24 @@
 package com.swiftdrop.parcel.controller;
 
 import com.swiftdrop.parcel.dto.request.CreateParcelRequest;
-import com.swiftdrop.parcel.dto.response.DispatchParcelResponse;
-import com.swiftdrop.parcel.dto.response.ParcelReceipt;
-import com.swiftdrop.parcel.dto.response.ParcelResponse;
-import com.swiftdrop.parcel.service.ParcelCreationService;
-import com.swiftdrop.parcel.service.ParcelStatusUpdateService;
 import com.swiftdrop.parcel.dto.request.UpdateParcelStatusRequest;
-import com.swiftdrop.parcel.dto.response.ParcelStatusUpdateResponse;
+import com.swiftdrop.parcel.dto.response.DispatchParcelResponse;
 import com.swiftdrop.parcel.dto.response.ParcelDetailsResponse;
 import com.swiftdrop.parcel.dto.response.ParcelHistoryResponse;
+import com.swiftdrop.parcel.dto.response.ParcelReceipt;
+import com.swiftdrop.parcel.dto.response.ParcelResponse;
+import com.swiftdrop.parcel.dto.response.ParcelStatusUpdateResponse;
+import com.swiftdrop.parcel.dto.response.PublicTrackingResponse;
 import com.swiftdrop.parcel.entity.ParcelStatus;
+import com.swiftdrop.parcel.service.ParcelCreationService;
 import com.swiftdrop.parcel.service.ParcelQueryService;
+import com.swiftdrop.parcel.service.ParcelService;
+import com.swiftdrop.parcel.service.ParcelStatusUpdateService;
+import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
-import java.util.List;
-import java.util.UUID;
-import com.swiftdrop.parcel.service.ParcelService;
-import com.swiftdrop.parcel.dto.response.DispatchParcelResponse;
-import jakarta.validation.Valid;
+import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -30,6 +29,9 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/parcels")
@@ -44,6 +46,14 @@ public class ParcelController {
         this.statusUpdates = statusUpdates;
         this.queryService = queryService;
         this.parcelService = parcelService;
+    }
+
+    @GetMapping("/track/{trackingNumber}")
+    public ResponseEntity<PublicTrackingResponse>
+            track(@PathVariable String trackingNumber) {
+        return ResponseEntity.ok()
+            .cacheControl(CacheControl.noStore())
+            .body(parcelService.track(trackingNumber));
     }
 
     @PostMapping

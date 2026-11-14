@@ -18,6 +18,7 @@ import RegisterPage from './pages/auth/RegisterPage'
 import ResetPasswordPage from './pages/auth/ResetPasswordPage'
 import CourierDashboardPage from './pages/courier/CourierDashboardPage'
 import CustomerDashboardPage from './pages/customer/CustomerDashboardPage'
+import CreateDeliveryPage from './pages/customer/CreateDeliveryPage'
 import DispatcherDashboardPage from './pages/dispatcher/DispatcherDashboardPage'
 import DispatchReportsPage from './pages/dispatcher/DispatchReportsPage'
 import OngoingDeliveriesPage from './pages/dispatcher/OngoingDeliveriesPage'
@@ -27,6 +28,7 @@ import MerchantApiKeysPage from './pages/merchant/MerchantApiKeysPage'
 import MerchantWebhookPage from './pages/merchant/MerchantWebhookPage'
 import NotAvailablePage from './pages/NotAvailablePage'
 import NotFoundPage from './pages/NotFoundPage'
+import NotificationsPage from './pages/NotificationsPage'
 import ProfilePage from './pages/ProfilePage'
 import LandingPage from './pages/public/LandingPage'
 import TrackParcelPage from './pages/public/TrackParcelPage'
@@ -91,6 +93,7 @@ function App() {
         <Route element={<AppLayout />}>
           <Route path="/dashboard" element={<DashboardRedirect />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/notifications" element={<NotificationsPage />} />
         </Route>
       </Route>
 
@@ -101,6 +104,12 @@ function App() {
           </Route>
         </Route>
       ))}
+
+      <Route element={<ProtectedRoute allowedRoles={['CUSTOMER']} />}>
+        <Route element={<AppLayout />}>
+          <Route path="/customer/create-delivery" element={<CreateDeliveryPage />} />
+        </Route>
+      </Route>
 
       {/* Merchant protected routes */}
       <Route element={<ProtectedRoute allowedRoles={['MERCHANT']} />}>

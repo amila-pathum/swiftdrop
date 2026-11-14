@@ -1,0 +1,33 @@
+.delivery-page{max-width:980px;margin:0 auto;padding:8px 0 36px;color:#122341}
+.delivery-page h1{font-size:27px;line-height:1.25;margin:8px 0 4px}
+.delivery-intro{color:#536885;margin:0 0 20px}
+.delivery-breadcrumb{font-size:13px;color:#536885}
+.delivery-breadcrumb a{color:#536885;text-decoration:none;margin-right:8px}
+.delivery-stepper{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;list-style:none;margin:0 0 18px;padding:13px 16px;border:1px solid #d8e1ed;background:#fff;border-radius:10px}
+.delivery-stepper li{display:flex;align-items:center;gap:9px;font-size:13px;color:#536885;min-width:0}
+.delivery-step-number{display:inline-grid;place-items:center;border:1px solid #c9d6e8;border-radius:50%;width:30px;height:30px;flex-shrink:0;color:#5a6e8a;background:#fff}
+.delivery-stepper li.current{color:#122341;font-weight:600}
+.delivery-stepper li.current .delivery-step-number{border-color:#155dfb;color:#155dfb}
+.delivery-stepper li.complete .delivery-step-number{color:#fff;background:#155dfb;border-color:#155dfb}
+.delivery-panel,.delivery-summary{background:#fff;border:1px solid #d9e2ee;border-radius:9px;overflow:hidden}
+.delivery-panel>header,.delivery-summary>header{padding:15px 20px;border-bottom:1px solid #d9e2ee}
+.delivery-panel>header p{margin:3px 0 0;color:#677a96;font-size:13px}
+.delivery-fields{padding:24px 20px;display:grid;gap:18px}
+.delivery-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.delivery-estimate-placeholder{border:1px solid #d9e2ee;background:#f7f9fd;border-radius:7px;padding:17px;color:#536885;font-size:14px}
+.delivery-navigation{display:flex;justify-content:space-between;margin-top:24px;gap:12px}
+.delivery-review{display:grid;gap:16px}
+.delivery-summary>header{display:flex;align-items:center;justify-content:space-between}
+.delivery-summary>header button{color:#155dfb;background:transparent;border:0;cursor:pointer;font:inherit}
+.delivery-summary>div{padding:15px 20px;min-height:96px}
+.delivery-summary p{font-size:14px;margin:3px 0;overflow-wrap:anywhere}
+.delivery-success{max-width:680px;margin:2rem auto}
+.delivery-tracking-number{font-size:1.6rem;font-weight:700;letter-spacing:.04em;overflow-wrap:anywhere}
+
+@media(max-width:700px){
+  .delivery-stepper{gap:5px;padding:10px}
+  .delivery-stepper li{flex-direction:column;text-align:center;font-size:10px}
+  .delivery-grid{grid-template-columns:1fr}
+  .delivery-fields{padding:18px 14px}
+  .delivery-page{padding:8px 0 25px}
+}
