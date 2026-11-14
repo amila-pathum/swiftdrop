@@ -29,7 +29,7 @@ function formatDateTime(value) {
 }
 
 function TrackingResult({ parcel, onLiveUpdate }) {
-  const { status: liveStatus, updatedAt: liveUpdatedAt, isConnected } = useParcelLiveStatus(
+  const { status: liveStatus, updatedAt: liveUpdatedAt, isConnected, events } = useParcelLiveStatus(
     parcel.trackingNumber,
     parcel.status
   )
@@ -42,6 +42,24 @@ function TrackingResult({ parcel, onLiveUpdate }) {
       onLiveUpdate?.()
     }
   }, [liveStatus, onLiveUpdate])
+
+  useEffect(() => {
+    if (events && events.length > 0) {
+      setHistory((prev) => {
+        const merged = [...prev]
+        for (const ev of events) {
+          if (!merged.some((h) => h.status === ev.status)) {
+            merged.push({
+              status: ev.status,
+              occurredAt: ev.occurredAt,
+              note: 'Live status update',
+            })
+          }
+        }
+        return merged
+      })
+    }
+  }, [events])
 
   useEffect(() => {
     if (liveStatus && liveStatus !== parcel.status) {
@@ -59,6 +77,23 @@ function TrackingResult({ parcel, onLiveUpdate }) {
       })
     }
   }, [liveStatus, liveUpdatedAt, parcel.status])
+
+  useEffect(() => {
+    if (currentStatus && currentStatus !== 'WAITING_FOR_UPDATES') {
+      try {
+        sessionStorage.setItem(
+          `swiftdrop_track_${parcel.trackingNumber}`,
+          JSON.stringify({
+            trackingNumber: parcel.trackingNumber,
+            status: currentStatus,
+            history,
+          })
+        )
+      } catch {
+        // Ignore storage errors
+      }
+    }
+  }, [parcel.trackingNumber, currentStatus, history])
 
   return (
     <section className="card tracking-result" aria-labelledby="tracking-result-title">
@@ -116,21 +151,63 @@ export default function TrackParcelPage() {
   const params = useParams()
   const trackingNumber = normalizeTrackingNumber(params.trackingNumber)
   const valid = TRACKING_NUMBER_PATTERN.test(trackingNumber)
-  const [result, setResult] = useState({ key: null, parcel: null, error: null })
-  const [hasLiveUpdate, setHasLiveUpdate] = useState(false)
+  const [result, setResult] = useState(() => {
+    if (valid) {
+      try {
+        const cached = sessionStorage.getItem(`swiftdrop_track_${trackingNumber}`)
+        if (cached) {
+          const parsed = JSON.parse(cached)
+          return { key: trackingNumber, parcel: parsed, error: null }
+        }
+      } catch {
+        // Ignore
+      }
+    }
+    return { key: null, parcel: null, error: null }
+  })
+  const [hasLiveUpdate, setHasLiveUpdate] = useState(() => {
+    if (valid) {
+      try {
+        return !!sessionStorage.getItem(`swiftdrop_track_${trackingNumber}`)
+      } catch {
+        return false
+      }
+    }
+    return false
+  })
 
   useEffect(() => {
-    setHasLiveUpdate(false)
+    let hasCached = false
+    try {
+      hasCached = !!sessionStorage.getItem(`swiftdrop_track_${trackingNumber}`)
+    } catch {
+      hasCached = false
+    }
+    setHasLiveUpdate(hasCached)
   }, [trackingNumber])
 
   useEffect(() => {
     if (!valid) return undefined
+    let cachedParcel = null
+    try {
+      const cached = sessionStorage.getItem(`swiftdrop_track_${trackingNumber}`)
+      if (cached) {
+        cachedParcel = JSON.parse(cached)
+        setResult({ key: trackingNumber, parcel: cachedParcel, error: null })
+        setHasLiveUpdate(true)
+      }
+    } catch {
+      // Ignore
+    }
+
     const controller = new AbortController()
     trackParcel(trackingNumber, { signal: controller.signal })
       .then((parcel) => setResult({ key: trackingNumber, parcel, error: null }))
       .catch((error) => {
         if (error?.name === 'AbortError') return
-        setResult({ key: trackingNumber, parcel: null, error })
+        if (!cachedParcel) {
+          setResult({ key: trackingNumber, parcel: null, error })
+        }
       })
     return () => controller.abort()
   }, [trackingNumber, valid])

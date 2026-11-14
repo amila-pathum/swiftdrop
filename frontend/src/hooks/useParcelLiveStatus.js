@@ -22,6 +22,7 @@ export function useParcelLiveStatus(trackingNumber, initialStatus = null) {
   const [isConnected, setIsConnected] = useState(false)
   const [error, setError] = useState(null)
   const [lastEvent, setLastEvent] = useState(null)
+  const [events, setEvents] = useState([])
 
   const eventSourceRef = useRef(null)
   const reconnectTimeoutRef = useRef(null)
@@ -29,6 +30,9 @@ export function useParcelLiveStatus(trackingNumber, initialStatus = null) {
 
   useEffect(() => {
     isMountedRef.current = true
+    setStatus(initialStatus)
+    setUpdatedAt(null)
+    setEvents([])
 
     if (!trackingNumber || typeof trackingNumber !== 'string' || !trackingNumber.trim()) {
       setIsConnected(false)
@@ -66,6 +70,13 @@ export function useParcelLiveStatus(trackingNumber, initialStatus = null) {
               setUpdatedAt(time)
             }
             setLastEvent(data)
+            if (data.status) {
+              setEvents((prev) => {
+                const exists = prev.some((ev) => ev.status === data.status)
+                if (exists) return prev
+                return [...prev, { status: data.status, occurredAt: time || new Date().toISOString() }]
+              })
+            }
           } catch {
             // Ignore malformed JSON
           }
@@ -114,6 +125,7 @@ export function useParcelLiveStatus(trackingNumber, initialStatus = null) {
     isConnected,
     error,
     lastEvent,
+    events,
   }
 }
 
