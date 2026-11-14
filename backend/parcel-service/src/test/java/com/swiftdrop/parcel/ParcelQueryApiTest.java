@@ -107,7 +107,13 @@ class ParcelQueryApiTest {
             .andExpect(jsonPath("content[1].id").value(older.getId().toString()));
         read("/api/parcels/" + newer.getId(), 51, "MERCHANT")
             .andExpect(status().isOk()).andExpect(jsonPath("merchantId").value(51));
+        history(newer, ParcelStatus.CREATED, ParcelStatus.IN_TRANSIT, 4);
+        read("/api/parcels/" + newer.getId() + "/history", 51, "MERCHANT")
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].newStatus").value("IN_TRANSIT"));
         read("/api/parcels/" + other.getId(), 51, "MERCHANT")
+            .andExpect(status().isNotFound());
+        read("/api/parcels/" + other.getId() + "/history", 51, "MERCHANT")
             .andExpect(status().isNotFound());
     }
 
