@@ -18,6 +18,7 @@ import RegisterPage from './pages/auth/RegisterPage'
 import ResetPasswordPage from './pages/auth/ResetPasswordPage'
 import CourierDashboardPage from './pages/courier/CourierDashboardPage'
 import CustomerDashboardPage from './pages/customer/CustomerDashboardPage'
+import CreateDeliveryPage from './pages/customer/CreateDeliveryPage'
 import DispatcherDashboardPage from './pages/dispatcher/DispatcherDashboardPage'
 import DispatchReportsPage from './pages/dispatcher/DispatchReportsPage'
 import OngoingDeliveriesPage from './pages/dispatcher/OngoingDeliveriesPage'
@@ -103,6 +104,12 @@ function App() {
           </Route>
         </Route>
       ))}
+
+      <Route element={<ProtectedRoute allowedRoles={['CUSTOMER']} />}>
+        <Route element={<AppLayout />}>
+          <Route path="/customer/create-delivery" element={<CreateDeliveryPage />} />
+        </Route>
+      </Route>
 
       {/* Merchant protected routes */}
       <Route element={<ProtectedRoute allowedRoles={['MERCHANT']} />}>

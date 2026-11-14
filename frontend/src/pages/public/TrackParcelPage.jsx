@@ -129,15 +129,18 @@ function TrackingResult({ parcel, onLiveUpdate }) {
           <span className="pill pill-info">{formatStatus(currentStatus)}</span>
         </div>
       </header>
+      {parcel.estimatedDeliveryDate && (
+        <p>Estimated delivery: {parcel.estimatedDeliveryDate}</p>
+      )}
       {history.length === 0 ? (
         <EmptyState title="No updates yet" description="Status updates will appear here." />
       ) : (
         <ol className="timeline">
           {history.map((entry, index) => (
-            <li key={`${entry.status}-${entry.occurredAt}-${index}`}>
+            <li key={`${entry.status}-${entry.timestamp}-${index}`}>
               <p className="timeline-status">{formatStatus(entry.status)}</p>
-              <p className="timeline-time">{formatDateTime(entry.occurredAt)}</p>
-              {entry.note && <p className="timeline-note">{entry.note}</p>}
+              <p className="timeline-time">{formatDateTime(entry.timestamp)}</p>
+              {entry.description && <p className="timeline-note">{entry.description}</p>}
             </li>
           ))}
         </ol>

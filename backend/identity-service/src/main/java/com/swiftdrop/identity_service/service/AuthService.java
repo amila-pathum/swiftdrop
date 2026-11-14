@@ -11,32 +11,41 @@ import com.swiftdrop.identity_service.repository.UserRepository;
 import com.swiftdrop.identity_service.exception.AccountNotActiveException;
 import com.swiftdrop.identity_service.exception.DuplicateEmailException;
 import com.swiftdrop.identity_service.exception.InvalidCredentialsException;
+import com.swiftdrop.identity_service.exception.RateLimitExceededException;
 import com.swiftdrop.identity_service.exception.UserNotFoundException;
 import com.swiftdrop.identity_service.security.JwtService;
+import com.swiftdrop.identity_service.security.RateLimiter;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Locale;
+import java.util.Optional;
 
 @Service
 public class AuthService {
+
+    static final String DUMMY_HASH =
+        "$2a$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ012";
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final OAuthLoginCodeService loginCodes;
+    private final RateLimiter rateLimiter;
 
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
-            OAuthLoginCodeService loginCodes) {
+            OAuthLoginCodeService loginCodes,
+            RateLimiter rateLimiter) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.loginCodes = loginCodes;
+        this.rateLimiter = rateLimiter;
     }
 
     /** Customer sign-up: an ACTIVE CUSTOMER that can be used straight away. */
@@ -63,9 +72,11 @@ public class AuthService {
         return createAccount(request, Role.COURIER);
     }
 
-    // The role is chosen by the endpoint, never read from the request.
     private UserResponse createAccount(RegisterRequest request, Role role) {
         String email = normalizeEmail(request.email());
+        if (!rateLimiter.isAllowed("register:" + email)) {
+            throw new RateLimitExceededException();
+        }
         if (userRepository.existsByEmail(email)) {
             throw new DuplicateEmailException();
         }
@@ -86,10 +97,18 @@ public class AuthService {
     @Transactional(readOnly = true)
     public LoginResponse login(LoginRequest request) {
         String email = normalizeEmail(request.email());
-        User user = userRepository.findByEmail(email)
-            .orElseThrow(InvalidCredentialsException::new);
 
-        // Google-only accounts have no password; they fail like a wrong password.
+        if (!rateLimiter.isAllowed("login:" + email)) {
+            throw new RateLimitExceededException();
+        }
+
+        Optional<User> found = userRepository.findByEmail(email);
+        if (found.isEmpty()) {
+            passwordEncoder.matches(request.password(), DUMMY_HASH);
+            throw new InvalidCredentialsException();
+        }
+        User user = found.get();
+
         if (!user.hasPassword()
                 || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new InvalidCredentialsException();

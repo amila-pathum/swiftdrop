@@ -11,7 +11,7 @@ export default function CustomerDashboardPage() {
       <PageHeader
         title="Customer dashboard"
         description={<>Welcome, {user?.name}.</>}
-        actions={<ButtonLink to="/track" variant="outline">Track a parcel</ButtonLink>}
+        actions={<><ButtonLink to="/customer/create-delivery">Create Delivery</ButtonLink>{' '}<ButtonLink to="/track" variant="outline">Track a parcel</ButtonLink></>}
       />
       <EmptyState
         title="No deliveries yet"

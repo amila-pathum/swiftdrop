@@ -63,8 +63,10 @@ public class WebhookParcelStatusConsumer {
                 || !hasText(event.trackingNumber())
                 || !hasText(event.parcelId())
                 || !hasText(event.customerId())
-                || !hasText(event.oldStatus())
-                || !hasText(event.newStatus())) {
+                || !hasText(event.newStatus())
+                || ("CREATED".equals(event.newStatus())
+                    ? event.oldStatus() != null
+                    : !hasText(event.oldStatus()))) {
             throw new IllegalArgumentException(
                     "Invalid parcel status changed event"
             );

@@ -8,6 +8,7 @@ import com.swiftdrop.identity_service.entity.UserStatus;
 import com.swiftdrop.identity_service.exception.AccountNotActiveException;
 import com.swiftdrop.identity_service.exception.UserNotFoundException;
 import com.swiftdrop.identity_service.repository.UserRepository;
+import com.swiftdrop.identity_service.security.JwtService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -25,12 +26,13 @@ class UserServiceTest {
 
     private final UserRepository userRepository = mock(UserRepository.class);
     private final PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+    private final JwtService jwtService = mock(JwtService.class);
     private UserService userService;
     private User activeUser;
 
     @BeforeEach
     void setUp() {
-        userService = new UserService(userRepository, passwordEncoder);
+        userService = new UserService(userRepository, passwordEncoder, jwtService);
         activeUser = createUser(1L, "John Doe", "john@example.com", UserStatus.ACTIVE);
     }
 
@@ -122,12 +124,25 @@ class UserServiceTest {
     }
 
     @Test
-    void updateProfileThrowsWhenAccountNotActive() {
+    void updateProfileAllowsPendingApprovalAccount() {
         User pendingUser = createUser(3L, "Pending", "pending@example.com", UserStatus.PENDING_APPROVAL);
         when(userRepository.findById(3L)).thenReturn(Optional.of(pendingUser));
+        when(userRepository.save(any(User.class))).thenAnswer(call -> call.getArgument(0));
 
         UpdateProfileRequest request = new UpdateProfileRequest("Name", "123", "Addr");
-        assertThatThrownBy(() -> userService.updateProfile(3L, request))
+        UserResponse response = userService.updateProfile(3L, request);
+
+        assertThat(response.name()).isEqualTo("Name");
+        verify(userRepository).save(any());
+    }
+
+    @Test
+    void updateProfileThrowsWhenAccountSuspended() {
+        User suspendedUser = createUser(4L, "Suspended", "suspended@example.com", UserStatus.SUSPENDED);
+        when(userRepository.findById(4L)).thenReturn(Optional.of(suspendedUser));
+
+        UpdateProfileRequest request = new UpdateProfileRequest("Name", "123", "Addr");
+        assertThatThrownBy(() -> userService.updateProfile(4L, request))
             .isInstanceOf(AccountNotActiveException.class);
         verify(userRepository, never()).save(any());
     }
