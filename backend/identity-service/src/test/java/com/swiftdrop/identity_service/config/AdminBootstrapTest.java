@@ -53,16 +53,28 @@ class AdminBootstrapTest {
     }
 
     @Test
-    void neverChangesAnExistingAccount() {
+    void failsStartupWhenEmailBelongsToNonAdminAccount() {
         User customer = new User("Someone", "admin@example.com", "existing-hash",
             Role.CUSTOMER, UserStatus.ACTIVE);
         when(repository.findByEmail("admin@example.com")).thenReturn(Optional.of(customer));
 
+        assertThatThrownBy(() -> bootstrap("admin@example.com", "a-long-password").run(null))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("non-admin account");
+        verify(repository, never()).save(any());
+        assertThat(customer.getRole()).isEqualTo(Role.CUSTOMER);
+    }
+
+    @Test
+    void skipsWhenEmailBelongsToExistingAdmin() {
+        User existingAdmin = new User("Admin", "admin@example.com", "existing-hash",
+            Role.ADMIN, UserStatus.ACTIVE);
+        when(repository.findByEmail("admin@example.com")).thenReturn(Optional.of(existingAdmin));
+
         bootstrap("admin@example.com", "a-long-password").run(null);
 
         verify(repository, never()).save(any());
-        assertThat(customer.getRole()).isEqualTo(Role.CUSTOMER);
-        assertThat(customer.getPasswordHash()).isEqualTo("existing-hash");
+        assertThat(existingAdmin.getPasswordHash()).isEqualTo("existing-hash");
     }
 
     @Test

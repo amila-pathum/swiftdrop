@@ -21,7 +21,7 @@ describe('endpoint registry', () => {
   })
 
   it('marks only implemented and routed endpoints as available', () => {
-    // Merchant, courier and parcel tracking endpoints, and emailed reset links, are still planned.
+    // Merchant and courier applications, and emailed reset links, are still planned.
     const available = Object.entries(ENDPOINTS)
       .filter(([, endpoint]) => endpoint.available)
       .map(([name]) => name)
@@ -29,12 +29,13 @@ describe('endpoint registry', () => {
       'confirmPasswordReset', 'currentUser', 'googleExchange', 'login', 'logout',
       'markNotificationAsRead', 'notifications',
       'pricingQuote', 'register', 'registerCourier', 'registerMerchant',
-      'unreadNotificationsCount',
+      'trackParcel', 'unreadNotificationsCount',
     ])
     expect(available.every((name) => ENDPOINTS[name].path.startsWith('/api/auth/')
       || ENDPOINTS[name].path.startsWith('/api/notifications')
       || ENDPOINTS[name].path === '/api/users/me'
-      || ENDPOINTS[name].path === '/api/pricing/quote')).toBe(true)
+      || ENDPOINTS[name].path === '/api/pricing/quote'
+      || ENDPOINTS[name].path === '/api/parcels/track/:trackingNumber')).toBe(true)
   })
 
   it.each(Object.entries(ENDPOINTS).filter(([, e]) => !e.available))(
