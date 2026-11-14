@@ -78,6 +78,14 @@ shell_has() {
 	return 1
 }
 
+validate_jwt_secret() {
+    [[ -n "${JWT_SECRET:-}" ]] || fail "JWT_SECRET must be configured in $root/.env before starting services."
+    local key_bytes
+    key_bytes="$(printf '%s' "$JWT_SECRET" | base64 --decode 2>/dev/null | wc -c)" ||
+        fail "JWT_SECRET must be valid Base64."
+    ((key_bytes >= 32)) || fail "JWT_SECRET must contain at least 256 bits (32 decoded bytes)."
+}
+
 # .env provides everything else (JWT_SECRET, ports, Google sign-in) in both modes.
 if [[ -f "$root/.env" ]]; then
 	load_env_file "$root/.env"
@@ -87,6 +95,7 @@ fi
 
 if [[ "$profile" == local ]]; then
 	restore_shell_env
+    validate_jwt_secret
 	# The rds profile reads DB_NAME, DB_USERNAME and DB_PASSWORD, which in .env
 	# are local values (DB_PASSWORD is the Identity Service's Docker password).
 	if [[ ",${SPRING_PROFILES_ACTIVE-}," == *,rds,* ]]; then
@@ -117,6 +126,7 @@ else
 	echo "Warning: $root/.env.rds not found; copy .env.rds.example to .env.rds and set the passwords." >&2
 fi
 restore_shell_env
+validate_jwt_secret
 
 # The generic variables are always derived from this service's own ones, so a
 # DB_PASSWORD left in the shell (for example the Docker one) cannot be used.

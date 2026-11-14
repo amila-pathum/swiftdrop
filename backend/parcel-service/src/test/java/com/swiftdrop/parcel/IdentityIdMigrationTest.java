@@ -20,8 +20,14 @@ class IdentityIdMigrationTest {
         return postgres.getJdbcUrl().replace("/" + postgres.getDatabaseName(), "/" + name);
     }
     Flyway flyway(String url, String target) {
-        return Flyway.configure().dataSource(url, postgres.getUsername(), postgres.getPassword())
-            .locations("classpath:db/migration").target(target).load();
+        var configuration = Flyway.configure().dataSource(url, postgres.getUsername(), postgres.getPassword())
+            .locations("classpath:db/migration").target(target);
+        // Historical fixtures must retain V1/V2 column types for seeding.
+        // The preserved runtime repeatable runs normally on the V3 upgrade.
+        if ("1".equals(target) || "2".equals(target)) {
+            configuration.repeatableSqlMigrationPrefix("HISTORICAL_FIXTURE_ONLY");
+        }
+        return configuration.load();
     }
     String query(String url, String sql) throws Exception {
         try (var c = DriverManager.getConnection(url, postgres.getUsername(), postgres.getPassword());
