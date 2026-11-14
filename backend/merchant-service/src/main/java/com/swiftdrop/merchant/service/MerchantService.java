@@ -12,6 +12,7 @@ import com.swiftdrop.merchant.entity.Merchant;
 import com.swiftdrop.merchant.entity.MerchantStatus;
 import com.swiftdrop.merchant.repository.MerchantRepository;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -33,6 +34,7 @@ public class MerchantService {
     private final MerchantParcelClient parcelClient;
     private final MerchantIdentityActivationClient identityActivation;
 
+    @Autowired
     public MerchantService(
             MerchantRepository merchantRepository,
             MerchantParcelClient parcelClient,
