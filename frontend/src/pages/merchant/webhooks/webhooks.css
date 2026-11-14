@@ -1,0 +1,115 @@
+.webhook-page {
+  --webhook-card-radius: 8px;
+  padding: 4px 8px 24px;
+}
+
+.webhook-page .page-breadcrumb { gap: 9px; margin-bottom: 8px; }
+.webhook-page .page-breadcrumb span { color: var(--color-text-secondary); }
+.webhook-page .page-breadcrumb a { color: var(--color-text-muted); font-weight: 400; }
+.webhook-page .page-header-row { margin-bottom: 22px; }
+.webhook-page .page-title { font-size: 26px; font-weight: 700; margin-bottom: 4px; }
+.webhook-page .page-subtitle { font-size: 14px; }
+
+.webhook-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: 16px;
+}
+.webhook-tabs a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  margin-bottom: -1px;
+  border-bottom: 2px solid transparent;
+  color: var(--color-text-secondary);
+  font-weight: 400;
+  white-space: nowrap;
+}
+.webhook-tabs a:hover { text-decoration: none; background: var(--color-surface); }
+.webhook-tabs a.active { color: var(--color-link); border-bottom-color: var(--color-primary); font-weight: 500; }
+.webhook-count { padding: 0 6px; border-radius: 20px; background: var(--color-border); color: var(--color-text-secondary); font-size: 12px; }
+
+.webhook-endpoint-card, .webhook-history-card, .webhook-status-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--webhook-card-radius);
+}
+.webhook-endpoint-card { max-width: 672px; }
+.webhook-endpoint-heading { padding: 14px 20px; border-bottom: 1px solid var(--color-border); }
+.webhook-endpoint-heading h2 { font-size: 14px; font-weight: 600; }
+.webhook-endpoint-form { display: flex; flex-direction: column; gap: 24px; padding: 20px; }
+.webhook-endpoint-form .input { min-height: 40px; }
+.webhook-page .form-label { font-size: 14px; font-weight: 500; }
+.webhook-page .form-hint, .webhook-page .webhook-help { color: var(--color-text-muted); font-size: 12px; }
+.webhook-event-section h3 { font-size: 14px; font-weight: 500; margin-bottom: 12px; }
+.webhook-event-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 24px; margin: 0 0 12px; padding: 0; list-style: none; }
+.webhook-event-grid li { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 13px; }
+.webhook-event-grid svg { width: 14px; height: 14px; color: var(--color-primary); flex-shrink: 0; }
+.webhook-event-grid code { color: var(--color-text-muted); font-size: 11px; }
+.webhook-enable-control { position: relative; display: inline-flex; align-items: center; gap: 12px; align-self: flex-start; cursor: pointer; }
+.webhook-enable-control:has(:disabled) { cursor: default; opacity: .6; }
+.webhook-enable-control input { position: absolute; opacity: 0; width: 44px; height: 24px; margin: 0; }
+.webhook-enable-control input:focus-visible + .toggle-switch { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+.webhook-page .secret-section { padding-top: 20px; border-top: 1px solid var(--color-border); gap: 10px; }
+.webhook-page .secret-display-box { flex-wrap: wrap; }
+.webhook-page .secret-display-box code { overflow-wrap: anywhere; min-width: 0; flex: 1; }
+.webhook-page .secret-display-box .button { flex-shrink: 0; }
+.webhook-page .secret-new { background: var(--color-success-bg); border-color: var(--color-success-border); }
+.webhook-form-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+.webhook-form-actions .button { min-height: 40px; height: auto; }
+.webhook-page .button > span { display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; }
+.webhook-footnote { max-width: 672px; margin-top: 16px; font-size: 12px; color: var(--color-text-muted); }
+.webhook-feedback { margin-bottom: 16px; }
+.webhook-feedback p { color: inherit; }
+.webhook-status-card { display: grid; justify-items: center; gap: 12px; padding: 36px 20px; text-align: center; }
+.webhook-status-card h2 { font-size: 16px; }
+
+.webhook-history-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 12px; }
+.webhook-filter { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.webhook-filter input { width: 16px; height: 16px; accent-color: var(--color-primary); }
+.webhook-history-card { overflow: hidden; }
+.webhook-page .webhook-history-table { min-width: 720px; font-size: 14px; }
+.webhook-page .webhook-history-table th { background: var(--color-page); font-weight: 500; font-size: 12px; padding: 10px 16px; }
+.webhook-page .webhook-history-table td { padding: 16px; }
+.webhook-event-code { font-size: 12px; white-space: nowrap; }
+.webhook-page .webhook-history-table time { white-space: nowrap; }
+.webhook-outcome { display: inline-flex; padding: 2px 7px; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-page); color: var(--color-text-secondary); font-size: 12px; white-space: nowrap; }
+.webhook-outcome-delivered { color: var(--color-success); border-color: var(--color-success-border); background: var(--color-success-bg); }
+.webhook-outcome-retry_scheduled { color: var(--color-warning); border-color: var(--color-warning-border); background: var(--color-warning-bg); }
+.webhook-outcome-failed { color: var(--color-error); border-color: var(--color-error-border); background: var(--color-error-bg); }
+.webhook-row-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.webhook-pagination { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-top: 12px; color: var(--color-text-secondary); font-size: 13px; }
+.webhook-page-controls { display: flex; align-items: center; gap: 12px; }
+.webhook-pagination .button { min-width: 42px; }
+
+.webhook-dialog { padding: 0; width: min(680px, calc(100% - 32px)); max-height: 85vh; color: var(--color-text); background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--webhook-card-radius); box-shadow: var(--shadow-lg); }
+.webhook-dialog::backdrop { background: rgb(15 23 42 / 40%); }
+.webhook-dialog-header, .webhook-dialog-footer { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.webhook-dialog-header { border-bottom: 1px solid var(--color-border); }
+.webhook-dialog-header h2 { font-size: 18px; }
+.webhook-dialog-footer { border-top: 1px solid var(--color-border); justify-content: flex-end; }
+.webhook-dialog-body { padding: 20px; display: grid; gap: 16px; }
+.webhook-detail-meta { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 16px; margin: 0; font-size: 13px; }
+.webhook-detail-meta dt { color: var(--color-text-muted); }
+.webhook-detail-meta dd { margin: 0; overflow-wrap: anywhere; }
+.webhook-attempt-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+.webhook-attempt-list li { border: 1px solid var(--color-border); border-radius: var(--radius-control); padding: 12px; display: grid; gap: 6px; }
+.webhook-attempt-heading { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.webhook-attempt-list p { font-size: 12px; }
+.webhook-secret-notice { padding: 12px; border: 1px solid var(--color-warning-border); border-radius: var(--radius-control); background: var(--color-warning-bg); color: var(--color-warning); font-size: 13px; }
+
+@media (max-width: 600px) {
+  .webhook-page { padding: 0; }
+  .webhook-page .page-title { font-size: 24px; }
+  .webhook-tabs a { padding: 10px 8px; font-size: 13px; }
+  .webhook-endpoint-form, .webhook-endpoint-heading { padding: 16px; }
+  .webhook-event-grid { grid-template-columns: 1fr; gap: 10px; }
+  .webhook-form-actions .button { flex: 1; }
+  .webhook-page .secret-header { flex-wrap: wrap; gap: 8px; }
+  .webhook-page .secret-display-box { align-items: flex-start; }
+  .webhook-pagination { align-items: flex-start; }
+  .webhook-detail-meta { grid-template-columns: 1fr; gap: 2px; }
+  .webhook-detail-meta dd { margin-bottom: 8px; }
+}

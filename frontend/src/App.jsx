@@ -22,6 +22,7 @@ import DispatcherDashboardPage from './pages/dispatcher/DispatcherDashboardPage'
 import MerchantDashboardPage from './pages/merchant/MerchantDashboardPage'
 import MerchantApiKeysPage from './pages/merchant/MerchantApiKeysPage'
 import MerchantWebhookPage from './pages/merchant/MerchantWebhookPage'
+import MerchantDeliveriesPage from './pages/merchant/MerchantDeliveriesPage'
 import NotAvailablePage from './pages/NotAvailablePage'
 import NotFoundPage from './pages/NotFoundPage'
 import ProfilePage from './pages/ProfilePage'
@@ -97,6 +98,7 @@ function App() {
           <Route path="/merchant/dashboard" element={<Navigate to="/dashboard" replace />} />
           <Route path="/merchant/api-keys" element={<MerchantApiKeysPage />} />
           <Route path="/merchant/webhooks" element={<MerchantWebhookPage />} />
+          <Route path="/merchant/webhook-deliveries" element={<MerchantDeliveriesPage />} />
           <Route path="/merchant/webhook" element={<Navigate to="/merchant/webhooks" replace />} />
         </Route>
       </Route>

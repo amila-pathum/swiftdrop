@@ -193,7 +193,7 @@ describe('App routing', () => {
       expect(heading('API key management')).toBeInTheDocument()
 
       renderAt('/merchant/webhooks')
-      expect(heading('Webhook Settings')).toBeInTheDocument()
+      expect(heading('Webhooks')).toBeInTheDocument()
     })
 
     it('allows ADMIN to access admin approvals and redirects non-admins', () => {

@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 
 export function GridIcon() {
   return (
@@ -56,17 +56,18 @@ const MERCHANT_LINKS = [
   { to: '/dashboard', label: 'Overview', icon: GridIcon },
   { to: '/merchant/orders', label: 'Orders', icon: BoxIcon },
   { to: '/merchant/api-keys', label: 'API keys', icon: KeyIcon },
-  { to: '/merchant/webhooks', label: 'Webhook settings', icon: WebhookIcon },
+  { to: '/merchant/webhooks', label: 'Webhooks', icon: WebhookIcon },
   { to: '/profile', label: 'Business profile', icon: BusinessIcon },
 ]
 
 export default function MerchantNav({ className = '' }) {
+  const { pathname } = useLocation()
   return (
     <ul className={`merchant-nav-list ${className}`.trim()}>
       {MERCHANT_LINKS.map(({ to, label, icon: Icon }) => (
         <li key={to}>
           <NavLink
-            to={to}
+            to={to === '/merchant/webhooks' && pathname === '/merchant/webhook-deliveries' ? pathname : to}
             end={to === '/dashboard'}
             className={({ isActive }) => (isActive ? 'active' : '')}
           >
