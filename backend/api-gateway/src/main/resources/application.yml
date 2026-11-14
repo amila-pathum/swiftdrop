@@ -45,7 +45,9 @@ spring:
             - id: pricing-service
               uri: ${PRICING_SERVICE_URL:http://localhost:8086}
               predicates:
-                - Path=/api/pricing/**
+                # Pricing owns quote/rule endpoints under /api/pricing and the
+                # existing zone-management controller under /api/zones.
+                - Path=/api/pricing/**,/api/zones/**
             - id: notification-service
               uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8087}
               predicates:
