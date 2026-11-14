@@ -5,6 +5,8 @@ import com.swiftdrop.merchant.dto.response.MerchantApiKeyResponse;
 import com.swiftdrop.merchant.entity.Merchant;
 import com.swiftdrop.merchant.entity.MerchantApiKey;
 import com.swiftdrop.merchant.entity.MerchantStatus;
+import com.swiftdrop.merchant.merchantapi.security.MerchantApiKeyLookup;
+import com.swiftdrop.merchant.merchantapi.security.MerchantKeyDetails;
 import com.swiftdrop.merchant.repository.MerchantApiKeyRepository;
 import com.swiftdrop.merchant.repository.MerchantRepository;
 import org.springframework.http.HttpStatus;
@@ -17,12 +19,14 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.Base64;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Optional;
 
 @Service
-public class MerchantApiKeyService {
+public class MerchantApiKeyService implements MerchantApiKeyLookup {
     private final MerchantRepository merchants;
     private final MerchantApiKeyRepository keys;
     private final SecureRandom random = new SecureRandom();
@@ -75,6 +79,25 @@ public class MerchantApiKeyService {
                     "Merchant must be approved to manage API keys");
         }
         return merchant;
+    }
+
+    @Override
+    @Transactional
+    public Optional<MerchantKeyDetails> findByApiKey(String apiKey) {
+        if (apiKey == null || apiKey.isBlank()) {
+            return Optional.empty();
+        }
+        String hash = sha256(apiKey.trim());
+        return keys.findByKeyHashAndRevokedAtIsNull(hash)
+                .map(key -> {
+                    key.setLastUsedAt(OffsetDateTime.now(ZoneOffset.UTC));
+                    Merchant merchant = key.getMerchant();
+                    boolean isApproved = merchant.getStatus() == MerchantStatus.APPROVED;
+                    return new MerchantKeyDetails(
+                            String.valueOf(merchant.getId()),
+                            isApproved
+                    );
+                });
     }
 
     public static String sha256(String text) {
