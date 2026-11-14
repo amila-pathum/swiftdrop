@@ -17,6 +17,21 @@ public class MerchantOrderController {
 
     private final MerchantOrderService orderService;
 
+    @GetMapping
+    @PreAuthorize("hasAuthority('MERCHANT_API')")
+    public com.swiftdrop.merchant.merchantapi.service.MerchantOrderStore.Page list(
+            @AuthenticationPrincipal MerchantKeyDetails merchant,
+            @RequestParam(defaultValue="0") int page, @RequestParam(defaultValue="20") int size) {
+        return orderService.list(merchant.merchantId(),page,size);
+    }
+
+    @GetMapping("/{trackingNumber}")
+    @PreAuthorize("hasAuthority('MERCHANT_API')")
+    public MerchantOrderResponse detail(@AuthenticationPrincipal MerchantKeyDetails merchant,
+            @PathVariable String trackingNumber) {
+        return orderService.detail(merchant.merchantId(),trackingNumber);
+    }
+
     public MerchantOrderController(MerchantOrderService orderService) {
         this.orderService = orderService;
     }

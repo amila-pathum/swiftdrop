@@ -89,10 +89,13 @@ class MerchantOrderControllerTest {
     private ParcelOrderClient parcelClient;
 
     private MockMvc mockMvc;
+    @Autowired private com.swiftdrop.merchant.merchantapi.service.MerchantOrderStore store;
 
     @BeforeEach
     void setUp() {
         reset(keyLookup, parcelClient);
+        reset(store);
+        when(store.reserve(anyString(), anyString(), anyString())).thenReturn(true);
 
         mockMvc = MockMvcBuilders
                 .webAppContextSetup(context)
@@ -226,6 +229,10 @@ class MerchantOrderControllerTest {
     @EnableWebMvc
     @EnableWebSecurity
     static class TestConfig {
+        @Bean
+        com.swiftdrop.merchant.merchantapi.service.MerchantOrderStore orderStore() {
+            return mock(com.swiftdrop.merchant.merchantapi.service.MerchantOrderStore.class);
+        }
 
         @Bean
         ObjectMapper objectMapper() {

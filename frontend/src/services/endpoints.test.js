@@ -21,20 +21,28 @@ describe('endpoint registry', () => {
   })
 
   it('marks only implemented and routed endpoints as available', () => {
-    // Merchant and courier applications, and emailed reset links, are still planned.
+    // Merchant applications use the existing registration/profile API.
     const available = Object.entries(ENDPOINTS)
       .filter(([, endpoint]) => endpoint.available)
       .map(([name]) => name)
     expect(available.sort()).toEqual([
-      'confirmPasswordReset', 'createStaffUser', 'currentUser', 'googleExchange', 'login', 'logout',
-      'markNotificationAsRead', 'notifications',
+      'calculateQuote', 'confirmPasswordReset', 'createPricingRule', 'createStaffUser',
+      'createZone', 'currentUser', 'disablePricingRule', 'disableZone',
+      'getPricingRuleById', 'getPricingRules', 'getZoneById', 'getZones',
+      'googleExchange', 'login', 'logout', 'markNotificationAsRead',
+      'merchantApplication', 'myMerchantApplication', 'notifications',
       'pricingQuote', 'register', 'registerCourier', 'registerMerchant',
-      'trackParcel', 'unreadNotificationsCount',
+      'trackParcel', 'unreadNotificationsCount', 'updatePricingRule', 'updateZone',
     ])
     expect(available.every((name) => ENDPOINTS[name].path.startsWith('/api/auth/')
       || ENDPOINTS[name].path.startsWith('/api/notifications')
+      || ENDPOINTS[name].path.startsWith('/api/merchants/')
       || ENDPOINTS[name].path === '/api/users/me'
       || ENDPOINTS[name].path === '/api/admin/users'
+      || ENDPOINTS[name].path === '/api/zones'
+      || ENDPOINTS[name].path.startsWith('/api/zones/')
+      || ENDPOINTS[name].path === '/api/pricing/rules'
+      || ENDPOINTS[name].path.startsWith('/api/pricing/rules/')
       || ENDPOINTS[name].path === '/api/pricing/quote'
       || ENDPOINTS[name].path === '/api/parcels/track/:trackingNumber')).toBe(true)
   })

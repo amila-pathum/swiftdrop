@@ -32,6 +32,7 @@ import MerchantDashboardPage from './pages/merchant/MerchantDashboardPage'
 import MerchantApiKeysPage from './pages/merchant/MerchantApiKeysPage'
 import MerchantWebhookPage from './pages/merchant/MerchantWebhookPage'
 import MerchantOrdersPage from './pages/merchant/MerchantOrdersPage'
+import MerchantDeliveriesPage from './pages/merchant/MerchantDeliveriesPage'
 import NotAvailablePage from './pages/NotAvailablePage'
 import NotFoundPage from './pages/NotFoundPage'
 import NotificationsPage from './pages/NotificationsPage'
@@ -124,6 +125,7 @@ function App() {
           <Route path="/merchant/api-keys" element={<MerchantApiKeysPage />} />
           <Route path="/merchant/orders" element={<MerchantOrdersPage />} />
           <Route path="/merchant/webhooks" element={<MerchantWebhookPage />} />
+          <Route path="/merchant/webhook-deliveries" element={<MerchantDeliveriesPage />} />
           <Route path="/merchant/webhook" element={<Navigate to="/merchant/webhooks" replace />} />
         </Route>
       </Route>
