@@ -27,9 +27,12 @@ describe('endpoint registry', () => {
       .map(([name]) => name)
     expect(available.sort()).toEqual([
       'confirmPasswordReset', 'currentUser', 'googleExchange', 'login', 'logout',
+      'markNotificationAsRead', 'notifications',
       'pricingQuote', 'register', 'registerCourier', 'registerMerchant',
+      'unreadNotificationsCount',
     ])
     expect(available.every((name) => ENDPOINTS[name].path.startsWith('/api/auth/')
+      || ENDPOINTS[name].path.startsWith('/api/notifications')
       || ENDPOINTS[name].path === '/api/users/me'
       || ENDPOINTS[name].path === '/api/pricing/quote')).toBe(true)
   })
