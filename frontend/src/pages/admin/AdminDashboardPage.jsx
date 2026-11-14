@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
 import FormField from '../../components/FormField'
@@ -94,7 +95,10 @@ export default function AdminDashboardPage() {
         </section>
 
         <p className="form-hint">
-          User listing is not shown because Identity Service does not provide an admin list endpoint.
+          Looking to view, search, or update accounts? Go to{' '}
+          <Link to="/admin/users" style={{ color: 'var(--color-primary)', fontWeight: 500, textDecoration: 'underline' }}>
+            User Management
+          </Link>.
         </p>
       </div>
     </div>
