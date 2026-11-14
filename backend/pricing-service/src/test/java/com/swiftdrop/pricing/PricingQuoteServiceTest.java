@@ -4,6 +4,7 @@ import com.swiftdrop.pricing.dto.request.QuoteRequest;
 import com.swiftdrop.pricing.exception.*;
 import com.swiftdrop.pricing.service.*;
 import java.math.BigDecimal;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -16,44 +17,48 @@ import static com.swiftdrop.pricing.PricingFixtures.*;
 @ExtendWith(MockitoExtension.class)
 class PricingQuoteServiceTest {
     @Mock ZoneService zones;
-    @Mock PricingRuleService rules;
+    @Mock RateCardService rateCard;
     PricingQuoteService service;
-    @BeforeEach void setup() { service = new PricingQuoteService(zones, rules, calculator()); }
-    @Test void exampleAndRoundedBreakdownAddUp() {
-        when(zones.getZoneByCity("Colombo")).thenReturn(zone());
-        when(zones.getZoneByCity("Kandy")).thenReturn(zone());
-        var rule = rule();
-        when(rules.getActivePricingRuleByZoneId(ZONE_ID)).thenReturn(rule);
-        var quote = service.calculateQuote(new QuoteRequest("Colombo", "Kandy", new BigDecimal("2.5"), "EXPRESS"));
-        assertThat(quote.amount()).isEqualTo(new BigDecimal("862.50"));
-        assertThat(quote.breakdown()).containsEntry("baseFee", new BigDecimal("200.00"))
-            .containsEntry("weightFee", new BigDecimal("375.00"))
-            .containsEntry("expressFee", new BigDecimal("287.50"));
-        rule.setBaseFee(new BigDecimal("10.05")); rule.setPricePerKg(new BigDecimal("7.77"));
-        rule.setExpressMultiplier(new BigDecimal("1.15"));
-        for (String type : new String[]{"STANDARD", "EXPRESS"}) {
-            var rounded = service.calculateQuote(new QuoteRequest("Colombo", "Kandy", new BigDecimal("0.333"), type));
-            assertThat(rounded.amount().scale()).isEqualTo(2);
-            assertThat(rounded.breakdown().values()).allSatisfy(value -> assertThat(value.scale()).isEqualTo(2));
-            assertThat(rounded.breakdown().values().stream().reduce(BigDecimal.ZERO, BigDecimal::add)).isEqualTo(rounded.amount());
-            assertThat(rounded.amount()).isEqualTo(new BigDecimal(type.equals("EXPRESS") ? "14.53" : "12.64"));
-        }
+
+    @BeforeEach void setup() { service = new PricingQuoteService(zones, rateCard, calculator()); }
+
+    private QuoteRequest request(String from, String to, String weight, String type, String size) {
+        return new QuoteRequest(from, to, new BigDecimal(weight), type, size);
     }
-    @Test void rejectsTypeBeforeLookingUpZones() {
-        assertThatThrownBy(() -> service.calculateQuote(new QuoteRequest("Unknown", "Unknown", BigDecimal.ONE, "OVERNIGHT")))
-                .isInstanceOf(IllegalArgumentException.class);
-        verifyNoInteractions(zones, rules);
+
+    @Test void pricesTheRouteBetweenTheTwoZones() {
+        var western = western(); var central = central(); var rates = rates();
+        when(zones.getZoneByLocality("Colombo")).thenReturn(western);
+        when(zones.getZoneByLocality("Kandy")).thenReturn(central);
+        when(rateCard.currentVersion()).thenReturn(Optional.of(rates));
+        when(rateCard.getRoute(rates, western, central)).thenReturn(route());
+
+        var quote = service.calculateQuote(request("Colombo", "Kandy", "2.3", "express", "medium"));
+        assertThat(quote.amount()).isEqualTo(new BigDecimal("1050.00"));
+        assertThat(quote.currency()).isEqualTo("LKR");
+        assertThat(quote.breakdown()).containsEntry("sizeFee", new BigDecimal("150.00"))
+                .containsEntry("expressFee", new BigDecimal("350.00"));
     }
-    @Test void reportsMissingZone() {
-        when(zones.getZoneByCity("Unknown")).thenThrow(new ZoneNotFoundException("Unknown"));
-        assertThatThrownBy(() -> service.calculateQuote(new QuoteRequest("Unknown", "Kandy", BigDecimal.ONE, "STANDARD")))
-                .isInstanceOf(ZoneNotFoundException.class).hasMessage("No active zone found for city: Unknown");
-        verifyNoInteractions(rules);
+
+    @Test void rejectsServiceTypeAndSizeBeforeAnyLookup() {
+        assertThatThrownBy(() -> service.calculateQuote(request("Nowhere", "Nowhere", "1", "OVERNIGHT", "SMALL")))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("Service type must be STANDARD or EXPRESS");
+        assertThatThrownBy(() -> service.calculateQuote(request("Nowhere", "Nowhere", "1", "STANDARD", "HUGE")))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("Size must be SMALL, MEDIUM or LARGE");
+        verifyNoInteractions(zones, rateCard);
     }
-    @Test void reportsMissingPricingRule() {
-        when(zones.getZoneByCity(anyString())).thenReturn(zone());
-        when(rules.getActivePricingRuleByZoneId(ZONE_ID)).thenThrow(new PricingRuleNotFoundException("No active pricing rule for zone " + ZONE_ID));
-        assertThatThrownBy(() -> service.calculateQuote(new QuoteRequest("Colombo", "Kandy", BigDecimal.ONE, "STANDARD")))
-                .isInstanceOf(PricingRuleNotFoundException.class);
+
+    @Test void reportsALocalityNoZoneCovers() {
+        when(zones.getZoneByLocality("Nowhere")).thenThrow(new ZoneNotFoundException("Nowhere"));
+        assertThatThrownBy(() -> service.calculateQuote(request("Nowhere", "Kandy", "1", "STANDARD", "SMALL")))
+                .isInstanceOf(ZoneNotFoundException.class).hasMessage("No active zone covers: Nowhere");
+        verifyNoInteractions(rateCard);
+    }
+
+    @Test void reportsWhenNothingIsPublished() {
+        when(zones.getZoneByLocality(anyString())).thenReturn(western());
+        when(rateCard.currentVersion()).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.calculateQuote(request("Colombo", "Dehiwala", "1", "STANDARD", "SMALL")))
+                .isInstanceOf(RateNotFoundException.class).hasMessage("No delivery rates have been published yet");
     }
 }

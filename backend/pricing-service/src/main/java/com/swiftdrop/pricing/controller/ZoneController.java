@@ -1,7 +1,6 @@
 package com.swiftdrop.pricing.controller;
 
-import com.swiftdrop.pricing.dto.request.CreateZoneRequest;
-import com.swiftdrop.pricing.dto.request.UpdateZoneRequest;
+import com.swiftdrop.pricing.dto.request.ZoneRequest;
 import com.swiftdrop.pricing.dto.response.ZoneResponse;
 import com.swiftdrop.pricing.service.ZoneService;
 import jakarta.validation.Valid;
@@ -22,9 +21,10 @@ public class ZoneController {
         this.zoneService = zoneService;
     }
 
+    /** Active zones for any signed-in user (booking dropdowns); ADMIN may include disabled ones. */
     @GetMapping
     @PreAuthorize("!#includeInactive or hasRole('ADMIN')")
-    public List<ZoneResponse> getActiveZones(@RequestParam(defaultValue = "false") boolean includeInactive) {
+    public List<ZoneResponse> getZones(@RequestParam(defaultValue = "false") boolean includeInactive) {
         return (includeInactive ? zoneService.getAllZones() : zoneService.getActiveZones())
                 .stream()
                 .map(ZoneResponse::from)
@@ -39,32 +39,14 @@ public class ZoneController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasRole('ADMIN')")
-    public ZoneResponse createZone(
-            @Valid @RequestBody CreateZoneRequest request) {
-
-        return ZoneResponse.from(
-                zoneService.createZone(
-                        request.name(),
-                        request.city(),
-                        request.district()
-                )
-        );
+    public ZoneResponse createZone(@Valid @RequestBody ZoneRequest request) {
+        return ZoneResponse.from(zoneService.createZone(request));
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ZoneResponse updateZone(
-            @PathVariable UUID id,
-            @Valid @RequestBody UpdateZoneRequest request) {
-
-        return ZoneResponse.from(
-                zoneService.updateZone(
-                        id,
-                        request.name(),
-                        request.city(),
-                        request.district()
-                )
-        );
+    public ZoneResponse updateZone(@PathVariable UUID id, @Valid @RequestBody ZoneRequest request) {
+        return ZoneResponse.from(zoneService.updateZone(id, request));
     }
 
     @PatchMapping("/{id}/disable")

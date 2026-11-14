@@ -13,7 +13,7 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-    @ExceptionHandler({ZoneNotFoundException.class, PricingRuleNotFoundException.class})
+    @ExceptionHandler({ZoneNotFoundException.class, RateNotFoundException.class})
     ResponseEntity<Map<String, String>> notFound(RuntimeException exception) {
         return error(HttpStatus.NOT_FOUND, exception.getMessage());
     }
@@ -25,7 +25,7 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(DataIntegrityViolationException.class)
     ResponseEntity<Map<String, String>> duplicate(DataIntegrityViolationException exception) {
-        return error(HttpStatus.CONFLICT, "A zone city or active pricing rule already exists");
+        return error(HttpStatus.CONFLICT, "This conflicts with a change saved at the same time. Reload and try again.");
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

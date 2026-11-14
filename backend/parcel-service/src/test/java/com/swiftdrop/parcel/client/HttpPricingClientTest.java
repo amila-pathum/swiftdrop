@@ -30,6 +30,7 @@ class HttpPricingClientTest {
             .andExpect(jsonPath("pickupCity").value("Colombo"))
             .andExpect(jsonPath("deliveryCity").value("Kandy"))
             .andExpect(jsonPath("serviceType").value("STANDARD"))
+            .andExpect(jsonPath("size").value("MEDIUM"))
             .andRespond(withSuccess("{\"amount\":450.00}", MediaType.APPLICATION_JSON));
         assertThat(client.quote(request, "customer-jwt")).isEqualByComparingTo("450.00");
         server.verify();

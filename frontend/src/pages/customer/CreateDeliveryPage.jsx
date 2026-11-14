@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
@@ -7,15 +7,37 @@ import FormField from '../../components/FormField'
 import { parcelService } from '../../services/parcelService'
 import CopyTrackingNumberButton from '../../components/CopyTrackingNumberButton'
 import FeeEstimate from '../../components/pricing/FeeEstimate'
+import { localityOptions, pricingService } from '../../services/pricingService'
 import './createDelivery.css'
 
-const DISTRICTS = [
-  'Ampara', 'Anuradhapura', 'Badulla', 'Batticaloa', 'Colombo', 'Galle', 'Gampaha',
-  'Hambantota', 'Jaffna', 'Kalutara', 'Kandy', 'Kegalle', 'Kilinochchi', 'Kurunegala',
-  'Mannar', 'Matale', 'Matara', 'Monaragala', 'Mullaitivu', 'Nuwara Eliya',
-  'Polonnaruwa', 'Puttalam', 'Ratnapura', 'Trincomalee', 'Vavuniya',
-]
-const DISTRICT_OPTIONS = DISTRICTS.map((district) => ({ value: district, label: district }))
+/**
+ * The cities customers can book between: every locality of every active delivery
+ * zone, grouped by zone. Loaded once when the form opens.
+ */
+function useLocalities() {
+  const [state, setState] = useState({ status: 'loading', options: [], error: '' })
+
+  const load = useCallback((signal) => pricingService.getZones({ signal })
+    .then((zones) => setState({ status: 'ready', options: localityOptions(zones), error: '' }))
+    .catch((error) => {
+      if (error?.name !== 'AbortError') {
+        setState({ status: 'error', options: [],
+          error: error?.message || 'Unable to load delivery areas.' })
+      }
+    }), [])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    load(controller.signal)
+    return () => controller.abort()
+  }, [load])
+
+  const retry = () => {
+    setState({ status: 'loading', options: [], error: '' })
+    load()
+  }
+  return { ...state, retry }
+}
 
 const INITIAL = {
   pickup: { pickupAddressLine1: '', pickupAddressLine2: '', pickupCity: '' },
@@ -75,6 +97,25 @@ export default function CreateDeliveryPage() {
   const [createdParcel, setCreatedParcel] = useState(null)
   const [validQuote, setQuote] = useState(null)
   const submittingRef = useRef(false)
+  const localities = useLocalities()
+  const cityField = {
+    as: 'select',
+    required: true,
+    options: localities.options,
+    disabled: localities.status !== 'ready',
+    hint: localities.status === 'ready' && localities.options.length === 0
+      ? 'No delivery areas are available yet.' : undefined,
+  }
+  const citiesUnavailable = localities.status === 'error' && (
+    <Alert variant="error" title="Unable to load delivery areas">
+      {localities.error}{' '}
+      <button type="button" className="action-link action-link-primary" onClick={localities.retry}>
+        Try again
+      </button>
+    </Alert>
+  )
+  const cityPlaceholder = (which) => (localities.status === 'loading'
+    ? 'Loading delivery areas…' : `Select ${which} city`)
   const currency = (amount) => new Intl.NumberFormat('en-LK', {
     style: 'currency', currency: 'LKR',
   }).format(Number(amount))
@@ -200,12 +241,11 @@ export default function CreateDeliveryPage() {
               <FormField {...field('pickup', 'pickupAddressLine2', 'Pickup address line 2 (optional)', {
                 maxLength: 255,
               })} />
-              <FormField {...field('pickup', 'pickupCity', 'Pickup district', {
-                as: 'select',
-                required: true,
-                placeholder: 'Select pickup district',
-                options: DISTRICT_OPTIONS,
+              <FormField {...field('pickup', 'pickupCity', 'Pickup city', {
+                ...cityField,
+                placeholder: cityPlaceholder('pickup'),
               })} />
+              {citiesUnavailable}
             </>}
 
             {step === 1 && <>
@@ -226,12 +266,11 @@ export default function CreateDeliveryPage() {
               <FormField {...field('receiver', 'deliveryAddressLine2', 'Delivery address line 2 (optional)', {
                 maxLength: 255,
               })} />
-              <FormField {...field('receiver', 'deliveryCity', 'Delivery district', {
-                as: 'select',
-                required: true,
-                placeholder: 'Select delivery district',
-                options: DISTRICT_OPTIONS,
+              <FormField {...field('receiver', 'deliveryCity', 'Delivery city', {
+                ...cityField,
+                placeholder: cityPlaceholder('delivery'),
               })} />
+              {citiesUnavailable}
             </>}
 
             {step === 2 && <>
@@ -289,7 +328,7 @@ export default function CreateDeliveryPage() {
       <div hidden={step < 2}>
         <FeeEstimate pickupCity={values.pickup.pickupCity}
           deliveryCity={values.receiver.deliveryCity} weight={values.parcel.weight}
-          serviceType={values.parcel.serviceType} onQuote={setQuote} />
+          serviceType={values.parcel.serviceType} size={values.parcel.size} onQuote={setQuote} />
       </div>
 
       <div className="delivery-navigation">

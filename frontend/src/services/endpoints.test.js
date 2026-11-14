@@ -26,13 +26,13 @@ describe('endpoint registry', () => {
       .filter(([, endpoint]) => endpoint.available)
       .map(([name]) => name)
     expect(available.sort()).toEqual([
-      'calculateQuote', 'changeUserRole', 'changeUserStatus', 'confirmPasswordReset', 'createPricingRule', 'createStaffUser',
-      'createZone', 'currentUser', 'disablePricingRule', 'disableZone',
-      'enablePricingRule', 'enableZone', 'getAdminUser', 'getPricingRuleById', 'getPricingRules', 'getZoneById', 'getZones',
+      'changeUserRole', 'changeUserStatus', 'confirmPasswordReset', 'createStaffUser',
+      'createZone', 'currentUser', 'disableZone',
+      'enableZone', 'getAdminUser', 'getRateCard', 'getRateVersions', 'getZoneById', 'getZones',
       'googleExchange', 'listAdminUsers', 'login', 'logout', 'markNotificationAsRead',
       'merchantApplication', 'myMerchantApplication', 'notifications',
-      'pricingQuote', 'refresh', 'register', 'registerCourier', 'registerMerchant',
-      'trackParcel', 'unreadNotificationsCount', 'updatePricingRule', 'updateZone',
+      'pricingQuote', 'publishRates', 'refresh', 'register', 'registerCourier', 'registerMerchant',
+      'trackParcel', 'unreadNotificationsCount', 'updateZone',
     ])
     expect(available.every((name) => ENDPOINTS[name].path.startsWith('/api/auth/')
       || ENDPOINTS[name].path.startsWith('/api/notifications')
@@ -42,8 +42,8 @@ describe('endpoint registry', () => {
       || ENDPOINTS[name].path.startsWith('/api/admin/users/')
       || ENDPOINTS[name].path === '/api/zones'
       || ENDPOINTS[name].path.startsWith('/api/zones/')
-      || ENDPOINTS[name].path === '/api/pricing/rules'
-      || ENDPOINTS[name].path.startsWith('/api/pricing/rules/')
+      || ENDPOINTS[name].path === '/api/pricing/rates'
+      || ENDPOINTS[name].path.startsWith('/api/pricing/rates/')
       || ENDPOINTS[name].path === '/api/pricing/quote'
       || ENDPOINTS[name].path === '/api/parcels/track/:trackingNumber')).toBe(true)
   })

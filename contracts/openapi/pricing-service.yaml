@@ -1,10 +1,16 @@
 openapi: 3.0.3
 info:
   title: SwiftDrop Pricing & Zones
-  version: 1.0.0
-  description: JWT authenticated API. City lookup is case-insensitive and trims surrounding
-    whitespace. Money uses HALF_UP rounding to two decimal places. Express fee is
-    the rounded amount minus rounded base and weight fees.
+  version: 2.0.0
+  description: |
+    Delivery zones (each covering a list of localities), versioned route rates, and
+    delivery fee quotes. Every endpoint needs an Identity Service JWT.
+
+    A quote finds the zone of each city (a zone locality, matched ignoring case), takes
+    the current version's rate for that pair of zones (the same in both directions),
+    and applies the pricing strategies in order: base fee, weight above the base weight
+    (charged per started kg), size surcharge, then the express multiplier on the total.
+    Each step is rounded HALF_UP to cents, so the breakdown always adds up to the amount.
 servers:
 - url: http://localhost:8080
   description: API Gateway
@@ -15,683 +21,350 @@ security:
 paths:
   /api/zones:
     get:
-      summary: List active entries; ADMIN may include inactive entries
+      summary: List zones, by name
+      description: Active zones for any signed-in user (booking dropdowns). ADMIN may
+        add includeInactive=true to also get disabled zones.
+      parameters:
+      - name: includeInactive
+        in: query
+        schema: {type: boolean, default: false}
       responses:
         '200':
-          description: Success
+          description: Zones
           content:
             application/json:
               schema:
                 type: array
-                items:
-                  $ref: '#/components/schemas/Zone'
-        '400':
-          description: Invalid input; validation errors include fields
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Administrator role required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-      parameters:
-      - name: includeInactive
-        in: query
-        schema:
-          type: boolean
-          default: false
-        description: true requires ADMIN; false is available to any authenticated
-          user.
+                items: {$ref: '#/components/schemas/Zone'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
     post:
-      summary: Create entry (ADMIN)
-      responses:
-        '201':
-          description: Success
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Zone'
-        '400':
-          description: Invalid input; validation errors include fields
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Administrator role required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Zone or pricing rule not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '409':
-          description: Duplicate city, active rule, or disabled zone conflict
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+      summary: Create a zone (ADMIN)
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/ZoneInput'
+            schema: {$ref: '#/components/schemas/ZoneInput'}
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Zone'}
+        '400': {$ref: '#/components/responses/Invalid'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
   /api/zones/{id}:
-    parameters: &id001
-    - name: id
-      in: path
-      required: true
-      schema: &id002
-        type: string
-        format: uuid
+    parameters:
+    - $ref: '#/components/parameters/ZoneId'
     get:
-      summary: Get entry by ID (any authenticated user, including inactive entries)
+      summary: Get a zone, active or not
       responses:
         '200':
-          description: Success
+          description: Zone
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Zone'
-        '400':
-          description: Invalid input; validation errors include fields
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Zone or pricing rule not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+              schema: {$ref: '#/components/schemas/Zone'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404': {$ref: '#/components/responses/NotFound'}
     put:
-      summary: Update entry (ADMIN)
-      responses:
-        '200':
-          description: Success
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Zone'
-        '400':
-          description: Invalid input; validation errors include fields
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Administrator role required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Zone or pricing rule not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '409':
-          description: Duplicate city, active rule, or disabled zone conflict
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+      summary: Update a zone (ADMIN)
+      description: Replaces the name, code and localities. `active` is changed only
+        when it is sent.
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/ZoneInput'
-  /api/zones/{id}/enable:
-    parameters: *id001
-    patch:
-      summary: Enable entry (ADMIN)
+            schema: {$ref: '#/components/schemas/ZoneInput'}
       responses:
         '200':
-          description: Success
+          description: Updated
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Zone'
-        '400':
-          description: Invalid input; validation errors include fields
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Administrator role required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Zone or pricing rule not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '409':
-          description: Duplicate city, active rule, or disabled zone conflict
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+              schema: {$ref: '#/components/schemas/Zone'}
+        '400': {$ref: '#/components/responses/Invalid'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
   /api/zones/{id}/disable:
-    parameters: *id001
+    parameters:
+    - $ref: '#/components/parameters/ZoneId'
     patch:
-      summary: Disable entry (ADMIN)
+      summary: Disable a zone (ADMIN)
+      description: Its localities can no longer be quoted or booked. Its rates are kept
+        and return when the zone is enabled again.
       responses:
         '200':
-          description: Success
+          description: Disabled
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Zone'
-        '400':
-          description: Invalid input; validation errors include fields
+              schema: {$ref: '#/components/schemas/Zone'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/zones/{id}/enable:
+    parameters:
+    - $ref: '#/components/parameters/ZoneId'
+    patch:
+      summary: Enable a zone (ADMIN)
+      responses:
+        '200':
+          description: Enabled
           content:
             application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Administrator role required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Zone or pricing rule not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '409':
-          description: Duplicate city, active rule, or disabled zone conflict
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/pricing/rules:
+              schema: {$ref: '#/components/schemas/Zone'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/pricing/rates:
     get:
-      summary: List active entries; ADMIN may include inactive entries
+      summary: Current rate card (ADMIN)
+      description: The latest published version with one row for every pair of active
+        zones, including each zone with itself. Rate fields are null for a pair with no
+        rate. Before the first publish, version is null and surcharges are 0.
       responses:
         '200':
-          description: Success
+          description: Rate card
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RateCard'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      summary: Publish a new rate version (ADMIN)
+      description: |
+        Creates the next version from the full set of rates; published versions are
+        never edited. Pairs left out cannot be booked. Rates of pairs involving a
+        disabled zone are carried over from the current version.
+        `basedOnVersion` must equal the current version (null before the first publish),
+        otherwise 409, so two admins cannot overwrite each other's changes.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/PublishRates'}
+      responses:
+        '201':
+          description: Published; the new rate card
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/RateCard'}
+        '400': {$ref: '#/components/responses/Invalid'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+  /api/pricing/rates/versions:
+    get:
+      summary: Published versions, newest first (ADMIN)
+      responses:
+        '200':
+          description: Versions
           content:
             application/json:
               schema:
                 type: array
-                items:
-                  $ref: '#/components/schemas/Rule'
-        '400':
-          description: Invalid input; validation errors include fields
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Administrator role required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-      parameters:
-      - name: includeInactive
-        in: query
-        schema:
-          type: boolean
-          default: false
-        description: true requires ADMIN; false is available to any authenticated
-          user.
-    post:
-      summary: Create entry (ADMIN)
-      responses:
-        '201':
-          description: Success
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Rule'
-        '400':
-          description: Invalid input; validation errors include fields
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Administrator role required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Zone or pricing rule not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '409':
-          description: Duplicate city, active rule, or disabled zone conflict
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateRule'
-  /api/pricing/rules/{id}:
-    parameters: &id003
-    - name: id
-      in: path
-      required: true
-      schema: *id002
-    get:
-      summary: Get entry by ID (any authenticated user, including inactive entries)
-      responses:
-        '200':
-          description: Success
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Rule'
-        '400':
-          description: Invalid input; validation errors include fields
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Zone or pricing rule not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-    put:
-      summary: Update entry (ADMIN)
-      responses:
-        '200':
-          description: Success
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Rule'
-        '400':
-          description: Invalid input; validation errors include fields
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Administrator role required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Zone or pricing rule not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '409':
-          description: Duplicate city, active rule, or disabled zone conflict
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/RuleInput'
-  /api/pricing/rules/{id}/enable:
-    parameters: *id003
-    patch:
-      summary: Enable entry (ADMIN)
-      responses:
-        '200':
-          description: Success
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Rule'
-        '400':
-          description: Invalid input; validation errors include fields
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Administrator role required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Zone or pricing rule not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '409':
-          description: Duplicate city, active rule, or disabled zone conflict
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-  /api/pricing/rules/{id}/disable:
-    parameters: *id003
-    patch:
-      summary: Disable entry (ADMIN)
-      responses:
-        '200':
-          description: Success
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Rule'
-        '400':
-          description: Invalid input; validation errors include fields
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '403':
-          description: Administrator role required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Zone or pricing rule not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '409':
-          description: Duplicate city, active rule, or disabled zone conflict
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+                items: {$ref: '#/components/schemas/RateVersionSummary'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
   /api/pricing/quote:
     post:
-      summary: Quote using the active delivery-city rule; both cities must have active
-        zones
-      responses:
-        '200':
-          description: Success
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Quote'
-        '400':
-          description: Invalid input; validation errors include fields
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '401':
-          description: Authentication required
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '404':
-          description: Zone or pricing rule not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
+      summary: Price a delivery (any signed-in user and other services)
       requestBody:
         required: true
         content:
           application/json:
-            schema:
-              $ref: '#/components/schemas/QuoteRequest'
+            schema: {$ref: '#/components/schemas/QuoteRequest'}
+            example:
+              pickupCity: Colombo
+              deliveryCity: Kandy
+              weight: 2.3
+              serviceType: EXPRESS
+              size: MEDIUM
+      responses:
+        '200':
+          description: Quote
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Quote'}
+              example:
+                amount: 1050.00
+                currency: LKR
+                breakdown: {baseFee: 350.00, weightFee: 200.00, sizeFee: 150.00, expressFee: 350.00}
+        '400': {$ref: '#/components/responses/Invalid'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '404':
+          description: No active zone covers a city, nothing is published yet, or the
+            route has no rate.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+              example: {error: 'No active zone covers: Galle'}
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  parameters:
+    ZoneId:
+      name: id
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+  responses:
+    Invalid:
+      description: Invalid input. Field problems are listed under `fields`, keyed by
+        field path (for example `weight`, `localities[0]`, `routes[2].baseFee`).
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+          example:
+            error: Please correct the highlighted fields
+            fields: {weight: Weight must be greater than zero (minimum 0.001 kg)}
+    Unauthorized:
+      description: Missing, invalid or expired token
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Forbidden:
+      description: Signed in without the ADMIN role
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    NotFound:
+      description: Zone not found
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Conflict:
+      description: The zone code or a locality belongs to another zone, or another
+        version was published since `basedOnVersion`.
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+          example: {error: Kandy is already covered by Central Hills}
   schemas:
     Error:
       type: object
-      required:
-      - error
+      required: [error]
       properties:
-        error:
-          type: string
+        error: {type: string}
         fields:
           type: object
-          additionalProperties:
-            type: string
+          additionalProperties: {type: string}
     ZoneInput:
       type: object
-      required:
-      - name
-      - city
-      - district
+      required: [name, code, localities]
       properties:
-        name:
+        name: {type: string, maxLength: 100, example: Western Metro}
+        code:
           type: string
-          minLength: 1
-          maxLength: 100
-        city:
-          type: string
-          minLength: 1
-          maxLength: 100
-        district:
-          type: string
-          minLength: 1
-          maxLength: 100
-    RuleInput:
+          pattern: '^[A-Za-z0-9]{1,10}$'
+          description: Stored in upper case; unique ignoring case.
+          example: WP
+        localities:
+          type: array
+          minItems: 1
+          maxItems: 200
+          description: Cities this zone covers, in display order. Trimmed; blanks and
+            repeats (ignoring case) are dropped. A locality can belong to only one zone.
+          items: {type: string, maxLength: 100}
+          example: [Colombo, Dehiwala, Nugegoda]
+        active: {type: boolean, description: 'Defaults to true on create; unchanged on update when omitted.'}
+    Zone:
       type: object
-      required:
-      - baseFee
-      - pricePerKg
-      - expressMultiplier
       properties:
-        baseFee:
-          type: number
-          minimum: 0
-          maximum: 9999999999.99
-          multipleOf: 0.01
-        pricePerKg:
-          type: number
-          minimum: 0
-          maximum: 9999999999.99
-          multipleOf: 0.01
-        expressMultiplier:
-          type: number
-          minimum: 1
-          maximum: 999.99
-          multipleOf: 0.01
+        id: {type: string, format: uuid}
+        name: {type: string}
+        code: {type: string}
+        localities:
+          type: array
+          items: {type: string}
+        active: {type: boolean}
+        createdAt: {type: string, format: date-time}
+        updatedAt: {type: string, format: date-time}
+    ZoneSummary:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string}
+        code: {type: string}
+    SizeSurcharges:
+      type: object
+      required: [small, medium, large]
+      description: Added for the parcel's size band (longest side Small ≤ 30 cm,
+        Medium ≤ 60 cm, Large > 60 cm). LKR, at most 2 decimals, not negative.
+      properties:
+        small: {type: number, minimum: 0, example: 0}
+        medium: {type: number, minimum: 0, example: 150}
+        large: {type: number, minimum: 0, example: 300}
+    RateCard:
+      type: object
+      properties:
+        version: {type: integer, nullable: true, example: 3}
+        publishedAt: {type: string, format: date-time, nullable: true}
+        publishedBy: {type: string, nullable: true, description: User id of the publishing admin}
+        sizeSurcharges: {$ref: '#/components/schemas/SizeSurcharges'}
+        routes:
+          type: array
+          items:
+            type: object
+            properties:
+              origin: {$ref: '#/components/schemas/ZoneSummary'}
+              destination: {$ref: '#/components/schemas/ZoneSummary'}
+              baseWeightKg: {type: number, nullable: true}
+              baseFee: {type: number, nullable: true}
+              additionalKgFee: {type: number, nullable: true}
+              expressMultiplier: {type: number, nullable: true}
+    PublishRates:
+      type: object
+      required: [sizeSurcharges, routes]
+      properties:
+        basedOnVersion: {type: integer, nullable: true, example: 3}
+        sizeSurcharges: {$ref: '#/components/schemas/SizeSurcharges'}
+        routes:
+          type: array
+          maxItems: 5000
+          description: One entry per offered pair of active zones; listing a pair twice
+            (in either order) is a 400.
+          items:
+            type: object
+            required: [originZoneId, destinationZoneId, baseWeightKg, baseFee, additionalKgFee, expressMultiplier]
+            properties:
+              originZoneId: {type: string, format: uuid}
+              destinationZoneId: {type: string, format: uuid}
+              baseWeightKg: {type: number, minimum: 0, description: 'kg included in the base fee; at most 3 decimals', example: 1}
+              baseFee: {type: number, minimum: 0, example: 350}
+              additionalKgFee: {type: number, minimum: 0, description: LKR for each started kg above the base weight, example: 100}
+              expressMultiplier: {type: number, minimum: 1, example: 1.5}
+    RateVersionSummary:
+      type: object
+      properties:
+        version: {type: integer}
+        publishedAt: {type: string, format: date-time}
+        publishedBy: {type: string}
+        routeCount: {type: integer}
     QuoteRequest:
       type: object
-      required:
-      - pickupCity
-      - deliveryCity
-      - weight
-      - serviceType
+      required: [pickupCity, deliveryCity, weight, serviceType, size]
       properties:
-        pickupCity:
-          type: string
-          minLength: 1
-        deliveryCity:
-          type: string
-          minLength: 1
-        weight:
-          type: number
-          minimum: 0.001
-          maximum: 9999999.999
-          multipleOf: 0.001
-        serviceType:
-          type: string
-          enum:
-          - STANDARD
-          - EXPRESS
+        pickupCity: {type: string, description: A zone locality}
+        deliveryCity: {type: string, description: A zone locality}
+        weight: {type: number, minimum: 0.001, description: 'kg, at most 7 digits and 3 decimals'}
+        serviceType: {type: string, enum: [STANDARD, EXPRESS], description: Case-insensitive}
+        size: {type: string, enum: [SMALL, MEDIUM, LARGE], description: Case-insensitive}
     Quote:
       type: object
-      required:
-      - amount
-      - currency
-      - breakdown
       properties:
-        amount:
-          type: number
-          multipleOf: 0.01
-        currency:
-          type: string
-          enum:
-          - LKR
+        amount: {type: number, description: Total in LKR with 2 decimals}
+        currency: {type: string, enum: [LKR]}
         breakdown:
           type: object
-          required:
-          - baseFee
-          - weightFee
-          - expressFee
+          description: What each pricing step added, in order; the values sum to amount.
           properties:
-            baseFee:
-              type: number
-              multipleOf: 0.01
-            weightFee:
-              type: number
-              multipleOf: 0.01
-            expressFee:
-              type: number
-              multipleOf: 0.01
-    Zone:
-      allOf:
-      - $ref: '#/components/schemas/ZoneInput'
-      - type: object
-        required:
-        - id
-        - active
-        - createdAt
-        - updatedAt
-        properties:
-          id: *id002
-          active: &id004
-            type: boolean
-          createdAt: &id005
-            type: string
-            format: date-time
-          updatedAt: &id006
-            type: string
-            format: date-time
-    CreateRule:
-      allOf:
-      - $ref: '#/components/schemas/RuleInput'
-      - type: object
-        required:
-        - zoneId
-        properties:
-          zoneId: *id002
-    Rule:
-      allOf:
-      - $ref: '#/components/schemas/RuleInput'
-      - type: object
-        required:
-        - id
-        - active
-        - createdAt
-        - updatedAt
-        - zoneId
-        - zoneName
-        properties:
-          id: *id002
-          active: *id004
-          createdAt: *id005
-          updatedAt: *id006
-          zoneId: *id002
-          zoneName:
-            type: string
+            baseFee: {type: number}
+            weightFee: {type: number}
+            sizeFee: {type: number}
+            expressFee: {type: number, description: 0 for STANDARD}
