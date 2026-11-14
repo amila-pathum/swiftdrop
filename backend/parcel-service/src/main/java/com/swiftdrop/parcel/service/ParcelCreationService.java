@@ -6,6 +6,7 @@ import com.swiftdrop.parcel.dto.response.ParcelResponse;
 import com.swiftdrop.parcel.entity.Parcel;
 import com.swiftdrop.parcel.entity.ParcelStatus;
 import com.swiftdrop.parcel.entity.ParcelStatusHistory;
+import com.swiftdrop.parcel.event.ParcelEventOutbox;
 import com.swiftdrop.parcel.repository.ParcelRepository;
 import com.swiftdrop.parcel.repository.ParcelStatusHistoryRepository;
 import org.springframework.stereotype.Service;
@@ -20,15 +21,18 @@ public class ParcelCreationService {
     private final ParcelStatusHistoryRepository history;
     private final PricingClient pricing;
     private final TrackingNumberGenerator tracking;
+    private final ParcelEventOutbox outbox;
 
     public ParcelCreationService(ParcelRepository parcels,
                                  ParcelStatusHistoryRepository history,
                                  PricingClient pricing,
-                                 TrackingNumberGenerator tracking) {
+                                 TrackingNumberGenerator tracking,
+                                 ParcelEventOutbox outbox) {
         this.parcels = parcels;
         this.history = history;
         this.pricing = pricing;
         this.tracking = tracking;
+        this.outbox = outbox;
     }
 
     @Transactional
@@ -61,10 +65,10 @@ public class ParcelCreationService {
         parcel.setStatus(ParcelStatus.CREATED);
 
         Parcel saved = parcels.saveAndFlush(parcel);
-        history.save(new ParcelStatusHistory(saved, null, ParcelStatus.CREATED,
-                                             userId, "Parcel created"));
-        // Event publishing is intentionally NOT implemented in Phase 2.
-        // Add a transactional outbox before claiming reliable event delivery.
+        ParcelStatusHistory entry = new ParcelStatusHistory(
+            saved, null, ParcelStatus.CREATED, userId, "Parcel created");
+        history.save(entry);
+        outbox.enqueueStatusChanged(saved, null, ParcelStatus.CREATED, entry.getChangedAt());
         return ParcelResponse.from(saved);
     }
 

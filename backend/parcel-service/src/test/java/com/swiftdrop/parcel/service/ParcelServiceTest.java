@@ -5,6 +5,7 @@ import com.swiftdrop.parcel.entity.ParcelStatus;
 import com.swiftdrop.parcel.entity.ParcelStatusHistory;
 import com.swiftdrop.parcel.repository.ParcelRepository;
 import com.swiftdrop.parcel.repository.ParcelStatusHistoryRepository;
+import com.swiftdrop.parcel.event.ParcelEventOutbox;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -17,15 +18,16 @@ import static org.mockito.Mockito.*;
 class ParcelServiceTest {
     private final ParcelRepository parcels = mock(ParcelRepository.class);
     private final ParcelStatusHistoryRepository history = mock(ParcelStatusHistoryRepository.class);
+    private final ParcelEventOutbox outbox = mock(ParcelEventOutbox.class);
     private final ParcelService service = new ParcelService(parcels, history,
-            new ParcelStatusTransitionValidator());
+            new ParcelStatusTransitionValidator(), outbox);
     private final Long actor = 42L;
 
     @Test
     void creationRecordsNullPreviousStatus() {
         Parcel parcel = new Parcel();
         parcel.setCreatedBy(actor);
-        when(parcels.save(parcel)).thenReturn(parcel);
+        when(parcels.saveAndFlush(parcel)).thenReturn(parcel);
 
         assertThat(service.createParcel(parcel)).isSameAs(parcel);
 
@@ -37,6 +39,7 @@ class ParcelServiceTest {
         assertThat(entry.getChangedBy()).isEqualTo(actor);
         assertThat(entry.getNote()).isEqualTo("Parcel created");
         assertThat(entry.getChangedAt()).isNotNull();
+        verify(outbox).enqueueStatusChanged(parcel, null, ParcelStatus.CREATED, entry.getChangedAt());
     }
 
     @Test
@@ -55,6 +58,8 @@ class ParcelServiceTest {
         assertThat(entry.getNewStatus()).isEqualTo(ParcelStatus.PICKED_UP);
         assertThat(entry.getChangedBy()).isEqualTo(actor);
         assertThat(entry.getNote()).isEqualTo("Courier collected parcel");
+        verify(outbox).enqueueStatusChanged(parcel, ParcelStatus.CREATED,
+            ParcelStatus.PICKED_UP, entry.getChangedAt());
     }
 
     @Test
@@ -69,6 +74,7 @@ class ParcelServiceTest {
 
         assertThat(parcel.getStatus()).isEqualTo(ParcelStatus.CREATED);
         verifyNoInteractions(history);
+        verifyNoInteractions(outbox);
     }
 
     @Test
@@ -76,7 +82,7 @@ class ParcelServiceTest {
         Parcel parcel = new Parcel();
         parcel.setId(UUID.randomUUID());
         assertThatIllegalArgumentException().isThrownBy(() -> service.createParcel(parcel));
-        verifyNoInteractions(parcels, history);
+        verifyNoInteractions(parcels, history, outbox);
     }
 
     private ParcelStatusHistory recordedHistory() {

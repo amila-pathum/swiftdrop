@@ -46,6 +46,20 @@ events. Pricing authentication remains enabled.
 Unavailable pricing returns 503. Missing, negative, over-precision, or
 out-of-range charges return 502. No substitute charge is generated.
 
+## Parcel status events
+
+Parcel creation and every successful status transition enqueue a
+`ParcelStatusChanged` event in `parcel_event_outbox` in the same database
+transaction as the parcel and status-history changes. A scheduled publisher
+sends pending rows to the durable `swiftdrop.events` topic exchange with routing
+key `parcel.status-changed`; failed sends remain pending and are retried.
+
+Creation uses `oldStatus: null` and `newStatus: CREATED`. Event payloads contain
+identifiers and status metadata only; receiver phone numbers and addresses are
+not published. Set `swiftdrop.events.publisher-enabled=false` to disable the
+publisher, or set `swiftdrop.events.publish-delay-ms` to change its polling
+delay (default 1000 ms).
+
 ## Tests
 
 From this directory in PowerShell, run `.\mvnw.cmd test` with Docker running.

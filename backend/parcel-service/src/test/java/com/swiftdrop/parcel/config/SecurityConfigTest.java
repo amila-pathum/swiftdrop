@@ -53,6 +53,7 @@ class SecurityConfigTest {
     @MockitoBean com.swiftdrop.parcel.service.ParcelQueryService parcelQueryService;
     @MockitoBean com.swiftdrop.parcel.service.ParcelCreationService parcelCreationService;
     @MockitoBean com.swiftdrop.parcel.service.ParcelStatusUpdateService parcelStatusUpdateService;
+    @MockitoBean com.swiftdrop.parcel.event.ParcelEventOutbox parcelEventOutbox;
 
     /** Test-only endpoint showing the convention for a protected, role-restricted endpoint. */
     @TestConfiguration

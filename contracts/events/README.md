@@ -80,7 +80,7 @@ The current Dispatch implementation updates its own demo projection; Parcel
 Core has no assignment API yet, so this event does not imply that Parcel Core's
 canonical `assigned_courier_id` has changed.
 
-## Proposed creation-aware ParcelStatusChanged v2
+## Creation-aware ParcelStatusChanged v2
 
 [parcel.status-changed.v2.schema.json](./parcel.status-changed.v2.schema.json)
 adds the creation convention without changing the existing v1 schema:
@@ -91,22 +91,16 @@ adds the creation convention without changing the existing v1 schema:
 - Existing field names, identifier types and `occurredAt` are retained.
 - This schema does not replace the Parcel Service transition validator.
 
-**Rollout pending:** Notification/webhook and Dispatch owners must update their
-validators to accept null only for creation. The webhook validator currently
-rejects null before checking whether the parcel has a merchant. Dispatch's
-`dispatch_report_events.old_status` persistence constraint must also be reviewed
-for null support. Add consumer tests for creation, normal transitions, invalid
-null previous statuses and duplicate event IDs.
+The Parcel Service publishes creation and later transition events on the existing
+`parcel.status-changed` routing key. Notification/webhook and Dispatch validators
+accept a null `oldStatus` only when `newStatus` is `CREATED`; other transitions
+still require a nonblank previous status. Dispatch migration V3 also makes its
+report projection's `old_status` nullable so creation events can be persisted.
 
-The existing routing key remains `parcel.status-changed` for v1. No v2 routing,
-header or payload version discriminator is agreed yet. Do not publish creation
-events on that key until all bound consumers support them, or until an explicit
-versioned routing and binding strategy is agreed. A schema file named v2 alone
-does not let consumers distinguish versions at runtime.
-
-Only the producer-owned contract is changed here; consumer implementations and
-broker definitions remain unchanged. This is not confirmation from Members 7,
-9 or 10 and does not complete the coordinated rollout.
+Parcel persistence, initial status history and the outbox insert share one
+database transaction. A scheduled publisher sends pending outbox rows and marks
+them delivered, retrying failed sends later. Consumer event-ID checks continue
+to provide duplicate protection when a message is delivered more than once.
 
 Contract checks (from repository root):
 

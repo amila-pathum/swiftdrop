@@ -3,6 +3,7 @@ package com.swiftdrop.parcel;
 import com.swiftdrop.parcel.client.PricingClient;
 import com.swiftdrop.parcel.repository.ParcelRepository;
 import com.swiftdrop.parcel.repository.ParcelStatusHistoryRepository;
+import com.swiftdrop.parcel.event.ParcelOutboxPublisher;
 import com.swiftdrop.parcel.service.TrackingNumberGenerator;
 import java.math.BigDecimal;
 import java.util.UUID;
@@ -17,6 +18,8 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -31,6 +34,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest(properties = {
     "PARCEL_DB_PASSWORD=unused-with-service-connection",
+    "swiftdrop.events.publisher-enabled=false",
     "swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })
 @AutoConfigureMockMvc
@@ -40,11 +44,13 @@ class ParcelCreationApiTest {
     static final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:18");
     @Autowired MockMvc mvc;
     @Autowired ParcelRepository parcels;
+    @Autowired JdbcTemplate jdbc;
     @org.springframework.test.context.bean.override.mockito.MockitoSpyBean
     ParcelStatusHistoryRepository history;
     @Autowired com.swiftdrop.parcel.service.ParcelCreationService creation;
     @MockitoBean PricingClient pricing;
     @MockitoBean TrackingNumberGenerator tracking;
+    @MockitoBean RabbitTemplate rabbit;
 
     private static final String BODY = """
         {"receiverName":" Nimal ","receiverPhone":"0771234567",
@@ -57,6 +63,7 @@ class ParcelCreationApiTest {
     void historyFailureRollsBackTheParcelInsert() {
         long before = parcels.count();
         long historyBefore = history.count();
+        int outboxBefore = outboxCount();
         when(pricing.quote(any(), anyString())).thenReturn(new BigDecimal("450.00"));
         String number = "SD" + UUID.randomUUID().toString().replace("-", "");
         when(tracking.generate()).thenReturn(number);
@@ -69,6 +76,7 @@ class ParcelCreationApiTest {
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
         assertThat(parcels.count()).isEqualTo(before);
         assertThat(history.count()).isEqualTo(historyBefore);
+        assertThat(outboxCount()).isEqualTo(outboxBefore);
         assertThat(parcels.findByTrackingNumber(number)).isEmpty();
     }
 
@@ -76,6 +84,7 @@ class ParcelCreationApiTest {
     void createsOrderAndHistoryUsingAuthenticatedCustomerAndServerPrice() throws Exception {
         long parcelCount = parcels.count();
         long historyCount = history.count();
+        int outboxCount = outboxCount();
         Long customer = 42L;
         String number = "SD" + UUID.randomUUID().toString().replace("-", "");
         String authorization = customerToken(customer);
@@ -102,6 +111,33 @@ class ParcelCreationApiTest {
         assertThat(entries.getFirst().getPreviousStatus()).isNull();
         assertThat(entries.getFirst().getNewStatus()).isEqualTo(com.swiftdrop.parcel.entity.ParcelStatus.CREATED);
         assertThat(entries.getFirst().getChangedBy()).isEqualTo(customer);
+        assertThat(outboxCount()).isEqualTo(outboxCount + 1);
+        String payload = jdbc.queryForObject(
+            "SELECT payload FROM parcel_event_outbox WHERE parcel_id = ?",
+            String.class, parcel.getId());
+        assertThat(payload)
+            .contains("\"eventType\":\"ParcelStatusChanged\"")
+            .contains("\"oldStatus\":null")
+            .contains("\"newStatus\":\"CREATED\"")
+            .contains("\"customerId\":\"42\"")
+            .doesNotContain("0771234567", "10 Main Street", "20 Lake Road");
+    }
+
+    @Test
+    void publishesPendingCreationEventAndMarksItDelivered() throws Exception {
+        when(pricing.quote(any(), anyString())).thenReturn(new BigDecimal("450.00"));
+        String number = "SD" + UUID.randomUUID().toString().replace("-", "");
+        when(tracking.generate()).thenReturn(number);
+        customerPost(BODY).andExpect(status().isCreated());
+        var parcel = parcels.findByTrackingNumber(number).orElseThrow();
+
+        new ParcelOutboxPublisher(jdbc, rabbit).publishPending();
+
+        verify(rabbit, atLeastOnce()).convertAndSend(
+            eq("swiftdrop.events"), eq("parcel.status-changed"), any(byte[].class));
+        assertThat(jdbc.queryForObject(
+            "SELECT published_at IS NOT NULL FROM parcel_event_outbox WHERE parcel_id = ?",
+            Boolean.class, parcel.getId())).isTrue();
     }
 
     @Test
@@ -238,6 +274,9 @@ class ParcelCreationApiTest {
     private org.springframework.test.web.servlet.ResultActions customerPost(String body) throws Exception {
         return mvc.perform(post("/api/parcels").header("Authorization", customerToken(42L))
             .contentType(MediaType.APPLICATION_JSON).content(body));
+    }
+    private int outboxCount() {
+        return jdbc.queryForObject("SELECT count(*) FROM parcel_event_outbox", Integer.class);
     }
     private String customerToken(Long customer) {
         var key = io.jsonwebtoken.security.Keys.hmacShaKeyFor(java.util.Base64.getDecoder()
