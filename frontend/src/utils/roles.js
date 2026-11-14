@@ -65,7 +65,7 @@ export function homePathFor(user) {
 const COMMON_LINKS = [{ to: '/profile', label: 'Profile' }]
 
 const ROLE_LINKS = {
-  CUSTOMER: [],
+  CUSTOMER: [{ to: '/customer/deliveries', label: 'My Deliveries' }],
   MERCHANT: [],
   COURIER: [],
   DISPATCHER: [],
