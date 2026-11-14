@@ -134,6 +134,24 @@ test matching, nonmatching, absent, disabled, and unavailable mappings before en
 courier updates. The existing service unit test mocks a positive verifier result;
 it is not evidence that the production mapping exists.
 
+### Idempotent courier status submissions
+
+`POST /api/parcels/{id}/status` supports Courier Service retries while the existing
+`PATCH` endpoint remains available. Send the same UUID in the `Idempotency-Key`
+header and optional `submissionId` request field. The authenticated actor, parcel,
+requested status and normalized note are bound to that key.
+
+The idempotency claim, parcel transition, history row, outbox event and stored
+response commit in one transaction. An identical retry returns the original
+response without another transition, history row or event. Reusing a key with a
+different parcel, actor, status or note returns 409. The current Parcel assignment
+is checked while holding the same parcel write lock used by assignment changes.
+
+Dispatch still uses profile UUID assignments and does not expose the Courier
+Service's proposed numeric assignment ID/version/attempt contract. Parcel therefore
+does not claim to validate those unavailable fields; that cross-service contract
+must be reconciled before the complete courier workflow is enabled.
+
 ## Merge compatibility: dispatch HTTP projection
 
 The Phase 4 `/api/parcels?status=CREATED` endpoint retains its paginated details

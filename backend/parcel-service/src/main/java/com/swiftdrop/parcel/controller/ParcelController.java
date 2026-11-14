@@ -81,14 +81,16 @@ public class ParcelController {
         return ParcelResponse.from(parcelService.assignCourier(id, request.courierUserId()));
     }
 
-    @PatchMapping("/{id}/status")
+    @RequestMapping(value = "/{id}/status", method = {RequestMethod.PATCH, RequestMethod.POST})
     @PreAuthorize("hasAnyRole('COURIER', 'DISPATCHER', 'ADMIN')")
     public ParcelStatusUpdateResponse updateStatus(@PathVariable java.util.UUID id,
             @Valid @RequestBody UpdateParcelStatusRequest request,
-            @AuthenticationPrincipal Jwt jwt) {
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyHeader) {
         Long actorId = parseUserId(jwt);
         String role = jwt.getClaimAsString("role");
-        return statusUpdates.update(id, request, actorId, role);
+        UUID idempotencyKey = parseIdempotencyKey(idempotencyHeader, request.submissionId());
+        return statusUpdates.update(id, request, actorId, role, idempotencyKey);
     }
 
     @GetMapping("/my")
@@ -153,6 +155,27 @@ public class ParcelController {
             return userId;
         } catch (NumberFormatException ex) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid authenticated user identifier");
+        }
+    }
+
+    private UUID parseIdempotencyKey(String header, UUID submissionId) {
+        if (header == null || header.isBlank()) {
+            if (submissionId != null) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Idempotency-Key header is required when submissionId is supplied");
+            }
+            return null;
+        }
+        try {
+            UUID key = UUID.fromString(header.trim());
+            if (submissionId != null && !submissionId.equals(key)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Idempotency-Key must match submissionId");
+            }
+            return key;
+        } catch (IllegalArgumentException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                "Idempotency-Key must be a UUID");
         }
     }
 
