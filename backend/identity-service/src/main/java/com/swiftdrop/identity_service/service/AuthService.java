@@ -3,6 +3,7 @@ package com.swiftdrop.identity_service.service;
 import com.swiftdrop.identity_service.dto.GoogleExchangeRequest;
 import com.swiftdrop.identity_service.dto.LoginRequest;
 import com.swiftdrop.identity_service.dto.LoginResponse;
+import com.swiftdrop.identity_service.dto.RefreshRequest;
 import com.swiftdrop.identity_service.dto.RegisterRequest;
 import com.swiftdrop.identity_service.dto.UserResponse;
 import com.swiftdrop.identity_service.entity.Role;
@@ -34,18 +35,21 @@ public class AuthService {
     private final JwtService jwtService;
     private final OAuthLoginCodeService loginCodes;
     private final RateLimiter rateLimiter;
+    private final RefreshTokenService refreshTokens;
 
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
             OAuthLoginCodeService loginCodes,
-            RateLimiter rateLimiter) {
+            RateLimiter rateLimiter,
+            RefreshTokenService refreshTokens) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.loginCodes = loginCodes;
         this.rateLimiter = rateLimiter;
+        this.refreshTokens = refreshTokens;
     }
 
     /** Customer sign-up: an ACTIVE CUSTOMER that can be used straight away. */
@@ -94,7 +98,7 @@ public class AuthService {
         return UserResponse.from(userRepository.save(user));
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public LoginResponse login(LoginRequest request) {
         String email = normalizeEmail(request.email());
 
@@ -113,7 +117,7 @@ public class AuthService {
                 || !passwordEncoder.matches(request.password(), user.getPasswordHash())) {
             throw new InvalidCredentialsException();
         }
-        return issueToken(user);
+        return issueToken(user, request.persistent());
     }
 
     /**
@@ -122,31 +126,45 @@ public class AuthService {
      * the code, which the redeem transaction commits on its own.
      */
     public LoginResponse exchangeGoogleCode(GoogleExchangeRequest request) {
-        return issueToken(loginCodes.redeem(request.code(), request.verifier()));
+        return issueToken(loginCodes.redeem(request.code(), request.verifier()), false);
     }
 
     /**
-     * Signs the user out everywhere: every access token issued so far stops
-     * working at the Identity Service at once. Other services verify tokens
-     * without a database lookup, so there a token ends only when it expires.
+     * Exchanges a refresh token for a new access token and a new refresh token.
+     * The old refresh token cannot be used again.
+     */
+    public LoginResponse refresh(RefreshRequest request) {
+        RefreshTokenService.Rotation rotation = refreshTokens.rotate(request.refreshToken());
+        return response(rotation.user(), rotation.refreshToken());
+    }
+
+    /**
+     * Signs the user out everywhere: every access and refresh token issued so
+     * far stops working at the Identity Service at once. Other services verify
+     * access tokens without a database lookup, so there one ends only when it
+     * expires.
      */
     @Transactional
     public void logout(long userId) {
         User user = userRepository.findById(userId).orElseThrow(UserNotFoundException::new);
         user.invalidateTokens();
         userRepository.save(user);
+        refreshTokens.revokeAll(userId);
     }
 
     // ACTIVE and PENDING_APPROVAL accounts may sign in; a pending merchant or
     // courier gets a token without role authority (see JwtAuthenticationFilter).
     // Suspended and disabled accounts are refused.
-    private LoginResponse issueToken(User user) {
+    private LoginResponse issueToken(User user, boolean persistent) {
         if (!user.getStatus().canSignIn()) {
             throw new AccountNotActiveException();
         }
+        return response(user, refreshTokens.issue(user, persistent));
+    }
 
-        String token = jwtService.generateToken(user);
-        return new LoginResponse(token, "Bearer", jwtService.getExpirationSeconds(),
+    private LoginResponse response(User user, RefreshTokenService.IssuedRefreshToken refresh) {
+        return new LoginResponse(jwtService.generateToken(user), "Bearer",
+            jwtService.getExpirationSeconds(), refresh.token(), refresh.expiresInSeconds(),
             UserResponse.from(user));
     }
 

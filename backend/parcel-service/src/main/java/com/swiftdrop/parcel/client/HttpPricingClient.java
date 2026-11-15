@@ -22,7 +22,7 @@ public class HttpPricingClient implements PricingClient {
         this.quotePath = quotePath;
     }
 
-    // Current Pricing Service returns charge; retain amount as a backward-compatible input.
+    // Send parcel size for pricing surcharges; accept amount and the legacy charge field.
     // Do not replace this with a locally invented price when pricing is unavailable.
     @Override
     public BigDecimal quote(CreateParcelRequest request, String accessToken) {
@@ -34,7 +34,7 @@ public class HttpPricingClient implements PricingClient {
             QuoteResponse response = client.post().uri(quotePath)
                 .headers(headers -> headers.setBearerAuth(accessToken))
                 .body(new QuoteRequest(request.pickupCity(), request.deliveryCity(),
-                                       request.weight(), request.parcelType()))
+                                       request.weight(), request.parcelType(), request.size()))
                 .retrieve().body(QuoteResponse.class);
             if (response == null || response.amount() == null ||
                 response.amount().signum() < 0 || response.amount().stripTrailingZeros().scale() > 2 ||
@@ -51,7 +51,7 @@ public class HttpPricingClient implements PricingClient {
     }
 
     private record QuoteRequest(String pickupCity, String deliveryCity,
-                                BigDecimal weight, String serviceType) {}
+                                BigDecimal weight, String serviceType, String size) {}
     @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown=true)
     private record QuoteResponse(@com.fasterxml.jackson.annotation.JsonAlias("charge") BigDecimal amount) {}
 }

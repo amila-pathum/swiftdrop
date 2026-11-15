@@ -43,7 +43,8 @@ export const ENDPOINTS = Object.freeze({
     method: 'POST',
     path: '/api/auth/login',
     available: true,
-    // Body: { email, password } -> LoginResponse { accessToken, tokenType, expiresIn, user }
+    // Body: { email, password, rememberMe? } -> LoginResponse { accessToken,
+    // tokenType, expiresIn, refreshToken, refreshExpiresIn, user }
     // ACTIVE and PENDING_APPROVAL accounts may sign in; SUSPENDED and DISABLED get 403.
   },
   logout: {
@@ -51,7 +52,16 @@ export const ENDPOINTS = Object.freeze({
     path: '/api/auth/logout',
     available: true,
     auth: true,
-    // -> 204. Invalidates every access token of the signed-in user.
+    // -> 204. Invalidates every access and refresh token of the signed-in user.
+  },
+  refresh: {
+    method: 'POST',
+    path: '/api/auth/refresh',
+    available: true,
+    // Body: { refreshToken } -> LoginResponse with a new access token and a
+    // new refresh token; the old refresh token cannot be used again. 401 when
+    // the refresh token is unknown, used, expired or revoked. Called only by
+    // apiClient.refreshSession.
   },
   googleExchange: {
     method: 'POST',
@@ -88,6 +98,39 @@ export const ENDPOINTS = Object.freeze({
     auth: true,
     // ADMIN only. Body: { name, email, password, role: "DISPATCHER" }
     // -> 201 { id, name, email, role, status, createdAt }.
+  },
+  listAdminUsers: {
+    method: 'GET',
+    path: '/api/admin/users',
+    available: true,
+    auth: true,
+    // ADMIN only. Query: search, q, role, status, page (0-based), size, sort
+    // -> Page<UserResponse> { content:[{id,name,email,phone,address,role,status,createdAt}],
+    //    totalPages, totalElements, number, size }
+  },
+  getAdminUser: {
+    method: 'GET',
+    path: '/api/admin/users/:id',
+    available: true,
+    auth: true,
+    // ADMIN only. -> UserResponse
+  },
+  changeUserRole: {
+    method: 'PATCH',
+    path: '/api/admin/users/:id/role',
+    available: true,
+    auth: true,
+    // ADMIN only. Body: { role: "CUSTOMER"|"MERCHANT"|"COURIER"|"DISPATCHER"|"ADMIN" }
+    // -> Updated UserResponse. Admin cannot change their own role (403).
+  },
+  changeUserStatus: {
+    method: 'PATCH',
+    path: '/api/admin/users/:id/status',
+    available: true,
+    auth: true,
+    // ADMIN only. Body: { status: "ACTIVE"|"SUSPENDED"|"DISABLED" }
+    // -> Updated UserResponse. Invalidates all existing tokens for the user.
+    // Admin cannot change their own status (403).
   },
 
   // ---------------------------------------------------------------- Merchant
@@ -139,8 +182,9 @@ export const ENDPOINTS = Object.freeze({
     path: '/api/pricing/quote',
     available: true,
     auth: true,
-    // Body: { pickupCity, deliveryCity, weight, serviceType: 'STANDARD' | 'EXPRESS' }
-    // -> { amount, currency: 'LKR', breakdown: { baseFee, weightFee, expressFee } }
+    // Body: { pickupCity, deliveryCity, weight, serviceType: 'STANDARD' | 'EXPRESS',
+    //   size: 'SMALL' | 'MEDIUM' | 'LARGE' } (cities are zone localities)
+    // -> { amount, currency: 'LKR', breakdown: { baseFee, weightFee, sizeFee, expressFee } }
   },
   trackParcel: {
     method: 'GET',
@@ -175,33 +219,42 @@ export const ENDPOINTS = Object.freeze({
   },
 
   // --------------------------------------------------------- Pricing & Zones
+  // Zone: { id, name, code, localities: string[], active, createdAt, updatedAt }
   getZones: {
     method: 'GET',
     path: '/api/zones',
     available: true,
     auth: true,
-    // -> [{ id, name, city, district, active, createdAt, updatedAt }]
+    // Any signed-in user: active zones, by name. ADMIN may add ?includeInactive=true. -> [Zone]
   },
   getZoneById: {
     method: 'GET',
     path: '/api/zones/:id',
     available: true,
     auth: true,
-    // -> { id, name, city, district, active, createdAt, updatedAt }
+    // -> Zone
   },
   createZone: {
     method: 'POST',
     path: '/api/zones',
     available: true,
     auth: true,
-    // Admin only. Body: { name, city, district } -> 201 Zone
+    // Admin only. Body: { name, code, localities: string[], active } -> 201 Zone
+    // 409 when the code or a locality already belongs to another zone.
   },
   updateZone: {
     method: 'PUT',
     path: '/api/zones/:id',
     available: true,
     auth: true,
-    // Admin only. Body: { name, city, district } -> Zone
+    // Admin only. Body: { name, code, localities: string[], active } -> Zone
+  },
+  enableZone: {
+    method: 'PATCH',
+    path: '/api/zones/:id/enable',
+    available: true,
+    auth: true,
+    // Admin only. -> Zone
   },
   disableZone: {
     method: 'PATCH',
@@ -210,48 +263,31 @@ export const ENDPOINTS = Object.freeze({
     auth: true,
     // Admin only. -> Zone
   },
-  getPricingRules: {
+  getRateCard: {
     method: 'GET',
-    path: '/api/pricing/rules',
+    path: '/api/pricing/rates',
     available: true,
     auth: true,
-    // -> [{ id, zoneId, zoneName, baseFee, pricePerKg, expressMultiplier, active, createdAt, updatedAt }]
+    // Admin only. The published rates with a row for every pair of active zones:
+    // -> { version, publishedAt, publishedBy, sizeSurcharges: { small, medium, large },
+    //      routes: [{ origin: { id, name, code }, destination, baseWeightKg, baseFee,
+    //                 additionalKgFee, expressMultiplier }] } (rate fields null = no rate)
   },
-  getPricingRuleById: {
+  publishRates: {
+    method: 'POST',
+    path: '/api/pricing/rates',
+    available: true,
+    auth: true,
+    // Admin only. Body: { basedOnVersion, sizeSurcharges, routes: [{ originZoneId,
+    //   destinationZoneId, baseWeightKg, baseFee, additionalKgFee, expressMultiplier }] }
+    // -> 201 rate card of the new version. 409 if another version was published since.
+  },
+  getRateVersions: {
     method: 'GET',
-    path: '/api/pricing/rules/:id',
+    path: '/api/pricing/rates/versions',
     available: true,
     auth: true,
-    // -> { id, zoneId, zoneName, baseFee, pricePerKg, expressMultiplier, active, createdAt, updatedAt }
-  },
-  createPricingRule: {
-    method: 'POST',
-    path: '/api/pricing/rules',
-    available: true,
-    auth: true,
-    // Admin only. Body: { zoneId, baseFee, pricePerKg, expressMultiplier } -> 201 PricingRule
-  },
-  updatePricingRule: {
-    method: 'PUT',
-    path: '/api/pricing/rules/:id',
-    available: true,
-    auth: true,
-    // Admin only. Body: { baseFee, pricePerKg, expressMultiplier } -> PricingRule
-  },
-  disablePricingRule: {
-    method: 'PATCH',
-    path: '/api/pricing/rules/:id/disable',
-    available: true,
-    auth: true,
-    // Admin only. -> PricingRule
-  },
-  calculateQuote: {
-    method: 'POST',
-    path: '/api/pricing/quote',
-    available: true,
-    auth: true,
-    // Body: { pickupCity, deliveryCity, weight, serviceType }
-    // -> { charge, currency, breakdown }
+    // Admin only. -> [{ version, publishedAt, publishedBy, routeCount }], newest first
   },
 })
 

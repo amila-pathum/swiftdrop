@@ -2,6 +2,7 @@ package com.swiftdrop.merchant.controller;
 
 import com.swiftdrop.merchant.dto.request.MerchantRegistrationRequest;
 import com.swiftdrop.merchant.dto.request.RejectMerchantRequest;
+import com.swiftdrop.merchant.dto.response.MerchantDashboardResponse;
 import com.swiftdrop.merchant.dto.response.MerchantResponse;
 import com.swiftdrop.merchant.entity.MerchantStatus;
 import com.swiftdrop.merchant.service.MerchantService;
@@ -56,6 +57,19 @@ public class MerchantController {
 
         return ResponseEntity.ok(
                 merchantService.getMyMerchant(userId));
+    }
+
+    // Get current user's merchant dashboard data
+    @GetMapping("/me/dashboard")
+    public ResponseEntity<MerchantDashboardResponse> getMyDashboard(
+            @AuthenticationPrincipal Jwt jwt) {
+
+        requireApplicantRole(jwt);
+
+        Long userId = getAuthenticatedUserId(jwt);
+
+        return ResponseEntity.ok(
+                merchantService.getMyDashboard(userId));
     }
 
     // Admin: list merchant applications

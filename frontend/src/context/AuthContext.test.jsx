@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { AuthProvider, useAuth } from './AuthContext'
 import { ApiError, ApiErrorKind, request } from '../services/apiClient'
+import { API_BASE_URL } from '../services/config'
 import * as authService from '../services/authService'
 import { getAccessToken, getSession, saveSession } from '../services/tokenStorage'
 
@@ -22,6 +23,13 @@ const USER = {
   createdAt: '2026-01-01T00:00:00Z',
 }
 const FIFTEEN_MINUTES = 900_000
+
+function jsonResponse(status, body) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
 const DAY = 86_400_000
 
 // Emulates the real authService.login, which stores the session before resolving.
@@ -405,6 +413,9 @@ describe('AuthContext', () => {
       expect(result.current.status).toBe('authenticated')
 
       setVisibility('visible')
+      act(() => {
+        vi.advanceTimersByTime(0)
+      })
       expect(result.current.status).toBe('anonymous')
       expect(result.current.sessionExpired).toBe(true)
       expect(getSession()).toBeNull()
@@ -540,6 +551,168 @@ describe('AuthContext', () => {
       })
 
       expect(authService.logout).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('refresh tokens', () => {
+    const REFRESH_URL = `${API_BASE_URL}/api/auth/refresh`
+    let fetchMock
+
+    const refreshed = (n) => jsonResponse(200, {
+      accessToken: `access-${n}`,
+      tokenType: 'Bearer',
+      expiresIn: 900,
+      refreshToken: `refresh-${n}`,
+      refreshExpiresIn: 86_400,
+      user: USER,
+    })
+
+    function mockLoginWithRefresh() {
+      authService.login.mockImplementation(async () => {
+        const expiresAt = saveSession('access-1', 900, undefined, {
+          refreshToken: 'refresh-1', refreshExpiresInSeconds: 86_400,
+        })
+        return { user: USER, expiresAt }
+      })
+    }
+
+    async function signIn() {
+      mockLoginWithRefresh()
+      const { result } = renderAuth()
+      await flush()
+      await act(() => result.current.login('customer@example.com', 'password123'))
+      return result
+    }
+
+    async function expireAccessToken() {
+      act(() => {
+        vi.advanceTimersByTime(FIFTEEN_MINUTES)
+      })
+      await flush()
+    }
+
+    beforeEach(() => {
+      fetchMock = vi.fn()
+      vi.stubGlobal('fetch', fetchMock)
+    })
+
+    afterEach(() => {
+      vi.unstubAllGlobals()
+    })
+
+    it('renews the access token when it expires and stays signed in', async () => {
+      const result = await signIn()
+      fetchMock.mockResolvedValueOnce(refreshed(2))
+
+      await expireAccessToken()
+
+      expect(fetchMock).toHaveBeenCalledTimes(1)
+      expect(fetchMock.mock.calls[0][0]).toBe(REFRESH_URL)
+      expect(result.current.status).toBe('authenticated')
+      expect(getAccessToken()).toBe('access-2')
+      expect(vi.getTimerCount()).toBe(1)
+
+      fetchMock.mockResolvedValueOnce(refreshed(3))
+      await expireAccessToken()
+      expect(getAccessToken()).toBe('access-3')
+      expect(result.current.status).toBe('authenticated')
+    })
+
+    it('ends the session with a notice when the refresh token is refused', async () => {
+      const result = await signIn()
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(401, { error: 'Session has expired. Please sign in again' }))
+
+      await expireAccessToken()
+
+      expect(result.current.status).toBe('anonymous')
+      expect(result.current.sessionExpired).toBe(true)
+      expect(getSession()).toBeNull()
+      expect(vi.getTimerCount()).toBe(0)
+    })
+
+    it('keeps the session and retries when the server cannot be reached', async () => {
+      const result = await signIn()
+      fetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'))
+
+      await expireAccessToken()
+      expect(result.current.status).toBe('authenticated')
+      expect(vi.getTimerCount()).toBe(1)
+
+      fetchMock.mockResolvedValueOnce(refreshed(2))
+      act(() => {
+        vi.advanceTimersByTime(30_000)
+      })
+      await flush()
+
+      expect(fetchMock).toHaveBeenCalledTimes(2)
+      expect(getAccessToken()).toBe('access-2')
+      expect(result.current.status).toBe('authenticated')
+    })
+
+    it('ends the session when the refresh token itself expires', async () => {
+      authService.login.mockImplementation(async () => {
+        const expiresAt = saveSession('access-1', 900, undefined, {
+          refreshToken: 'refresh-1', refreshExpiresInSeconds: 600,
+        })
+        return { user: USER, expiresAt }
+      })
+      const { result } = renderAuth()
+      await flush()
+      await act(() => result.current.login('customer@example.com', 'password123'))
+
+      await expireAccessToken()
+
+      expect(fetchMock).not.toHaveBeenCalled()
+      expect(result.current.status).toBe('anonymous')
+      expect(result.current.sessionExpired).toBe(true)
+    })
+
+    it('restores a stored session whose access token has expired', async () => {
+      saveSession('access-1', 900, Date.now() - FIFTEEN_MINUTES - 1_000, {
+        refreshToken: 'refresh-1', refreshExpiresInSeconds: 86_400,
+      })
+      authService.getCurrentUser.mockResolvedValue(USER)
+      fetchMock.mockResolvedValueOnce(refreshed(2))
+
+      const { result } = renderAuth()
+      await flush()
+      act(() => {
+        vi.advanceTimersByTime(0)
+      })
+      await flush()
+
+      expect(result.current.status).toBe('authenticated')
+      expect(getAccessToken()).toBe('access-2')
+    })
+
+    it('renews instead of signing out when a suspended tab becomes visible', async () => {
+      const result = await signIn()
+      fetchMock.mockResolvedValueOnce(refreshed(2))
+
+      vi.setSystemTime(Date.now() + FIFTEEN_MINUTES + 1_000)
+      setVisibility('visible')
+      act(() => {
+        vi.advanceTimersByTime(0)
+      })
+      await flush()
+
+      expect(result.current.status).toBe('authenticated')
+      expect(getAccessToken()).toBe('access-2')
+    })
+
+    it('still asks the backend to sign out after the access token expired', async () => {
+      authService.logout.mockResolvedValue(null)
+      const result = await signIn()
+      vi.setSystemTime(Date.now() + FIFTEEN_MINUTES + 1_000)
+
+      act(() => {
+        result.current.logout()
+      })
+
+      expect(authService.logout).toHaveBeenCalledTimes(1)
+      expect(result.current.status).toBe('anonymous')
+      expect(getSession()).toBeNull()
     })
   })
 })

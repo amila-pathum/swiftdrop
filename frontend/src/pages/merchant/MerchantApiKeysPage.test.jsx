@@ -171,5 +171,25 @@ describe('MerchantApiKeysPage', () => {
       expect(screen.getByText('No API keys yet')).toBeInTheDocument()
     })
   })
+
+  it('renders example order request card and copies curl command', async () => {
+    merchantService.getMyMerchant.mockResolvedValue(MOCK_MERCHANT)
+    merchantService.getApiKeys.mockResolvedValue(MOCK_KEYS)
+
+    renderPage()
+
+    await waitFor(() => {
+      expect(screen.getByRole('heading', { name: 'Example Order Request' })).toBeInTheDocument()
+    })
+
+    expect(screen.getByText(/curl -X POST https:\/\/api\.swiftdrop\.com\/api\/merchant\/orders/)).toBeInTheDocument()
+    expect(screen.getByText(/X-API-Key: sd_live_YOUR_KEY_HERE/)).toBeInTheDocument()
+
+    const copyBtn = screen.getByRole('button', { name: 'Copy cURL snippet' })
+    fireEvent.click(copyBtn)
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(expect.stringContaining('POST https://api.swiftdrop.com/api/merchant/orders'))
+    expect(screen.getByText('✓ Copied')).toBeInTheDocument()
+  })
 })
 

@@ -67,7 +67,13 @@ describe('merchant and courier sign-up', () => {
 
       expect(calls()).toEqual([{
         path: '/api/auth/register/merchant',
-        body: { name: 'Nimal Perera', email: 'nimal@lankabooks.lk', password: 'password123' },
+        body: {
+          name: 'Nimal Perera',
+          email: 'nimal@lankabooks.lk',
+          password: 'password123',
+          phone: '0112345678',
+          address: '45 Duplication Road',
+        },
         authorization: undefined,
       }])
       expect(result.user.role).toBe('MERCHANT')
@@ -121,7 +127,7 @@ describe('merchant and courier sign-up', () => {
       const [, login, application] = calls()
       expect(login).toEqual({
         path: '/api/auth/login',
-        body: { email: 'nimal@lankabooks.lk', password: 'password123' },
+        body: { email: 'nimal@lankabooks.lk', password: 'password123', rememberMe: false },
         authorization: undefined,
       })
       expect(application).toEqual({

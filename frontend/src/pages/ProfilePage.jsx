@@ -152,7 +152,22 @@ function WarningCircleIcon({ size = 14 }) {
   )
 }
 
-const PHONE_CHARS = /^\+?[\d\s()-]+$/
+// Sri Lankan mobile number format:
+// 1) 07XXXXXXXX (10 digits starting with 07)
+// 2) +947XXXXXXXX (12 characters starting with +947)
+// Rejects letters, spaces, and other formats.
+const LK_MOBILE_PATTERN = /^(07\d{8}|\+947\d{8})$/
+
+function validatePhoneValue(value) {
+  const trimmed = (value ?? '').trim()
+  if (!trimmed) {
+    return 'Enter your phone number.'
+  }
+  if (!LK_MOBILE_PATTERN.test(trimmed)) {
+    return 'Enter a valid phone number (e.g. 07XXXXXXXX or +947XXXXXXXX).'
+  }
+  return ''
+}
 
 function validateProfileForm({ name, phone, address }) {
   const errors = {}
@@ -164,14 +179,9 @@ function validateProfileForm({ name, phone, address }) {
     errors.name = 'Name must be 100 characters or fewer.'
   }
 
-  const trimmedPhone = (phone ?? '').trim()
-  if (trimmedPhone) {
-    const digits = trimmedPhone.replace(/\D/g, '').length
-    if (!PHONE_CHARS.test(trimmedPhone) || digits < 9 || digits > 15) {
-      errors.phone = 'Enter a valid phone number, for example 077 123 4567.'
-    } else if (trimmedPhone.length > 30) {
-      errors.phone = 'Phone number must be 30 characters or fewer.'
-    }
+  const phoneError = validatePhoneValue(phone)
+  if (phoneError) {
+    errors.phone = phoneError
   }
 
   const trimmedAddress = (address ?? '').trim()
@@ -234,12 +244,14 @@ export default function ProfilePage() {
   }, [loadProfile])
 
   const handleStartEdit = () => {
+    const currentPhone = profile?.phone || ''
     setFormData({
       name: profile?.name || '',
-      phone: profile?.phone || '',
+      phone: currentPhone,
       address: profile?.address || '',
     })
-    setFieldErrors({})
+    const phoneErr = validatePhoneValue(currentPhone)
+    setFieldErrors(phoneErr ? { phone: phoneErr } : {})
     setActionError(null)
     setActionSuccess('')
     setIsEditing(true)
@@ -273,7 +285,7 @@ export default function ProfilePage() {
     try {
       const payload = {
         name: formData.name.trim(),
-        phone: formData.phone.trim() || null,
+        phone: formData.phone.trim(),
         address: formData.address.trim() || null,
       }
       const updated = await authService.updateProfile(payload)
@@ -432,6 +444,7 @@ export default function ProfilePage() {
                   <label htmlFor="profile-phone" className="profile-input-label">
                     <span className="profile-input-label-icon" aria-hidden="true"><PhoneIcon /></span>
                     <span>Phone Number</span>
+                    <span className="profile-field-required" aria-hidden="true" style={{ color: '#dc2626' }}>*</span>
                   </label>
                   <div className="profile-input-container">
                     <input
@@ -439,25 +452,51 @@ export default function ProfilePage() {
                       name="phone"
                       type="tel"
                       className="profile-modern-input"
-                      placeholder="077 123 4567"
+                      placeholder="07XXXXXXXX or +947XXXXXXXX"
                       autoComplete="tel"
+                      required
+                      aria-required="true"
                       aria-invalid={Boolean(fieldErrors.phone) || undefined}
-                      aria-describedby={fieldErrors.phone ? 'profile-phone-error' : 'profile-phone-hint'}
+                      aria-describedby={fieldErrors.phone ? 'profile-phone-error' : undefined}
+                      style={fieldErrors.phone ? { borderColor: '#dc2626', backgroundColor: '#fffcfc' } : {}}
                       value={formData.phone}
                       onChange={(e) => {
-                        setFormData((prev) => ({ ...prev, phone: e.target.value }))
-                        if (fieldErrors.phone) setFieldErrors((prev) => ({ ...prev, phone: '' }))
+                        const val = e.target.value
+                        setFormData((prev) => ({ ...prev, phone: val }))
+                        const err = validatePhoneValue(val)
+                        setFieldErrors((prev) => ({ ...prev, phone: err }))
+                      }}
+                      onBlur={(e) => {
+                        const err = validatePhoneValue(e.target.value)
+                        setFieldErrors((prev) => ({ ...prev, phone: err }))
+                      }}
+                      onFocus={(e) => {
+                        const err = validatePhoneValue(e.target.value)
+                        if (err) {
+                          setFieldErrors((prev) => ({ ...prev, phone: err }))
+                        }
                       }}
                     />
                   </div>
-                  {fieldErrors.phone ? (
-                    <p id="profile-phone-error" className="profile-field-error" role="alert">
-                      <WarningCircleIcon />
-                      <span>{fieldErrors.phone}</span>
-                    </p>
-                  ) : (
-                    <p id="profile-phone-hint" className="profile-field-hint">
-                      Format: 077 123 4567 or +94 77 123 4567
+                  {fieldErrors.phone && (
+                    <p
+                      id="profile-phone-error"
+                      className="profile-field-error"
+                      role="alert"
+                      style={{
+                        color: '#dc2626',
+                        fontSize: '12px',
+                        fontWeight: 500,
+                        marginTop: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                      }}
+                    >
+                      <span style={{ display: 'inline-flex', color: '#dc2626' }}>
+                        <WarningCircleIcon size={14} />
+                      </span>
+                      <span style={{ color: '#dc2626' }}>{fieldErrors.phone}</span>
                     </p>
                   )}
                 </div>
@@ -556,16 +595,15 @@ export default function ProfilePage() {
            VIEW PROFILE MODE (Unchanged)
            =================================================================== */
         <>
-          {/* Top Hero Banner & Profile Header */}
+          {/* Profile Header Card */}
           <section className="profile-hero" aria-label="Profile summary">
-            <div className="profile-hero-banner" />
             <div className="profile-hero-body">
               <div className="profile-hero-user">
                 <div className="profile-avatar-large" aria-hidden="true">
                   {getInitials(profile?.name)}
                 </div>
                 <div className="profile-hero-meta">
-                  <h1 className="profile-hero-name">{profile?.name || 'Customer'}</h1>
+                  <h1 className="profile-hero-name">{profile?.name || 'User'}</h1>
                   <div className="profile-hero-badges">
                     <span className="profile-badge-customer">
                       <ShieldIcon />

@@ -6,9 +6,10 @@ import ProtectedRoute from './components/ProtectedRoute'
 import PublicOnlyRoute from './components/PublicOnlyRoute'
 import { useAuth } from './context/AuthContext'
 import AdminDashboardPage from './pages/admin/AdminDashboardPage'
+import AdminUserManagementPage from './pages/admin/AdminUserManagementPage'
 import MerchantApprovalsPage from './pages/admin/MerchantApprovalsPage'
 import ZoneManagementPage from './pages/admin/ZoneManagementPage'
-import PricingRuleManagementPage from './pages/admin/PricingRuleManagementPage'
+import PricingPage from './pages/admin/PricingPage'
 import ApplicationStatusPage from './pages/application/ApplicationStatusPage'
 import ApplicationSubmittedPage from './pages/application/ApplicationSubmittedPage'
 import CourierRegisterPage from './pages/auth/CourierRegisterPage'
@@ -142,10 +143,12 @@ function App() {
       {/* Admin protected routes */}
       <Route element={<ProtectedRoute allowedRoles={['ADMIN']} />}>
         <Route element={<AppLayout />}>
+          <Route path="/admin/users" element={<AdminUserManagementPage />} />
           <Route path="/admin/merchant-approvals" element={<MerchantApprovalsPage />} />
           <Route path="/admin/approvals" element={<Navigate to="/admin/merchant-approvals" replace />} />
           <Route path="/admin/zones" element={<ZoneManagementPage />} />
-          <Route path="/admin/pricing-rules" element={<PricingRuleManagementPage />} />
+          <Route path="/admin/pricing" element={<PricingPage />} />
+          <Route path="/admin/pricing-rules" element={<Navigate to="/admin/pricing" replace />} />
         </Route>
       </Route>
 
