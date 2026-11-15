@@ -140,6 +140,20 @@ class StyleCartIntegrationTest {
         var payload=new HashMap<String,Object>();payload.put("eventId",UUID.randomUUID().toString());payload.put("eventType","WebhookTest");payload.put("occurredAt",Instant.now().toString());payload.put("trackingNumber","TEST");payload.put("newStatus","TEST");
         integration.failures("ALWAYS");webhook(payload,500);webhook(payload,500);integration.failures("NORMAL");webhook(payload,204);assertEquals(0,orders.count());assertEquals(1,events.count());
     }
+    @Test void liveStreamCompletesAfterLogoutWithoutReauthorizingCommittedResponse() throws Exception{
+        var login=mvc.perform(post("/api/auth/login").with(csrf()).contentType(MediaType.APPLICATION_JSON)
+            .content(JSON.writeValueAsBytes(Map.of("email",buyer.email,"password","test-buyer-password"))))
+            .andExpect(status().isOk()).andReturn();
+        var session=(MockHttpSession)login.getRequest().getSession(false);
+        var stream=mvc.perform(get("/api/customer/live").session(session))
+            .andExpect(request().asyncStarted()).andReturn();
+        mvc.perform(post("/api/auth/logout").session(session).with(csrf())).andExpect(status().isNoContent());
+        live.heartbeat();
+        mvc.perform(asyncDispatch(stream)).andExpect(status().isOk());
+        mvc.perform(get("/api/customer/live")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/admin/live").with(user(buyer.email).roles("CUSTOMER")))
+            .andExpect(status().isForbidden());
+    }
     @Test void sseNotifiesOnlyTheOrderOwnerAndAdminsAfterCommit() throws Exception{
         var session1=new MockHttpSession();
         var session2=new MockHttpSession();
