@@ -10,9 +10,15 @@ function Control({ as, id, invalid, describedBy, options = [], placeholder, ...p
     return (
       <select className="input select" {...shared} {...props}>
         <option value="">{placeholder ?? 'Select…'}</option>
-        {options.map((option) => (
+        {options.map((option) => (option.options ? (
+          <optgroup key={`group-${option.label}`} label={option.label}>
+            {option.options.map((item) => (
+              <option key={item.value} value={item.value}>{item.label}</option>
+            ))}
+          </optgroup>
+        ) : (
           <option key={option.value} value={option.value}>{option.label}</option>
-        ))}
+        )))}
       </select>
     )
   }
@@ -31,7 +37,8 @@ function Control({ as, id, invalid, describedBy, options = [], placeholder, ...p
  * revealable, …) go to the control.
  *
  * @param {'input'|'select'|'textarea'} [as='input']
- * @param {{value: string, label: string}[]} [options] For `as="select"`.
+ * @param {({value: string, label: string} | {label: string, options: {value: string, label: string}[]})[]} [options]
+ *   For `as="select"`; an entry with its own `options` renders as an <optgroup>.
  * @param {boolean} [required] Shows a required marker and sets aria-required.
  */
 export default function FormField({ id, label, hint, error, as = 'input', required, className, ...props }) {

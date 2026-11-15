@@ -18,7 +18,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import com.swiftdrop.pricing.repository.PricingRuleRepository;
+import com.swiftdrop.pricing.repository.RateVersionRepository;
+import com.swiftdrop.pricing.repository.RouteRateRepository;
 import com.swiftdrop.pricing.repository.ZoneRepository;
 import org.mockito.Mockito;
 
@@ -60,8 +61,13 @@ class SecurityConfigTest {
         }
 
         @Bean
-        PricingRuleRepository pricingRuleRepository() {
-            return Mockito.mock(PricingRuleRepository.class);
+        RateVersionRepository rateVersionRepository() {
+            return Mockito.mock(RateVersionRepository.class);
+        }
+
+        @Bean
+        RouteRateRepository routeRateRepository() {
+            return Mockito.mock(RouteRateRepository.class);
         }
 
         @Bean
