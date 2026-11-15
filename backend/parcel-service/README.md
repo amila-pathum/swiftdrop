@@ -136,6 +136,17 @@ it is not evidence that the production mapping exists.
 
 ## Merge compatibility: dispatch HTTP projection
 
+### Shared RDS migration versions
+
+The RDS profile permits applied migrations newer than this branch using
+`spring.flyway.ignore-migration-patterns=*:future`. This supports running an older
+feature branch against the team's database after another branch adds migrations.
+Known migration checksums and missing earlier versions are still validated;
+Hibernate continues validating the entity schema. No Flyway repair, history
+deletion or schema recreation is required. This assumes newer changes remain
+backward compatible; obtain their original migration files when integrating that
+feature rather than inventing replacements.
+
 The Phase 4 `/api/parcels?status=CREATED` endpoint retains its paginated details
 response. The incoming Dispatch Service expects an array of dispatch projections;
 that separate contract is available at `/api/parcels/dispatch?status=CREATED`

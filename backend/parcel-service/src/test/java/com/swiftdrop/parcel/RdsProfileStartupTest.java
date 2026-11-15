@@ -117,6 +117,28 @@ class RdsProfileStartupTest {
             .containsEntry("hibernate.hbm2ddl.auto", "validate");
     }
 
+    @Test
+    void newerSharedDatabaseVersionsAreAllowedButKnownChecksumsAreValidated() {
+        Integer originalChecksum = jdbc.queryForObject(
+            "SELECT checksum FROM flyway_schema_history WHERE version = '1'", Integer.class);
+        try {
+            jdbc.update("""
+                INSERT INTO flyway_schema_history
+                    (installed_rank, version, description, type, script, checksum,
+                     installed_by, execution_time, success)
+                SELECT COALESCE(MAX(installed_rank), 0) + 1, '99', 'future branch fixture',
+                    'SQL', 'V99__future_branch_fixture.sql', 1, current_user, 0, true
+                FROM flyway_schema_history
+                """);
+            assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
+            jdbc.update("UPDATE flyway_schema_history SET checksum = 0 WHERE version = '1'");
+            assertThat(flyway.validateWithResult().validationSuccessful).isFalse();
+        } finally {
+            jdbc.update("UPDATE flyway_schema_history SET checksum = ? WHERE version = '1'", originalChecksum);
+            jdbc.update("DELETE FROM flyway_schema_history WHERE version = '99'");
+        }
+    }
+
     // A database whose public schema already holds tables but no Flyway
     // history must stop the migration instead of being baselined.
     @Test
