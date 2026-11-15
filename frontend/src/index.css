@@ -1927,6 +1927,15 @@ a.button {
   margin: 20px 0 24px;
 }
 
+/* Track parcel page — wider than the default narrow container */
+.track-parcel-section {
+  padding: 56px 0;
+}
+
+.track-parcel-container {
+  max-width: 860px;
+}
+
 .tracking-result {
   padding: 24px;
 }
@@ -4826,6 +4835,22 @@ a.button {
   margin: 0 auto;
 }
 
+/* Notification Track Link */
+.notification-track-link {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2563eb;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.notification-track-link:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
 .parcel-details-tracking {
   margin: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
@@ -4875,6 +4900,47 @@ a.button {
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
+}
+
+/* Icon-only variant: compact square button with a hover tooltip */
+.tracking-copy-button--icon-only {
+  position: relative;
+  padding: 6px;
+  gap: 0;
+}
+
+/* Tooltip via ::after — appears above the button on hover / focus */
+.tracking-copy-button--icon-only::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) scale(0.9);
+  white-space: nowrap;
+  background: #1e293b;
+  color: #f8fafc;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 4px 8px;
+  border-radius: 6px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 10;
+}
+
+.tracking-copy-button--icon-only:hover:not(:disabled)::after,
+.tracking-copy-button--icon-only:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) scale(1);
+}
+
+/* Green tint when copy succeeded */
+.tracking-copy-button--copied,
+.tracking-copy-button--copied:hover:not(:disabled) {
+  border-color: #16a34a;
+  color: #15803d;
+  background: #f0fdf4;
 }
 
 .tracking-copy-button:hover:not(:disabled) {

@@ -4,4 +4,7 @@ import lombok.Builder;
 
 @Builder
 public record UnreadCountResponse(long unreadCount) {
+    public long getCount() {
+        return unreadCount;
+    }
 }
