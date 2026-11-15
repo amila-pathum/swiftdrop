@@ -59,22 +59,14 @@ public class ParcelStatusConsumer {
 
         // 2. Customer notification : Save in-app notification, send email and mock SMS
         if (StringUtils.hasText(event.customerId())) {
-            String friendlyNew = EmailNotificationService.formatFriendlyStatus(event.newStatus());
-            String friendlyOld = EmailNotificationService.formatFriendlyStatus(event.oldStatus());
-            String messageText;
-            if (StringUtils.hasText(event.oldStatus())) {
-                messageText = String.format("Parcel %s is now %s (previously %s)",
-                        event.trackingNumber(), friendlyNew, friendlyOld);
-            } else {
-                messageText = String.format("Parcel %s status is now %s",
-                        event.trackingNumber(), friendlyNew);
-            }
+            String title = resolveNotificationTitle(event.newStatus());
+            String messageText = resolveNotificationDescription(event.newStatus(), event.trackingNumber());
 
             Notification notification = Notification.builder()
                     .id(UUID.randomUUID())
                     .userId(event.customerId())
                     .trackingNumber(event.trackingNumber())
-                    .title("Parcel Status Update")
+                    .title(title)
                     .message(messageText)
                     .isRead(false)
                     .createdAt(eventTime)
@@ -102,5 +94,49 @@ public class ParcelStatusConsumer {
                     .build();
             processedEventRepository.save(processedEvent);
         }
+    }
+
+    public static String resolveNotificationTitle(String newStatus) {
+        if (!StringUtils.hasText(newStatus)) {
+            return "Parcel Status Update";
+        }
+        return switch (newStatus.trim().toUpperCase()) {
+            case "CREATED", "PENDING" -> "Parcel Registered";
+            case "PICKED_UP" -> "Parcel Picked Up";
+            case "IN_TRANSIT" -> "Parcel In Transit";
+            case "OUT_FOR_DELIVERY" -> "Parcel Out for Delivery";
+            case "DELIVERED" -> "Parcel Delivered";
+            case "CANCELLED" -> "Parcel Cancelled";
+            case "RETURNED" -> "Parcel Returned";
+            case "FAILED", "FAILED_DELIVERY" -> "Delivery Attempt Failed";
+            default -> "Parcel " + EmailNotificationService.formatFriendlyStatus(newStatus);
+        };
+    }
+
+    public static String resolveNotificationDescription(String newStatus, String trackingNumber) {
+        String tracking = StringUtils.hasText(trackingNumber) ? trackingNumber : "your parcel";
+        if (!StringUtils.hasText(newStatus)) {
+            return String.format("Your parcel %s status has been updated.", tracking);
+        }
+        return switch (newStatus.trim().toUpperCase()) {
+            case "CREATED", "PENDING" ->
+                String.format("Your parcel %s has been registered and is being processed.", tracking);
+            case "PICKED_UP" ->
+                String.format("Your parcel %s has been picked up by the courier.", tracking);
+            case "IN_TRANSIT" ->
+                String.format("Your parcel %s is on the way to the delivery location.", tracking);
+            case "OUT_FOR_DELIVERY" ->
+                String.format("Your parcel %s is out for delivery and will arrive soon.", tracking);
+            case "DELIVERED" ->
+                String.format("Your parcel %s has been successfully delivered.", tracking);
+            case "CANCELLED" ->
+                String.format("Your delivery for parcel %s has been cancelled.", tracking);
+            case "RETURNED" ->
+                String.format("Your parcel %s is being returned to the sender.", tracking);
+            case "FAILED", "FAILED_DELIVERY" ->
+                String.format("Delivery attempt for parcel %s was unsuccessful.", tracking);
+            default ->
+                String.format("Your parcel %s is now %s.", tracking, EmailNotificationService.formatFriendlyStatus(newStatus));
+        };
     }
 }
