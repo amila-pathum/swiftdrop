@@ -51,7 +51,9 @@ function TrackingResult({ parcel, onLiveUpdate }) {
           if (!merged.some((h) => h.status === ev.status)) {
             merged.push({
               status: ev.status,
+              timestamp: ev.occurredAt || ev.timestamp || new Date().toISOString(),
               occurredAt: ev.occurredAt,
+              description: ev.description || ev.note || 'Live status update',
               note: 'Live status update',
             })
           }
@@ -70,7 +72,9 @@ function TrackingResult({ parcel, onLiveUpdate }) {
           ...prev,
           {
             status: liveStatus,
+            timestamp: liveUpdatedAt || new Date().toISOString(),
             occurredAt: liveUpdatedAt || new Date().toISOString(),
+            description: 'Live status update',
             note: 'Live status update',
           },
         ]
@@ -137,10 +141,10 @@ function TrackingResult({ parcel, onLiveUpdate }) {
       ) : (
         <ol className="timeline">
           {history.map((entry, index) => (
-            <li key={`${entry.status}-${entry.timestamp}-${index}`}>
+            <li key={`${entry.status}-${entry.timestamp || entry.occurredAt}-${index}`}>
               <p className="timeline-status">{formatStatus(entry.status)}</p>
-              <p className="timeline-time">{formatDateTime(entry.timestamp)}</p>
-              {entry.description && <p className="timeline-note">{entry.description}</p>}
+              <p className="timeline-time">{formatDateTime(entry.timestamp || entry.occurredAt)}</p>
+              {(entry.description || entry.note) && <p className="timeline-note">{entry.description || entry.note}</p>}
             </li>
           ))}
         </ol>
@@ -205,7 +209,13 @@ export default function TrackParcelPage() {
 
     const controller = new AbortController()
     trackParcel(trackingNumber, { signal: controller.signal })
-      .then((parcel) => setResult({ key: trackingNumber, parcel, error: null }))
+      .then((parcel) => {
+        let effectiveParcel = parcel
+        if (cachedParcel && cachedParcel.status && cachedParcel.status !== parcel.status) {
+          effectiveParcel = { ...parcel, status: cachedParcel.status, history: cachedParcel.history || parcel.history }
+        }
+        setResult({ key: trackingNumber, parcel: effectiveParcel, error: null })
+      })
       .catch((error) => {
         if (error?.name === 'AbortError') return
         if (!cachedParcel) {

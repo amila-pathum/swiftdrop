@@ -26,7 +26,7 @@ export default function TrackingSearch({
       return
     }
     if (!TRACKING_NUMBER_PATTERN.test(trackingNumber)) {
-      setError('Tracking numbers use 6 to 40 letters, digits or dashes.')
+      setError('Enter a valid SwiftDrop tracking number (letters, digits and dashes only).')
       return
     }
     setError(null)

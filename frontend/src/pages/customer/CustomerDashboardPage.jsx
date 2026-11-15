@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Button, { ButtonLink } from '../../components/Button'
+import CopyTrackingNumberButton from '../../components/CopyTrackingNumberButton'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import TrackingSearch from '../../components/TrackingSearch'
 import { useAuth } from '../../context/AuthContext'
@@ -426,9 +427,23 @@ export default function CustomerDashboardPage() {
                       <tr key={parcel.id}>
                         {/* Tracking number */}
                         <td>
-                          <span className="delivery-tracking-num">
-                            {parcel.trackingNumber ?? '—'}
-                          </span>
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                            {parcel.trackingNumber ? (
+                              <Link
+                                to={`/track/${encodeURIComponent(parcel.trackingNumber)}`}
+                                className="delivery-tracking-num"
+                                style={{ textDecoration: 'underline', color: 'inherit' }}
+                                title="Click to track parcel"
+                              >
+                                {parcel.trackingNumber}
+                              </Link>
+                            ) : (
+                              <span className="delivery-tracking-num">—</span>
+                            )}
+                            {parcel.trackingNumber && (
+                              <CopyTrackingNumberButton trackingNumber={parcel.trackingNumber} />
+                            )}
+                          </div>
                         </td>
 
                         {/* Destination & Recipient */}
