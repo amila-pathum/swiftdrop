@@ -68,3 +68,20 @@ footer{max-width:none;margin:0;padding:48px max(5.5%,calc((100vw - 1220px)/2));b
 .hero h1 em{color:#f2b27d}.hero-stamp{background:#f4b682;color:#502816}.product-tag{background:#fff0e4ed;color:#91401f}
 .field input:focus,.field select:focus,.field textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px #b64b2314}:focus-visible{outline-color:var(--accent)}
 .bag-link b{background:var(--accent)}.stat:first-child:before{background:var(--accent)}.quick-add:hover{background:var(--accent-soft)}
+
+/* Keep long tracking references, forms and dialogs usable on small screens. */
+.tracking-number { display: block; }
+.tracking-number .text-button { display: inline-block; margin-left: 12px; white-space: nowrap; vertical-align: middle; }
+.detail-layout > *, .integration-grid > *, .form-grid > *, .mini-item > div { min-width: 0; }
+.product-modal { overflow-y: auto; }
+.section-title { flex-wrap: wrap; }
+.section-title .badge { flex-shrink: 0; }
+.table-scroll { overflow-x: auto; }
+.table-scroll td small { overflow-wrap: anywhere; }
+@media (max-width: 480px) {
+  .form-grid { grid-template-columns: 1fr; }
+  .form-grid .full { grid-column: 1; }
+  .button-row > .button { flex: 1 1 auto; }
+  .mini-item.large { flex-wrap: wrap; gap: 12px; }
+  .mini-item.large > b { margin-left: auto; }
+}

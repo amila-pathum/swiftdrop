@@ -111,7 +111,7 @@ public class HttpMerchantWebhookSettingsLookup
         return Optional.of(new Settings(
                 URI.create(result.url()),
                 result.signingSecret(),
-                true
+                true, result.events()
         ));
     }
 
@@ -120,7 +120,8 @@ public class HttpMerchantWebhookSettingsLookup
     private record SettingsResponse(
             String url,
             String signingSecret,
-            Boolean enabled
+            Boolean enabled,
+            java.util.Set<String> events
     ) {
         @Override
         public String toString() {

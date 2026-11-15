@@ -1,5 +1,6 @@
 package com.stylecart.config;
 import com.stylecart.repo.UserRepository;
+import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.*;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.ProviderManager;
@@ -27,7 +28,13 @@ public class SecurityConfig {
         return http.csrf(c->c.csrfTokenRepository(csrf).csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()).ignoringRequestMatchers("/webhooks/swiftdrop"))
             .securityContext(c->c.securityContextRepository(contexts))
             .httpBasic(b->b.disable()).formLogin(f->f.disable())
-            .authorizeHttpRequests(a->a.requestMatchers("/api/catalog","/api/auth/csrf","/api/auth/login","/api/auth/register","/webhooks/swiftdrop","/error").permitAll()
+            .authorizeHttpRequests(a->a
+                // An authenticated stream may finish after logout invalidates its session.
+                // Allow only its internal completion dispatch; new connections still require the role below.
+                .requestMatchers(request->request.getDispatcherType()==DispatcherType.ASYNC
+                    && (request.getRequestURI().equals(request.getContextPath()+"/api/admin/live")
+                        || request.getRequestURI().equals(request.getContextPath()+"/api/customer/live"))).permitAll()
+                .requestMatchers("/api/catalog","/api/auth/csrf","/api/auth/login","/api/auth/register","/webhooks/swiftdrop","/error").permitAll()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN").requestMatchers("/api/customer/**").hasRole("CUSTOMER").anyRequest().authenticated())
             .exceptionHandling(e->e.authenticationEntryPoint((q,r,x)->{r.setStatus(401);r.setContentType("application/json");r.getWriter().write("{\"error\":\"Please sign in.\"}");})
                 .accessDeniedHandler((q,r,x)->{r.setStatus(403);r.setContentType("application/json");r.getWriter().write("{\"error\":\"Access denied or session token expired. Refresh and try again.\"}");}))
