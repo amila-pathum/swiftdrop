@@ -10,12 +10,11 @@ vi.mock('./context/AuthContext', () => ({ useAuth: vi.fn() }))
 vi.mock('./services/dispatchService', () => ({
   dispatchService: {
     getUnassigned: vi.fn().mockResolvedValue({ content: [], page: 0, totalPages: 0, totalElements: 0 }),
-    getParcels: vi.fn().mockResolvedValue({ content: [], page: 0, totalPages: 0, totalElements: 0 }),
+    getAssignments: vi.fn().mockResolvedValue({ content: [], page: 0, totalPages: 0, totalElements: 0 }),
     getCouriers: vi.fn().mockResolvedValue([]),
-    getParcel: vi.fn().mockResolvedValue({ parcel: {}, history: [] }),
+    getParcel: vi.fn().mockResolvedValue({ parcel: {}, history: [], assignments: [] }),
     assignCourier: vi.fn(),
-    getReport: vi.fn().mockResolvedValue([]),
-    exportReport: vi.fn().mockResolvedValue(''),
+    getSummary: vi.fn(),
   },
 }))
 
@@ -70,12 +69,11 @@ describe('App routing', () => {
     dispatchService.getUnassigned.mockResolvedValue({
       content: [], page: 0, totalPages: 0, totalElements: 0,
     })
-    dispatchService.getParcels.mockResolvedValue({
+    dispatchService.getAssignments.mockResolvedValue({
       content: [], page: 0, totalPages: 0, totalElements: 0,
     })
     dispatchService.getCouriers.mockResolvedValue([])
-    dispatchService.getParcel.mockResolvedValue({ parcel: {}, history: [] })
-    dispatchService.getReport.mockResolvedValue([])
+    dispatchService.getParcel.mockResolvedValue({ parcel: {}, history: [], assignments: [] })
   })
 
   afterEach(() => {

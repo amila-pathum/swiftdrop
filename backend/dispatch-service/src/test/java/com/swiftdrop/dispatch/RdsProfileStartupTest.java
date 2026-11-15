@@ -45,6 +45,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "DB_PASSWORD=unused-with-service-connection"
 })
 @ActiveProfiles("rds")
+@org.springframework.test.context.TestPropertySource(properties = {
+    "spring.rabbitmq.listener.simple.auto-startup=false",
+    "spring.rabbitmq.listener.direct.auto-startup=false"
+})
 @AutoConfigureMockMvc
 @Testcontainers(disabledWithoutDocker = true)
 class RdsProfileStartupTest {
@@ -73,7 +77,7 @@ class RdsProfileStartupTest {
     }
 
     @Test
-    void flywayCreatesDispatchTablesAndSeedsDemoDataInPublic() {
+    void flywayCreatesOnlyDispatchOwnedTablesInPublic() {
         assertThat(jdbc.queryForList("""
             SELECT schema_name FROM information_schema.schemata
             WHERE schema_name NOT LIKE 'pg\\_%' AND schema_name <> 'information_schema'
@@ -83,14 +87,11 @@ class RdsProfileStartupTest {
         assertThat(jdbc.queryForList(
             "SELECT version || ':' || type FROM public.flyway_schema_history"
                 + " WHERE version IS NOT NULL ORDER BY installed_rank",
-            String.class)).containsExactly("1:SQL", "2:SQL");
+            String.class)).containsExactly("1:SQL", "2:SQL", "3:SQL", "4:SQL");
         assertThat(jdbc.queryForList(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name",
             String.class)).containsExactly(
-                "dispatch_assignments", "dispatch_couriers", "dispatch_parcels",
-                "dispatch_report_events", "dispatch_status_history", "flyway_schema_history");
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM dispatch_parcels", Integer.class))
-            .isEqualTo(8);
+                "dispatch_assignments", "dispatch_report_events", "flyway_schema_history");
     }
 
     @Test
