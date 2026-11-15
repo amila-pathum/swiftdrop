@@ -86,6 +86,8 @@ export async function applyAsMerchant(details) {
     name: details.contactName,
     email: details.contactEmail,
     password: details.password,
+    phone: details.businessPhone,
+    address: details.businessAddress,
   })
   const outcome = await submitAsNewAccount(ENDPOINTS.merchantApplication,
     details.contactEmail, details.password, () => submitMerchantApplication(details))

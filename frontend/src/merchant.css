@@ -121,6 +121,23 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  text-decoration: none;
+  color: inherit;
+  transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+}
+
+.merchant-scope .stat-card-link {
+  cursor: pointer;
+}
+
+.merchant-scope .stat-card-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  border-color: #cbd5e1;
+}
+
+.merchant-scope .stat-card-link:active {
+  transform: translateY(0);
 }
 
 .merchant-scope .stat-card::before {
@@ -781,7 +798,7 @@
   gap: 12px;
 }
 
-/* Modal notice box for secret keys (Figma Image 3) */
+/* Modal notice box for secret keys */
 .merchant-scope .modal-notice-box {
   background-color: #fffbeb;
   border: 1px solid #fde68a;
@@ -1047,4 +1064,563 @@
 
 .merchant-scope .code-copy-btn:hover {
   background: rgba(255, 255, 255, 0.25);
+}
+
+/* ==========================================================================
+   Merchant Orders Page & Order Details View 
+   ========================================================================== */
+
+.merchant-scope .orders-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.merchant-scope .orders-search-box {
+  position: relative;
+  flex: 1;
+  min-width: 260px;
+}
+
+.merchant-scope .orders-search-box input {
+  width: 100%;
+  height: 42px;
+  padding: 0 16px 0 40px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-control, 8px);
+  background-color: #ffffff;
+  color: var(--color-text, #1e293b);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.merchant-scope .orders-search-box input:focus {
+  border-color: var(--color-primary, #2563eb);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.merchant-scope .orders-search-icon {
+  position: absolute;
+  top: 50%;
+  left: 14px;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+}
+
+.merchant-scope .orders-filter-select {
+  height: 42px;
+  padding: 0 32px 0 14px;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-control, 8px);
+  background-color: #ffffff;
+  color: var(--color-text, #1e293b);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+}
+
+.merchant-scope .orders-filter-select:focus {
+  border-color: var(--color-primary, #2563eb);
+}
+
+.merchant-scope .orders-card {
+  background: #ffffff;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 24px;
+  width: 100%;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.02);
+}
+
+.merchant-scope .orders-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.merchant-scope .orders-table {
+  width: 100% !important;
+  min-width: 860px;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+.merchant-scope .orders-table th {
+  padding: 16px 24px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  border-bottom: 1px solid #f1f5f9;
+  background-color: #ffffff;
+  white-space: nowrap;
+}
+
+.merchant-scope .orders-table td {
+  padding: 18px 24px;
+  font-size: 14px;
+  color: #1e293b;
+  border-bottom: 1px solid #f8fafc;
+  vertical-align: middle;
+}
+
+.merchant-scope .orders-table tbody tr:hover {
+  background-color: #f8fafc;
+}
+
+.merchant-scope .orders-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.merchant-scope .dest-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.merchant-scope .dest-city {
+  font-weight: 600;
+  color: var(--color-text, #1e293b);
+  font-size: 14px;
+}
+
+.merchant-scope .dest-name {
+  font-size: 13px;
+  color: var(--color-text-muted, #64748b);
+}
+
+.merchant-scope .tracking-link {
+  color: var(--color-primary, #2563eb);
+  font-weight: 500;
+  font-size: 14px;
+  font-family: inherit;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.merchant-scope .tracking-link:hover {
+  text-decoration: underline;
+}
+
+.merchant-scope .btn-details {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 16px;
+  height: 32px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background-color: #ffffff;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+.merchant-scope .btn-details:hover {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+  box-shadow: 0 2px 4px rgba(16, 24, 40, 0.08);
+}
+
+.merchant-scope .btn-details:active {
+  background-color: #f1f5f9;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  transform: translateY(1px);
+}
+
+.merchant-scope .btn-back-to-orders {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 18px;
+  height: 38px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background-color: #ffffff;
+  color: #334155;
+  font-size: 13.5px;
+  font-weight: 500;
+  cursor: pointer;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+.merchant-scope .btn-back-to-orders:hover {
+  background-color: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+  box-shadow: 0 2px 4px rgba(16, 24, 40, 0.08);
+}
+
+.merchant-scope .btn-back-to-orders:active {
+  background-color: #f1f5f9;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  transform: translateY(1px);
+}
+
+.merchant-scope .btn-back-to-orders svg {
+  transition: transform 0.15s ease;
+}
+
+.merchant-scope .btn-back-to-orders:hover svg {
+  transform: translateX(-2px);
+}
+
+/* Status Badges */
+.merchant-scope .badge-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 14px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.4;
+  text-transform: capitalize;
+}
+
+.merchant-scope .badge-pill-created,
+.merchant-scope .badge-pill-picked-up {
+  background-color: #f1f5f9;
+  color: #475569;
+}
+
+.merchant-scope .badge-pill-in-transit {
+  background-color: #e0f2fe;
+  color: #0284c7;
+}
+
+.merchant-scope .badge-pill-out-for-delivery {
+  background-color: #fef3c7;
+  color: #b45309;
+}
+
+.merchant-scope .badge-pill-delivered {
+  background-color: #dcfce7;
+  color: #15803d;
+}
+
+.merchant-scope .badge-pill-failed,
+.merchant-scope .badge-pill-cancelled {
+  background-color: #fee2e2;
+  color: #b91c1c;
+}
+
+.merchant-scope .orders-table-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-top: 1px solid #f1f5f9;
+  font-size: 13px;
+  color: var(--color-text-muted, #64748b);
+}
+
+.merchant-scope .orders-pagination {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.merchant-scope .orders-page-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+  color: #334155;
+  cursor: pointer;
+  font-size: 14px;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.merchant-scope .orders-page-btn:hover:not(:disabled) {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
+  box-shadow: 0 2px 4px rgba(16, 24, 40, 0.08);
+}
+
+.merchant-scope .orders-page-btn:active:not(:disabled) {
+  background: #f1f5f9;
+  transform: translateY(1px);
+}
+
+.merchant-scope .orders-page-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* ==================== Order Details Screen ==================== */
+
+.merchant-scope .order-details-header {
+  margin-bottom: 20px;
+}
+
+.merchant-scope .order-details-title-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.merchant-scope .order-details-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.merchant-scope .order-details-subrow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 14px;
+  color: var(--color-text-muted, #64748b);
+  flex-wrap: wrap;
+}
+
+.merchant-scope .order-details-subrow strong {
+  color: var(--color-text, #1e293b);
+  font-weight: 600;
+}
+
+.merchant-scope .live-updates-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 18px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-card, 10px);
+  margin-bottom: 24px;
+  font-size: 13px;
+}
+
+.merchant-scope .live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #15803d;
+  font-weight: 600;
+}
+
+.merchant-scope .live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #16a34a;
+  box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.2);
+}
+
+.merchant-scope .live-updated-time {
+  color: #64748b;
+}
+
+.merchant-scope .order-details-grid {
+  display: grid;
+  grid-template-columns: 1.8fr 1.2fr;
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .merchant-scope .order-details-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.merchant-scope .order-col-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.merchant-scope .detail-card {
+  background: #ffffff;
+  border: 1px solid var(--color-border, #e2e8f0);
+  border-radius: var(--radius-card, 10px);
+  padding: 22px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.merchant-scope .detail-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text, #0f172a);
+  margin: 0 0 14px 0;
+}
+
+.merchant-scope .detail-card-subtitle {
+  font-size: 12px;
+  color: var(--color-text-muted, #64748b);
+  margin: -10px 0 16px 0;
+}
+
+.merchant-scope .contact-info-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.merchant-scope .contact-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.merchant-scope .contact-phone {
+  font-size: 13px;
+  color: var(--color-text-muted, #64748b);
+}
+
+.merchant-scope .contact-address {
+  font-size: 13px;
+  color: #334155;
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+.merchant-scope .kv-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.merchant-scope .kv-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.merchant-scope .kv-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.merchant-scope .kv-label {
+  color: var(--color-text-muted, #64748b);
+}
+
+.merchant-scope .kv-value {
+  font-weight: 500;
+  color: #0f172a;
+}
+
+/* Stepper Checklist */
+.merchant-scope .stepper-list {
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  gap: 24px;
+  padding-left: 28px;
+  margin-top: 8px;
+}
+
+.merchant-scope .stepper-list::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  left: 9px;
+  width: 2px;
+  background-color: #e2e8f0;
+}
+
+.merchant-scope .stepper-item {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.merchant-scope .stepper-node {
+  position: absolute;
+  left: -28px;
+  top: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border: 2px solid #cbd5e1;
+  font-size: 10px;
+  font-weight: 700;
+  color: #94a3b8;
+  z-index: 1;
+}
+
+.merchant-scope .stepper-item.completed .stepper-node {
+  background-color: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+}
+
+.merchant-scope .stepper-item.current .stepper-node {
+  background-color: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+}
+
+.merchant-scope .stepper-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.merchant-scope .stepper-meta {
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* Fee Summary */
+.merchant-scope .fee-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  margin-bottom: 10px;
+  color: #475569;
+}
+
+.merchant-scope .fee-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border, #e2e8f0);
+  font-size: 15px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-top: 6px;
 }
