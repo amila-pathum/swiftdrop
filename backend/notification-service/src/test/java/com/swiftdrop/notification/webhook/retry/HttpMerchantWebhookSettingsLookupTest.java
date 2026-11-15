@@ -29,6 +29,18 @@ class HttpMerchantWebhookSettingsLookupTest {
                 "test-internal-token-at-least-32-characters");
     }
     @AfterEach void stop() { server.stop(0); }
+    @Test void identityUserIsExplicitlyMappedToDifferentMerchantProfile() {
+        server.createContext("/internal/merchants/by-user/42/profile", exchange -> {
+            receivedToken=exchange.getRequestHeaders().getFirst("X-SwiftDrop-Internal-Token");
+            byte[] response="{\"merchantId\":7}".getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type","application/json");
+            exchange.sendResponseHeaders(200,response.length);
+            try(var out=exchange.getResponseBody()){out.write(response);}
+        });
+        assertEquals("7",lookup.profileForUser("42").orElseThrow());
+        assertEquals("test-internal-token-at-least-32-characters",receivedToken);
+        assertThrows(IllegalArgumentException.class,()->lookup.profileForUser("-1"));
+    }
     @Test void enabledSettingsUseAuthenticatedLookup() {
         body = "{\"enabled\":true,\"url\":\"https://example.test/hook\",\"signingSecret\":\"test-secret\"}";
         var settings = lookup.findForMerchant("1").orElseThrow();

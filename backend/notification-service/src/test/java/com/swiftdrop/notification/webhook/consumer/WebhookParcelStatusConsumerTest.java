@@ -26,7 +26,8 @@ class WebhookParcelStatusConsumerTest {
     private final WebhookParcelStatusConsumer consumer =
             new WebhookParcelStatusConsumer(
                     new ObjectMapper(),
-                    recorder
+                    recorder,
+                    userId -> { assertEquals("42", userId); return java.util.Optional.of("7"); }
             );
 
     private static final String EVENT = """
@@ -36,7 +37,7 @@ class WebhookParcelStatusConsumerTest {
               "occurredAt": "2026-11-13T00:00:00Z",
               "trackingNumber": "SD-100",
               "parcelId": "parcel-1",
-              "merchantId": "merchant-1",
+              "merchantId": "42",
               "merchantOrderReference": "SHOP-100",
               "customerId": "customer-1",
               "courierId": null,
@@ -52,7 +53,7 @@ class WebhookParcelStatusConsumerTest {
         verify(recorder).record(
                 EVENT_ID,
                 OCCURRED_AT,
-                "merchant-1",
+                "7",
                 "SD-100",
                 "SHOP-100",
                 "DELIVERED"
@@ -63,7 +64,7 @@ class WebhookParcelStatusConsumerTest {
     @Test
     void customerOnlyEventDoesNotCreateWebhook() throws Exception {
         String event = EVENT.replace(
-                "\"merchantId\": \"merchant-1\"",
+                "\"merchantId\": \"42\"",
                 "\"merchantId\": null"
         );
 
@@ -75,7 +76,7 @@ class WebhookParcelStatusConsumerTest {
     @Test
     void customerCreationEventWithNullOldStatusIsAcceptedWithoutWebhook() throws Exception {
         String event = EVENT
-            .replace("\"merchantId\": \"merchant-1\"", "\"merchantId\": null")
+            .replace("\"merchantId\": \"42\"", "\"merchantId\": null")
             .replace("\"oldStatus\": \"IN_TRANSIT\"", "\"oldStatus\": null")
             .replace("\"newStatus\": \"DELIVERED\"", "\"newStatus\": \"CREATED\"");
 
@@ -96,7 +97,7 @@ class WebhookParcelStatusConsumerTest {
         verify(recorder).record(
                 EVENT_ID,
                 OCCURRED_AT,
-                "merchant-1",
+                "7",
                 "SD-100",
                 "SHOP-100",
                 "DELIVERED"
@@ -145,7 +146,7 @@ class WebhookParcelStatusConsumerTest {
         when(recorder.record(
                 EVENT_ID,
                 OCCURRED_AT,
-                "merchant-1",
+                "7",
                 "SD-100",
                 "SHOP-100",
                 "DELIVERED"
@@ -161,5 +162,19 @@ class WebhookParcelStatusConsumerTest {
 
     private static byte[] bytes(String value) {
         return value.getBytes(StandardCharsets.UTF_8);
+    }
+
+    @Test void mappingFailureDoesNotRecordTheUserIdAsAMerchantProfile() {
+        var mapped = new WebhookParcelStatusConsumer(new ObjectMapper(), recorder, id -> {
+            throw new IllegalStateException("Dependency unavailable");
+        });
+        assertThrows(IllegalStateException.class, () -> mapped.consume(bytes(EVENT)));
+        verifyNoInteractions(recorder);
+    }
+
+    @Test void missingProfileDoesNotCreateAWebhookForACollidingProfileNumber() throws Exception {
+        var mapped = new WebhookParcelStatusConsumer(new ObjectMapper(), recorder, id -> java.util.Optional.empty());
+        mapped.consume(bytes(EVENT));
+        verifyNoInteractions(recorder);
     }
 }

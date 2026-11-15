@@ -1,0 +1,254 @@
+/* Delivery Zones and Pricing admin pages. */
+
+.pricing-page {
+  max-width: 960px;
+  margin: 0 auto;
+  display: grid;
+  gap: 16px;
+}
+
+.pricing-page-wide {
+  max-width: 1240px;
+}
+
+.pricing-page .page-header-row {
+  margin-bottom: 4px;
+}
+
+.pricing-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  overflow: hidden;
+}
+
+.pricing-card-header {
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.pricing-card-header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.pricing-card-header p {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.pricing-status {
+  padding: 40px 20px;
+  text-align: center;
+  color: var(--color-text-secondary);
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.pricing-empty,
+.pricing-muted {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+}
+
+.pricing-empty {
+  padding: 24px 18px;
+  margin: 0;
+}
+
+.pricing-draft-note {
+  margin: 6px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-warning);
+}
+
+/* Zones */
+.pricing-zone-table td {
+  vertical-align: middle;
+}
+
+.pricing-zone-name {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pricing-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 13px;
+}
+
+.pricing-row-action {
+  text-align: right;
+}
+
+.pricing-zone-form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px;
+  gap: 12px;
+}
+
+/* Rates */
+.pricing-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 16px;
+  align-items: start;
+}
+
+.pricing-main {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.pricing-rate-table th {
+  white-space: normal;
+  vertical-align: bottom;
+}
+
+.pricing-rate-table td {
+  vertical-align: middle;
+}
+
+.pricing-zone-code {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.pricing-rate-input {
+  width: 92px;
+  min-width: 72px;
+}
+
+.pricing-rate-input[aria-invalid='true'],
+.pricing-input-suffix .input[aria-invalid='true'] {
+  border-color: var(--color-error);
+}
+
+.pricing-surcharges {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  padding: 16px 18px;
+}
+
+.pricing-input-suffix {
+  position: relative;
+}
+
+.pricing-input-suffix .input {
+  width: 100%;
+  padding-right: 44px;
+}
+
+.pricing-input-suffix span {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.pricing-history summary {
+  padding: 14px 18px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.pricing-history ul,
+.pricing-history p {
+  margin: 0;
+  padding: 0 18px 14px 36px;
+  font-size: 14px;
+}
+
+.pricing-history li + li {
+  margin-top: 4px;
+}
+
+/* Quote preview */
+.pricing-preview {
+  position: sticky;
+  top: 16px;
+}
+
+.pricing-preview-fields {
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px 4px;
+}
+
+.pricing-preview-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.pricing-preview-result {
+  margin: 12px 18px 18px;
+  padding: 12px 14px;
+  border-radius: var(--radius-control);
+  background: var(--color-page);
+  font-size: 14px;
+}
+
+.pricing-preview-result p {
+  margin: 0;
+}
+
+.pricing-preview-result dl {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.pricing-preview-result dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pricing-preview-result dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.pricing-preview-total {
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-border);
+  font-weight: 700;
+}
+
+@media (max-width: 1100px) {
+  .pricing-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pricing-preview {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .pricing-page .page-header-row {
+    flex-direction: column;
+  }
+
+  .pricing-page .page-header-actions {
+    flex-wrap: wrap;
+  }
+
+  .pricing-surcharges,
+  .pricing-zone-form-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

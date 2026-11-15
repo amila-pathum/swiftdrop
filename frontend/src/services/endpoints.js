@@ -182,8 +182,9 @@ export const ENDPOINTS = Object.freeze({
     path: '/api/pricing/quote',
     available: true,
     auth: true,
-    // Body: { pickupCity, deliveryCity, weight, serviceType: 'STANDARD' | 'EXPRESS' }
-    // -> { amount, currency: 'LKR', breakdown: { baseFee, weightFee, expressFee } }
+    // Body: { pickupCity, deliveryCity, weight, serviceType: 'STANDARD' | 'EXPRESS',
+    //   size: 'SMALL' | 'MEDIUM' | 'LARGE' } (cities are zone localities)
+    // -> { amount, currency: 'LKR', breakdown: { baseFee, weightFee, sizeFee, expressFee } }
   },
   trackParcel: {
     method: 'GET',
@@ -218,33 +219,42 @@ export const ENDPOINTS = Object.freeze({
   },
 
   // --------------------------------------------------------- Pricing & Zones
+  // Zone: { id, name, code, localities: string[], active, createdAt, updatedAt }
   getZones: {
     method: 'GET',
     path: '/api/zones',
     available: true,
     auth: true,
-    // -> [{ id, name, city, district, active, createdAt, updatedAt }]
+    // Any signed-in user: active zones, by name. ADMIN may add ?includeInactive=true. -> [Zone]
   },
   getZoneById: {
     method: 'GET',
     path: '/api/zones/:id',
     available: true,
     auth: true,
-    // -> { id, name, city, district, active, createdAt, updatedAt }
+    // -> Zone
   },
   createZone: {
     method: 'POST',
     path: '/api/zones',
     available: true,
     auth: true,
-    // Admin only. Body: { name, city, district } -> 201 Zone
+    // Admin only. Body: { name, code, localities: string[], active } -> 201 Zone
+    // 409 when the code or a locality already belongs to another zone.
   },
   updateZone: {
     method: 'PUT',
     path: '/api/zones/:id',
     available: true,
     auth: true,
-    // Admin only. Body: { name, city, district } -> Zone
+    // Admin only. Body: { name, code, localities: string[], active } -> Zone
+  },
+  enableZone: {
+    method: 'PATCH',
+    path: '/api/zones/:id/enable',
+    available: true,
+    auth: true,
+    // Admin only. -> Zone
   },
   disableZone: {
     method: 'PATCH',
@@ -253,48 +263,31 @@ export const ENDPOINTS = Object.freeze({
     auth: true,
     // Admin only. -> Zone
   },
-  getPricingRules: {
+  getRateCard: {
     method: 'GET',
-    path: '/api/pricing/rules',
+    path: '/api/pricing/rates',
     available: true,
     auth: true,
-    // -> [{ id, zoneId, zoneName, baseFee, pricePerKg, expressMultiplier, active, createdAt, updatedAt }]
+    // Admin only. The published rates with a row for every pair of active zones:
+    // -> { version, publishedAt, publishedBy, sizeSurcharges: { small, medium, large },
+    //      routes: [{ origin: { id, name, code }, destination, baseWeightKg, baseFee,
+    //                 additionalKgFee, expressMultiplier }] } (rate fields null = no rate)
   },
-  getPricingRuleById: {
+  publishRates: {
+    method: 'POST',
+    path: '/api/pricing/rates',
+    available: true,
+    auth: true,
+    // Admin only. Body: { basedOnVersion, sizeSurcharges, routes: [{ originZoneId,
+    //   destinationZoneId, baseWeightKg, baseFee, additionalKgFee, expressMultiplier }] }
+    // -> 201 rate card of the new version. 409 if another version was published since.
+  },
+  getRateVersions: {
     method: 'GET',
-    path: '/api/pricing/rules/:id',
+    path: '/api/pricing/rates/versions',
     available: true,
     auth: true,
-    // -> { id, zoneId, zoneName, baseFee, pricePerKg, expressMultiplier, active, createdAt, updatedAt }
-  },
-  createPricingRule: {
-    method: 'POST',
-    path: '/api/pricing/rules',
-    available: true,
-    auth: true,
-    // Admin only. Body: { zoneId, baseFee, pricePerKg, expressMultiplier } -> 201 PricingRule
-  },
-  updatePricingRule: {
-    method: 'PUT',
-    path: '/api/pricing/rules/:id',
-    available: true,
-    auth: true,
-    // Admin only. Body: { baseFee, pricePerKg, expressMultiplier } -> PricingRule
-  },
-  disablePricingRule: {
-    method: 'PATCH',
-    path: '/api/pricing/rules/:id/disable',
-    available: true,
-    auth: true,
-    // Admin only. -> PricingRule
-  },
-  calculateQuote: {
-    method: 'POST',
-    path: '/api/pricing/quote',
-    available: true,
-    auth: true,
-    // Body: { pickupCity, deliveryCity, weight, serviceType }
-    // -> { charge, currency, breakdown }
+    // Admin only. -> [{ version, publishedAt, publishedBy, routeCount }], newest first
   },
 })
 

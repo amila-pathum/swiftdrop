@@ -3,12 +3,12 @@ package com.swiftdrop.merchant.merchantapi.security;
 import com.swiftdrop.merchant.entity.MerchantStatus;
 import com.swiftdrop.merchant.repository.MerchantApiKeyRepository;
 import com.swiftdrop.merchant.service.MerchantApiKeyService;
-import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
-@Component
+// Legacy adapter retained for isolated tests. MerchantApiKeyService owns the live
+// lookup, including last-used tracking; registering both makes authentication ambiguous.
 public class DatabaseMerchantApiKeyLookup implements MerchantApiKeyLookup {
 
     private final MerchantApiKeyRepository keys;

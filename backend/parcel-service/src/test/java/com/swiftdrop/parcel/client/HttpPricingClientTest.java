@@ -30,6 +30,7 @@ class HttpPricingClientTest {
             .andExpect(jsonPath("pickupCity").value("Colombo"))
             .andExpect(jsonPath("deliveryCity").value("Kandy"))
             .andExpect(jsonPath("serviceType").value("STANDARD"))
+            .andExpect(jsonPath("size").value("MEDIUM"))
             .andRespond(withSuccess("{\"amount\":450.00}", MediaType.APPLICATION_JSON));
         assertThat(client.quote(request, "customer-jwt")).isEqualByComparingTo("450.00");
         server.verify();
@@ -40,6 +41,22 @@ class HttpPricingClientTest {
         server.expect(requestTo("http://pricing.test/quote")).andRespond(withServerError());
         assertThatThrownBy(() -> client.quote(request, "customer-jwt")).isInstanceOfSatisfying(
                 ResponseStatusException.class, e -> assertThat(e.getStatusCode()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE));
+    }
+
+    @Test
+    void readsTheActualPricingServiceChargeCurrencyAndBreakdownResponse() {
+        server.expect(requestTo("http://pricing.test/quote"))
+            .andExpect(header(HttpHeaders.AUTHORIZATION,"Bearer merchant-jwt"))
+            .andRespond(withSuccess("{\"charge\":450.0000,\"currency\":\"LKR\",\"breakdown\":{\"baseFee\":300.00}}",MediaType.APPLICATION_JSON));
+        assertThat(client.quote(request,"merchant-jwt")).isEqualByComparingTo("450.00");
+        server.verify();
+    }
+
+    @Test void genuinelyFractionalCentsAreRejectedInsteadOfSilentlyRounded() {
+        server.expect(requestTo("http://pricing.test/quote"))
+            .andRespond(withSuccess("{\"charge\":450.001}",MediaType.APPLICATION_JSON));
+        assertThatThrownBy(()->client.quote(request,"merchant-jwt")).isInstanceOfSatisfying(
+                ResponseStatusException.class,e->assertThat(e.getStatusCode()).isEqualTo(HttpStatus.BAD_GATEWAY));
     }
 
     @Test

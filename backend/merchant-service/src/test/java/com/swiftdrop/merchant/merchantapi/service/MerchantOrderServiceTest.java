@@ -75,4 +75,20 @@ class MerchantOrderServiceTest {
         assertEquals(result, service.createOrder("1", request));
         verify(store).complete("1", result);
     }
+
+    @Test void uncertainCreationCanBeRecoveredOnlyThroughAnIdempotentParcelClient() throws Exception {
+        var hash = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                .digest(new ObjectMapper().writeValueAsBytes(request)));
+        when(store.findReservation("1","SHOP-1")).thenReturn(java.util.Optional.of(new MerchantOrderStore.Reservation(hash,null)));
+        when(client.idempotentCreation()).thenReturn(true);
+        var saved=new MerchantOrderResponse("SHOP-1","SD-original","CREATED");
+        when(client.createOrder("1",request)).thenReturn(saved);
+        assertEquals(saved,service.createOrder("1",request));
+        verify(store).complete("1",saved);verify(store,never()).reserve(anyString(),anyString(),anyString());
+    }
+
+    @Test void foreignTrackingNumberIsNotSentDownstream() {
+        assertEquals(404,assertThrows(ResponseStatusException.class,()->service.detail("7","FOREIGN")).getStatusCode().value());
+        verifyNoInteractions(client);
+    }
 }

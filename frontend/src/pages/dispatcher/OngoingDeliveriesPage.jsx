@@ -2,8 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Button from '../../components/Button'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import { dispatchService } from '../../services/dispatchService'
-
-const EMPTY_PAGE = { content: [], page: 0, totalPages: 0, totalElements: 0 }
+import { EMPTY_PAGE, formatDateTime, statusLabel } from './dispatchFormat'
 const DELIVERY_STATUSES = ['PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'FAILED']
 
 export default function OngoingDeliveriesPage() {
@@ -41,7 +40,7 @@ export default function OngoingDeliveriesPage() {
       <header className="dispatch-page-header">
         <div>
           <h1>Ongoing deliveries</h1>
-          <p>Find active and recently completed delivery records by status or tracking number.</p>
+          <p>Parcels out with a courier, by their latest status. Pick Delivered or Failed to see finished ones.</p>
         </div>
         <Button variant="secondary" onClick={load}>Refresh</Button>
       </header>
@@ -50,8 +49,8 @@ export default function OngoingDeliveriesPage() {
         <form className="dispatch-filters" onSubmit={submitFilters}>
           <label>Tracking number<input name="trackingNumber" placeholder="Search tracking number" /></label>
           <label>Status<select name="status" defaultValue="">
-            <option value="">All delivery statuses</option>
-            {DELIVERY_STATUSES.map((status) => <option key={status}>{status}</option>)}
+            <option value="">All ongoing (picked up to out for delivery)</option>
+            {DELIVERY_STATUSES.map((status) => <option key={status} value={status}>{statusLabel(status)}</option>)}
           </select></label>
           <Button type="submit">Search</Button>
         </form>
@@ -65,15 +64,14 @@ export default function OngoingDeliveriesPage() {
           <>
             <div className="dispatch-table-wrap">
               <table className="dispatch-table">
-                <thead><tr><th>Tracking number</th><th>Route</th><th>Status</th><th>Courier</th><th>Updated</th></tr></thead>
+                <thead><tr><th>Tracking number</th><th>Status</th><th>Courier</th><th>Last update</th></tr></thead>
                 <tbody>{result.content.map((parcel) => (
                   <tr key={parcel.parcelId}>
                     <td>{parcel.trackingNumber}</td>
-                    <td>{parcel.pickupArea} → {parcel.dropoffArea}</td>
                     <td><span className={`dispatch-status status-${parcel.status.toLowerCase()}`}>
-                      {parcel.status.replaceAll('_', ' ')}</span></td>
+                      {statusLabel(parcel.status)}</span></td>
                     <td>{parcel.courierName || '—'}</td>
-                    <td>{new Date(parcel.updatedAt).toLocaleString()}</td>
+                    <td>{formatDateTime(parcel.lastUpdatedAt)}</td>
                   </tr>
                 ))}</tbody>
               </table>

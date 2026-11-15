@@ -163,6 +163,13 @@ elif [[ ",$SPRING_PROFILES_ACTIVE," != *,rds,* ]]; then
 fi
 export SPRING_PROFILES_ACTIVE
 
+# Flyway opens the first database connection at startup. On flaky networks (for
+# example a phone hotspot) looking up the RDS host name sometimes fails for a moment,
+# so retry instead of exiting: waits of 1, 2, 4, 8, then 10 seconds, about a minute
+# and a half in all. Exported values from your shell win.
+export SPRING_FLYWAY_CONNECT_RETRIES="${SPRING_FLYWAY_CONNECT_RETRIES:-10}"
+export SPRING_FLYWAY_CONNECT_RETRIES_INTERVAL="${SPRING_FLYWAY_CONNECT_RETRIES_INTERVAL:-10}"
+
 # Each service owns exactly one database; catch a copy-paste mix-up in .env.rds.
 expected_database="${service%-service}_db"
 [[ "$DB_NAME" == "$expected_database" ]] ||

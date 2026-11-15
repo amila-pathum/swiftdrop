@@ -30,6 +30,15 @@ describe('apiClient', () => {
     vi.unstubAllGlobals()
   })
 
+  it('preserves field validation messages for forms', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(400, {
+      error: 'Please correct the highlighted fields', fields: { weight: 'Weight must be positive' },
+    }))
+    await expect(apiClient.post('/api/pricing/quote', {})).rejects.toMatchObject({
+      status: 400, fields: { weight: 'Weight must be positive' },
+    })
+  })
+
   describe('successful requests', () => {
     it('sends GET requests to the gateway and parses JSON', async () => {
       fetchMock.mockResolvedValue(jsonResponse(200, { ok: true }))

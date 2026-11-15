@@ -5,7 +5,7 @@ import java.util.Map;
 
 public record QuoteResponse(
 
-        BigDecimal charge,
+        BigDecimal amount,
 
         String currency,
 

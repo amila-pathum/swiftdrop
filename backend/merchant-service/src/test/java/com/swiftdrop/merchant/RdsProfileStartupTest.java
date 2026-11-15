@@ -111,7 +111,8 @@ class RdsProfileStartupTest {
                         "1:SQL",
                         "2:SQL",
                         "3:SQL",
-                        "4:SQL"
+                        "4:SQL",
+                        "5:SQL"
                 );
 
         assertThat(jdbc.queryForList(
