@@ -1,99 +1,121 @@
 openapi: 3.1.0
 info:
   title: SwiftDrop Dispatch and Reports API
-  version: 1.0.0
+  version: 2.0.0
   description: |
-    Dispatcher/Admin APIs. Parcel and courier data uses owner-service HTTP
-    clients when DISPATCH_DATA_SOURCE=http, or the explicitly selected Dispatch
-    demo projection fallback when DISPATCH_DATA_SOURCE=projection.
+    Dispatching, courier workload and delivery reports (Member 7).
+
+    Dispatch owns only its assignments and the parcel status events it stores.
+    Parcels are read from parcel-service (`GET /api/parcels/dispatch`) and
+    couriers from courier-service (`GET /api/couriers/profiles`), forwarding the
+    caller's token. Every assignment is also recorded in parcel-service
+    (`PATCH /api/parcels/{id}/courier`).
+
+    Courier ids: `courierId` is always the courier-service **profile id**
+    (integer). The courier's identity user id appears only as `userId` /
+    `courierUserId`; it is what parcel-service stores and what parcel status
+    events carry as `courierId`.
+
+    Errors have the body `{"error": "message"}`. Dates are UTC.
 servers:
   - url: http://localhost:8085
 security:
   - bearerAuth: []
 tags:
   - name: Dispatch
+  - name: Courier hand-off
   - name: Reports
 paths:
   /api/dispatch/parcels/unassigned:
     get:
       tags: [Dispatch]
-      summary: List unassigned CREATED parcels
-      description: Supports area, size, date, pagination and allow-listed sorting filters.
+      summary: Parcels waiting for a courier
+      description: |
+        CREATED parcels from parcel-service that have no ACTIVE assignment.
+        Roles: DISPATCHER, ADMIN.
       parameters:
+        - {name: pickupArea, in: query, schema: {type: string}}
+        - {name: dropoffArea, in: query, schema: {type: string}}
+        - {name: from, in: query, description: Created on or after this date, schema: {type: string, format: date}}
+        - {name: to, in: query, description: Created on or before this date, schema: {type: string, format: date}}
+        - {name: size, in: query, schema: {type: string, maxLength: 30}}
         - {$ref: '#/components/parameters/page'}
         - {$ref: '#/components/parameters/pageSize'}
-        - {name: from, in: query, schema: {type: string, format: date}}
-        - {name: to, in: query, schema: {type: string, format: date}}
-        - {name: pickupArea, in: query, schema: {type: string, maxLength: 120}}
-        - {name: dropoffArea, in: query, schema: {type: string, maxLength: 120}}
-        - {name: size, in: query, schema: {type: string, maxLength: 30}}
-        - {$ref: '#/components/parameters/sort'}
+        - {name: sort, in: query, schema: {type: string, enum: [createdAt, updatedAt, trackingNumber, pickupArea, dropoffArea, size], default: createdAt}}
         - {name: direction, in: query, schema: {type: string, enum: [asc, desc], default: asc}}
       responses:
-        '200': {$ref: '#/components/responses/ParcelPage'}
+        '200':
+          description: A page of waiting parcels
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ParcelPage'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
-  /api/dispatch/parcels:
-    get:
-      tags: [Dispatch]
-      summary: Search all parcels
-      parameters:
-        - {$ref: '#/components/parameters/page'}
-        - {$ref: '#/components/parameters/pageSize'}
-        - {name: from, in: query, schema: {type: string, format: date}}
-        - {name: to, in: query, schema: {type: string, format: date}}
-        - {name: status, in: query, schema: {type: string}}
-        - {name: courierId, in: query, schema: {type: string, format: uuid}}
-        - {name: trackingNumber, in: query, schema: {type: string, maxLength: 80}}
-        - {$ref: '#/components/parameters/sort'}
-        - {$ref: '#/components/parameters/direction'}
-      responses:
-        '200': {$ref: '#/components/responses/ParcelPage'}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '401': {$ref: '#/components/responses/Unauthorized'}
-        '403': {$ref: '#/components/responses/Forbidden'}
+        '503': {$ref: '#/components/responses/Unavailable'}
   /api/dispatch/parcels/{parcelId}:
     get:
       tags: [Dispatch]
-      summary: Get parcel details and status timeline
+      summary: One parcel with its stored status events and assignments
+      description: Roles DISPATCHER, ADMIN.
       parameters:
         - {$ref: '#/components/parameters/parcelId'}
       responses:
         '200':
-          description: Parcel detail and ordered status history
+          description: Parcel detail
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ParcelDetail'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/dispatch/couriers:
+    get:
+      tags: [Dispatch]
+      summary: Couriers with their workload
+      description: |
+        Every active courier profile from courier-service, sorted by name, with
+        its number of ACTIVE assignments. Roles DISPATCHER, ADMIN.
+      responses:
+        '200':
+          description: Couriers
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  parcel: {$ref: '#/components/schemas/Parcel'}
-                  history:
-                    type: array
-                    items: {$ref: '#/components/schemas/StatusHistory'}
-        '404': {$ref: '#/components/responses/NotFound'}
+                type: array
+                items: {$ref: '#/components/schemas/CourierWorkload'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
-  /api/dispatch/deliveries:
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/dispatch/assignments:
     get:
       tags: [Dispatch]
-      summary: Search delivery records by status and tracking number
+      summary: Search assignments
+      description: Newest first. Roles DISPATCHER, ADMIN.
       parameters:
+        - {name: state, in: query, schema: {type: string, enum: [ACTIVE, COMPLETED, CANCELLED]}}
+        - {name: courierId, in: query, description: Courier profile id, schema: {type: integer, format: int64, minimum: 1}}
+        - {name: trackingNumber, in: query, description: Case-insensitive partial match, schema: {type: string}}
         - {$ref: '#/components/parameters/page'}
         - {$ref: '#/components/parameters/pageSize'}
-        - {name: status, in: query, schema: {type: string, enum: [PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, FAILED]}}
-        - {name: trackingNumber, in: query, schema: {type: string, maxLength: 80}}
-        - {$ref: '#/components/parameters/sort'}
-        - {$ref: '#/components/parameters/direction'}
       responses:
-        '200': {$ref: '#/components/responses/ParcelPage'}
+        '200':
+          description: A page of assignments
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/AssignmentPage'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
-  /api/dispatch/assignments:
     post:
       tags: [Dispatch]
-      summary: Assign or reassign a courier to a CREATED parcel
+      summary: Assign a courier to a waiting parcel
+      description: |
+        The parcel must be CREATED with no ACTIVE assignment, and the courier
+        active with availability AVAILABLE. The assignment is recorded in
+        parcel-service in the same transaction (a failure there rolls it back),
+        then `parcel.assigned` is published. Roles DISPATCHER, ADMIN.
       requestBody:
         required: true
         content:
@@ -103,244 +125,189 @@ paths:
               required: [parcelId, courierId]
               properties:
                 parcelId: {type: string, format: uuid}
-                courierId: {type: string, format: uuid}
+                courierId: {type: integer, format: int64, minimum: 1, description: Courier profile id}
       responses:
-        '200':
-          description: Active assignment and audit record
+        '201':
+          description: Assignment created
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/Assignment'}
-        '400': {$ref: '#/components/responses/BadRequest'}
+              schema: {$ref: '#/components/schemas/AssignmentResult'}
+        '400':
+          description: Invalid body, or "Courier not found"
+          content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
         '409':
-          description: Parcel is not CREATED, already assigned, or courier is unavailable
+          description: |
+            "Parcel is not waiting for a courier", "Parcel already has an active
+            assignment", "Courier must be active and AVAILABLE", or
+            "Parcel service refused the courier assignment"
+          content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+        '502': {$ref: '#/components/responses/BadGateway'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/dispatch/assignments/{parcelId}/reassign:
+    post:
+      tags: [Dispatch]
+      summary: Move the parcel's active assignment to another courier
+      description: |
+        Only while the parcel is CREATED (not picked up). The previous
+        assignment becomes CANCELLED and its version increases by one.
+        Roles DISPATCHER, ADMIN.
+      parameters:
+        - {$ref: '#/components/parameters/parcelId'}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [courierId]
+              properties:
+                courierId: {type: integer, format: int64, minimum: 1, description: New courier's profile id}
+      responses:
+        '200':
+          description: The new assignment, with previousCourierId set
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/Error'}
+              schema: {$ref: '#/components/schemas/AssignmentResult'}
+        '400':
+          description: Invalid body, or "Courier not found"
+          content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409':
+          description: |
+            "Courier can only be changed before pickup", "Parcel has no active
+            assignment", "Parcel is already assigned to this courier", or
+            "Courier must be active and AVAILABLE"
+          content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+        '502': {$ref: '#/components/responses/BadGateway'}
+        '503': {$ref: '#/components/responses/Unavailable'}
   /api/dispatch/assignments/{parcelId}/cancel:
     post:
       tags: [Dispatch]
-      summary: Cancel a parcel's active assignment before pickup
+      summary: Cancel the parcel's active assignment before pickup
+      description: |
+        The parcel returns to the waiting list. Parcel-service has no
+        un-assign call yet (request R1), so its stored courier stays until the
+        next assignment overwrites it. Roles DISPATCHER, ADMIN.
       parameters:
         - {$ref: '#/components/parameters/parcelId'}
       responses:
         '200':
-          description: Cancelled assignment record
+          description: The cancelled assignment
           content:
             application/json:
-              schema: {$ref: '#/components/schemas/Assignment'}
+              schema: {$ref: '#/components/schemas/AssignmentResult'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
-        '409': {$ref: '#/components/responses/Conflict'}
-  /api/dispatch/couriers:
+        '409':
+          description: '"An assignment can only be cancelled before pickup" or "Parcel has no active assignment"'
+          content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/dispatch/deliveries:
     get:
       tags: [Dispatch]
-      summary: List courier availability and active workload
+      summary: Deliveries by their latest stored status
+      description: |
+        Built from the stored parcel status events. Without `status`, returns
+        parcels whose latest status is PICKED_UP, IN_TRANSIT or
+        OUT_FOR_DELIVERY. Most recently updated first. Roles DISPATCHER, ADMIN.
+      parameters:
+        - {name: status, in: query, schema: {type: string, enum: [PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, FAILED]}}
+        - {name: trackingNumber, in: query, description: Case-insensitive partial match, schema: {type: string}}
+        - {$ref: '#/components/parameters/page'}
+        - {$ref: '#/components/parameters/pageSize'}
       responses:
         '200':
-          description: Courier workload list
+          description: A page of deliveries
           content:
             application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    courierId: {type: string, format: uuid}
-                    name: {type: string}
-                    active: {type: boolean}
-                    available: {type: boolean}
-                    activeParcelCount: {type: integer}
+              schema: {$ref: '#/components/schemas/DeliveryPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
-  /api/dispatch/couriers/{courierId}/parcels:
+  /api/dispatch/couriers/{courierId}/assignments:
     get:
-      tags: [Dispatch]
-      summary: List active assignments for a courier service consumer
+      tags: [Courier hand-off]
+      summary: A courier's assignments (read by courier-service)
+      description: |
+        All assignments of the courier profile, oldest first, in the shape
+        courier-service reads. Roles COURIER, DISPATCHER, ADMIN; a COURIER may
+        only read assignments that belong to their own user id (403 otherwise).
+        `version` changes only when dispatch cancels or reassigns the
+        assignment, never when a delivery event completes it.
       parameters:
-        - {name: courierId, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: courierId, in: path, required: true, description: Courier profile id, schema: {type: integer, format: int64, minimum: 1}}
       responses:
         '200':
-          description: Active assigned parcels
+          description: Assignments
           content:
             application/json:
               schema:
                 type: array
-                items:
-                  type: object
-                  properties:
-                    parcelId: {type: string, format: uuid}
-                    trackingNumber: {type: [string, 'null']}
-                    status: {type: [string, 'null']}
-                    assignedAt: {type: string, format: date-time}
+                items: {$ref: '#/components/schemas/CourierAssignment'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
   /api/dispatch/reports/summary:
     get:
       tags: [Reports]
-      summary: Event-based daily deliveries, outcomes, status counts and active courier workload
+      summary: Delivery report for a date range
+      description: |
+        Built only from the parcel status events stored by dispatch. `from` and
+        `to` are inclusive UTC dates, at most two years apart.
+        successRate = DELIVERED / (DELIVERED + FAILED) x 100, rounded to two
+        decimals (0 when there are none); failureRate = 100 - successRate.
+        activeDeliveriesPerCourier counts parcels whose latest status at the
+        end of the range is PICKED_UP, IN_TRANSIT or OUT_FOR_DELIVERY.
+        Roles DISPATCHER, ADMIN.
       parameters:
-        - {$ref: '#/components/parameters/from'}
-        - {$ref: '#/components/parameters/to'}
+        - {name: from, in: query, required: true, schema: {type: string, format: date}}
+        - {name: to, in: query, required: true, schema: {type: string, format: date}}
       responses:
         '200':
-          description: Summary from uniquely stored parcel status events
+          description: Summary
           content:
             application/json:
               schema: {$ref: '#/components/schemas/DispatchSummary'}
         '400': {$ref: '#/components/responses/BadRequest'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
-  /api/dispatch/reports/status:
-    get:
-      tags: [Reports]
-      summary: Parcels entering each status during the date range
-      parameters: [{$ref: '#/components/parameters/from'}, {$ref: '#/components/parameters/to'}]
-      responses:
-        '200':
-          description: Counts for CREATED, PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED and FAILED
-          content:
-            application/json:
-              schema: {$ref: '#/components/schemas/StatusReport'}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '401': {$ref: '#/components/responses/Unauthorized'}
-        '403': {$ref: '#/components/responses/Forbidden'}
-  /api/dispatch/reports/volume:
-    get:
-      tags: [Reports]
-      summary: Delivered parcels per day or week
-      parameters:
-        - {$ref: '#/components/parameters/from'}
-        - {$ref: '#/components/parameters/to'}
-        - {name: groupBy, in: query, schema: {type: string, enum: [day, week], default: day}}
-      responses:
-        '200':
-          description: Period and parcel count rows
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    period: {type: string}
-                    count: {type: integer}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '401': {$ref: '#/components/responses/Unauthorized'}
-        '403': {$ref: '#/components/responses/Forbidden'}
-  /api/dispatch/reports/courier-performance:
-    get:
-      tags: [Reports]
-      summary: Courier handled, delivered, failed and delivery-time metrics
-      parameters: [{$ref: '#/components/parameters/from'}, {$ref: '#/components/parameters/to'}]
-      responses:
-        '200': {description: Courier performance aggregates}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '401': {$ref: '#/components/responses/Unauthorized'}
-        '403': {$ref: '#/components/responses/Forbidden'}
-  /api/dispatch/reports/failed-deliveries:
-    get:
-      tags: [Reports]
-      summary: Failed parcels and available reasons
-      parameters: [{$ref: '#/components/parameters/from'}, {$ref: '#/components/parameters/to'}]
-      responses:
-        '200': {description: Failed delivery records; reason may be null if the source event omitted it}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '401': {$ref: '#/components/responses/Unauthorized'}
-        '403': {$ref: '#/components/responses/Forbidden'}
-  /api/dispatch/reports/revenue-by-route:
-    get:
-      tags: [Reports]
-      summary: Recorded parcel fees grouped by pickup and drop-off area
-      description: Uses the parcel charge and area projection, not Pricing zone calculations.
-      parameters: [{$ref: '#/components/parameters/from'}, {$ref: '#/components/parameters/to'}]
-      responses:
-        '200': {description: Route fee aggregates}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '401': {$ref: '#/components/responses/Unauthorized'}
-        '403': {$ref: '#/components/responses/Forbidden'}
-  /api/dispatch/reports/{report}.csv:
-    get:
-      tags: [Reports]
-      summary: Export a report as CSV
-      parameters:
-        - {name: report, in: path, required: true, schema: {type: string, enum: [status, volume, courier-performance, failed-deliveries, revenue-by-route]}}
-        - {$ref: '#/components/parameters/from'}
-        - {$ref: '#/components/parameters/to'}
-        - {name: groupBy, in: query, schema: {type: string, enum: [day, week], default: day}}
-      responses:
-        '200':
-          description: UTF-8 CSV download
-          content:
-            text/csv:
-              schema: {type: string}
-        '400': {$ref: '#/components/responses/BadRequest'}
-        '401': {$ref: '#/components/responses/Unauthorized'}
-        '403': {$ref: '#/components/responses/Forbidden'}
-        '404': {$ref: '#/components/responses/NotFound'}
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
-      description: Dispatcher or Admin role required.
   parameters:
     page:
       {name: page, in: query, schema: {type: integer, minimum: 0, default: 0}}
     pageSize:
       {name: pageSize, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
-    from:
-      {name: from, in: query, required: true, schema: {type: string, format: date}}
-    to:
-      {name: to, in: query, required: true, schema: {type: string, format: date}}
-    sort:
-      {name: sort, in: query, schema: {type: string, enum: [createdAt, updatedAt, trackingNumber, status, pickupArea, dropoffArea, size], default: createdAt}}
-    direction:
-      {name: direction, in: query, schema: {type: string, enum: [asc, desc], default: desc}}
     parcelId:
       {name: parcelId, in: path, required: true, schema: {type: string, format: uuid}}
   responses:
     BadRequest:
       description: Invalid input
-      content:
-        application/json:
-          schema: {$ref: '#/components/schemas/Error'}
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
     Unauthorized:
-      description: Invalid or absent JWT
-      content:
-        application/json:
-          schema: {$ref: '#/components/schemas/Error'}
+      description: Missing, invalid or expired JWT
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
     Forbidden:
-      description: Dispatcher or Admin role required
-      content:
-        application/json:
-          schema: {$ref: '#/components/schemas/Error'}
+      description: The caller's role may not use this endpoint
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
     NotFound:
-      description: Resource not found
-      content:
-        application/json:
-          schema: {$ref: '#/components/schemas/Error'}
-    Conflict:
-      description: Request conflicts with the current assignment or parcel state
-      content:
-        application/json:
-          schema: {$ref: '#/components/schemas/Error'}
-    ParcelPage:
-      description: Paginated parcel rows
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              content: {type: array, items: {$ref: '#/components/schemas/Parcel'}}
-              page: {type: integer}
-              size: {type: integer}
-              totalElements: {type: integer}
-              totalPages: {type: integer}
+      description: Parcel not found
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    BadGateway:
+      description: parcel-service or courier-service gave an unusable answer
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
+    Unavailable:
+      description: parcel-service, courier-service or the dispatch database is unavailable
+      content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}
   schemas:
     Error:
       type: object
@@ -349,6 +316,7 @@ components:
         error: {type: string}
     Parcel:
       type: object
+      description: A parcel as parcel-service returns it.
       properties:
         parcelId: {type: string, format: uuid}
         trackingNumber: {type: string}
@@ -357,43 +325,109 @@ components:
         pickupAddress: {type: string}
         deliveryAddress: {type: string}
         size: {type: string}
-        status: {type: string}
-        courierId: {type: [string, 'null'], format: uuid}
-        courierName: {type: [string, 'null']}
-        charge: {type: number}
+        status: {type: string, enum: [CREATED, PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY, DELIVERED, FAILED, CANCELLED]}
+        courierUserId: {type: [integer, 'null'], format: int64}
+        charge: {type: [number, 'null']}
         createdAt: {type: string, format: date-time}
         updatedAt: {type: string, format: date-time}
-    StatusHistory:
+    ParcelPage:
+      type: object
+      properties:
+        content: {type: array, items: {$ref: '#/components/schemas/Parcel'}}
+        page: {type: integer}
+        size: {type: integer}
+        totalElements: {type: integer}
+        totalPages: {type: integer}
+    StatusEvent:
       type: object
       properties:
         previousStatus: {type: [string, 'null']}
         newStatus: {type: string}
         changedAt: {type: string, format: date-time}
-        changedBy: {type: [string, 'null']}
-        note: {type: [string, 'null']}
-    Assignment:
+    ParcelDetail:
+      type: object
+      properties:
+        parcel: {$ref: '#/components/schemas/Parcel'}
+        history: {type: array, items: {$ref: '#/components/schemas/StatusEvent'}}
+        assignments: {type: array, items: {$ref: '#/components/schemas/AssignmentRow'}}
+    CourierWorkload:
+      type: object
+      properties:
+        courierId: {type: integer, format: int64, description: Courier profile id}
+        userId: {type: integer, format: int64}
+        name: {type: string}
+        active: {type: boolean}
+        availability: {type: string, enum: [AVAILABLE, BUSY, OFFLINE]}
+        available: {type: boolean, description: active and availability is AVAILABLE}
+        activeParcelCount: {type: integer}
+    AssignmentResult:
       type: object
       properties:
         assignmentId: {type: string, format: uuid}
         parcelId: {type: string, format: uuid}
-        courierId: {type: string, format: uuid}
-        previousCourierId: {type: [string, 'null'], format: uuid}
+        trackingNumber: {type: string}
+        courierId: {type: integer, format: int64}
+        courierName: {type: string}
+        previousCourierId: {type: [integer, 'null'], format: int64}
+        assignedBy: {type: string, description: Identity user id of the dispatcher}
+        assignedAt: {type: string, format: date-time}
+        state: {type: string, enum: [ACTIVE, COMPLETED, CANCELLED]}
+    AssignmentRow:
+      type: object
+      properties:
+        assignmentId: {type: string, format: uuid}
+        parcelId: {type: string, format: uuid}
+        trackingNumber: {type: string}
+        courierId: {type: integer, format: int64}
+        courierName: {type: string}
         assignedBy: {type: string}
         assignedAt: {type: string, format: date-time}
         state: {type: string, enum: [ACTIVE, COMPLETED, CANCELLED]}
-    StatusReport:
-      type: array
-      items:
-        type: object
-        properties:
-          status: {type: string}
-          count: {type: integer}
+        parcelStatus: {type: string, description: Latest stored status event, or CREATED if none}
+    AssignmentPage:
+      type: object
+      properties:
+        content: {type: array, items: {$ref: '#/components/schemas/AssignmentRow'}}
+        page: {type: integer}
+        size: {type: integer}
+        totalElements: {type: integer}
+        totalPages: {type: integer}
+    CourierAssignment:
+      type: object
+      required: [id, parcelId, courierId, attemptNo, active, version, deliveryDate, assignedAt]
+      properties:
+        id: {type: string, format: uuid}
+        parcelId: {type: string, format: uuid}
+        courierId: {type: integer, format: int64, description: Courier profile id}
+        attemptNo: {type: integer, minimum: 1, description: Position among all assignments of the parcel}
+        active: {type: boolean}
+        version: {type: integer, minimum: 0}
+        deliveryDate: {type: string, format: date}
+        assignedAt: {type: string, format: date-time}
+    Delivery:
+      type: object
+      properties:
+        parcelId: {type: string, format: uuid}
+        trackingNumber: {type: string}
+        status: {type: string}
+        courierId: {type: [integer, 'null'], format: int64}
+        courierName: {type: [string, 'null']}
+        lastUpdatedAt: {type: string, format: date-time}
+    DeliveryPage:
+      type: object
+      properties:
+        content: {type: array, items: {$ref: '#/components/schemas/Delivery'}}
+        page: {type: integer}
+        size: {type: integer}
+        totalElements: {type: integer}
+        totalPages: {type: integer}
     DispatchSummary:
       type: object
-      required: [deliveriesPerDay, successRate, countsByStatus, activeDeliveriesPerCourier]
+      required: [deliveriesPerDay, successRate, failureRate, countsByStatus, activeDeliveriesPerCourier]
       properties:
         deliveriesPerDay:
           type: array
+          description: One entry per day in the range, including days with no deliveries.
           items:
             type: object
             properties:
@@ -401,12 +435,22 @@ components:
               delivered: {type: integer}
               failed: {type: integer}
               total: {type: integer}
-        successRate: {type: number, description: Percentage of DELIVERED events among DELIVERED and FAILED events}
-        countsByStatus: {$ref: '#/components/schemas/StatusReport'}
+        successRate: {type: number}
+        failureRate: {type: number}
+        countsByStatus:
+          type: array
+          description: Stored status events in the range, by new status.
+          items:
+            type: object
+            properties:
+              status: {type: string}
+              count: {type: integer}
         activeDeliveriesPerCourier:
           type: array
           items:
             type: object
             properties:
-              courierId: {type: string}
+              courierId: {type: [integer, 'null'], format: int64, description: Profile id when dispatch knows the courier}
+              courierUserId: {type: string, description: The courier id carried by the status events}
+              courierName: {type: [string, 'null']}
               count: {type: integer}

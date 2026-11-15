@@ -11,15 +11,10 @@ function queryString(params) {
   return value ? `?${value}` : ''
 }
 
+// Courier ids are courier-service profile ids (numbers).
 export const dispatchService = {
   getUnassigned: (params = {}) =>
     request(`/api/dispatch/parcels/unassigned${queryString(params)}`, { auth: true }),
-
-  getParcels: (params = {}) =>
-    request(`/api/dispatch/parcels${queryString(params)}`, { auth: true }),
-
-  getDeliveries: (params = {}) =>
-    request(`/api/dispatch/deliveries${queryString(params)}`, { auth: true }),
 
   getParcel: (id) =>
     request(`/api/dispatch/parcels/${encodeURIComponent(id)}`, { auth: true }),
@@ -27,10 +22,20 @@ export const dispatchService = {
   getCouriers: () =>
     request('/api/dispatch/couriers', { auth: true }),
 
+  getAssignments: (params = {}) =>
+    request(`/api/dispatch/assignments${queryString(params)}`, { auth: true }),
+
   assignCourier: (parcelId, courierId) =>
     request('/api/dispatch/assignments', {
       method: 'POST',
-      body: { parcelId, courierId },
+      body: { parcelId, courierId: Number(courierId) },
+      auth: true,
+    }),
+
+  reassignCourier: (parcelId, courierId) =>
+    request(`/api/dispatch/assignments/${encodeURIComponent(parcelId)}/reassign`, {
+      method: 'POST',
+      body: { courierId: Number(courierId) },
       auth: true,
     }),
 
@@ -40,18 +45,9 @@ export const dispatchService = {
       auth: true,
     }),
 
-  getCourierParcels: (courierId) =>
-    request(`/api/dispatch/couriers/${encodeURIComponent(courierId)}/parcels`, { auth: true }),
+  getDeliveries: (params = {}) =>
+    request(`/api/dispatch/deliveries${queryString(params)}`, { auth: true }),
 
   getSummary: (params = {}) =>
     request(`/api/dispatch/reports/summary${queryString(params)}`, { auth: true }),
-
-  getReport: (name, params = {}) =>
-    request(`/api/dispatch/reports/${name}${queryString(params)}`, { auth: true }),
-
-  exportReport: (name, params = {}) =>
-    request(`/api/dispatch/reports/${name}.csv${queryString(params)}`, {
-      auth: true,
-      responseType: 'text',
-    }),
 }
