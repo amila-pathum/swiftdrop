@@ -59,10 +59,10 @@ export const merchantService = {
   getWebhookSettings: (signal) =>
     request('/api/merchants/me/webhook', { auth: true, signal }),
 
-  updateWebhookSettings: (url, enabled) =>
+  updateWebhookSettings: (url, enabled, events) =>
     request('/api/merchants/me/webhook', {
       method: 'PUT',
-      body: { url, enabled },
+      body: { url, enabled, ...(events === undefined ? {} : { events }) },
       auth: true,
     }),
 

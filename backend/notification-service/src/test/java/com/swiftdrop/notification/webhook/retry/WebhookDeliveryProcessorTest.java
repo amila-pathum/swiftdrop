@@ -61,6 +61,23 @@ class WebhookDeliveryProcessorTest {
         assertEquals("SKIPPED",processor.attempt(delivery(0)).state());
         verifyNoInteractions(sender);
     }
+    @Test void onlySubscribedStatusesAreSentAndTestEventsBypassTheSelection() throws Exception {
+        when(settings.findForMerchant("m1")).thenReturn(Optional.of(new MerchantWebhookSettingsLookup.Settings(
+                URI.create("https://merchant.example/webhook"), "test-secret", true, Set.of("DELIVERED"))));
+        byte[] excluded = "{\"eventType\":\"ParcelStatusChanged\",\"newStatus\":\"CREATED\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        var outcome = processor.attempt(new WebhookDelivery(id,event,"m1",excluded,0));
+        assertEquals("SKIPPED",outcome.state());
+        assertEquals("EVENT_NOT_SUBSCRIBED",outcome.failureCode());
+        verifyNoInteractions(sender);
+        when(sender.send(any(),anyString(),anyString(),any())).thenReturn(new WebhookHttpSender.SendResult(true,204,null));
+        byte[] included = "{\"eventType\":\"ParcelStatusChanged\",\"newStatus\":\"DELIVERED\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        assertEquals("DELIVERED",processor.attempt(new WebhookDelivery(id,event,"m1",included,0)).state());
+        when(settings.findForMerchant("m1")).thenReturn(Optional.of(new MerchantWebhookSettingsLookup.Settings(
+                URI.create("https://merchant.example/webhook"), "test-secret", true, Set.of())));
+        assertEquals("SKIPPED",processor.attempt(new WebhookDelivery(id,event,"m1",included,0)).state());
+        byte[] test = "{\"eventType\":\"WebhookTest\",\"newStatus\":\"TEST\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        assertEquals("DELIVERED",processor.attempt(new WebhookDelivery(id,event,"m1",test,0)).state());
+    }
     @Test void unapprovedOriginIsNotContacted() throws Exception {
         when(settings.findForMerchant("m1")).thenReturn(Optional.of(
                 new MerchantWebhookSettingsLookup.Settings(

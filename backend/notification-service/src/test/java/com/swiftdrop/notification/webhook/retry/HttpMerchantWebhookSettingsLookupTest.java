@@ -51,6 +51,12 @@ class HttpMerchantWebhookSettingsLookupTest {
         body = "{\"enabled\":false}";
         assertTrue(lookup.findForMerchant("1").isEmpty());
     }
+    @Test void eventSubscriptionsAreReadFromMerchantService() {
+        body = "{\"enabled\":true,\"url\":\"https://example.test/hook\",\"signingSecret\":\"test-secret\",\"events\":[\"DELIVERED\"]}";
+        assertEquals(java.util.Set.of("DELIVERED"), lookup.findForMerchant("1").orElseThrow().events());
+        body = body.replace("[\"DELIVERED\"]", "[]");
+        assertTrue(lookup.findForMerchant("1").orElseThrow().events().isEmpty());
+    }
     @Test void explicitMissingMerchantIsAbsent() {
         status = 404; body = "{\"error\":\"MERCHANT_NOT_FOUND\"}";
         assertTrue(lookup.findForMerchant("1").isEmpty());

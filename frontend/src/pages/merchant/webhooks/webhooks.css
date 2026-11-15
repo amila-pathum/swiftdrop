@@ -1,5 +1,9 @@
 .webhook-page {
   --webhook-card-radius: 8px;
+  width: 100%;
+  max-width: 1120px;
+  margin-inline: auto;
+  min-width: 0;
   padding: 4px 8px 24px;
 }
 
@@ -36,7 +40,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--webhook-card-radius);
 }
-.webhook-endpoint-card { max-width: 672px; }
+.webhook-endpoint-card { width: 100%; max-width: 840px; margin-inline: auto; }
 .webhook-endpoint-heading { padding: 14px 20px; border-bottom: 1px solid var(--color-border); }
 .webhook-endpoint-heading h2 { font-size: 14px; font-weight: 600; }
 .webhook-endpoint-form { display: flex; flex-direction: column; gap: 24px; padding: 20px; }
@@ -49,6 +53,12 @@
 .webhook-event-grid li { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; font-size: 13px; }
 .webhook-event-grid svg { width: 14px; height: 14px; color: var(--color-primary); flex-shrink: 0; }
 .webhook-event-grid code { color: var(--color-text-muted); font-size: 11px; }
+.webhook-event-option { display: flex; align-items: flex-start; gap: 10px; width: 100%; cursor: pointer; padding: 10px; border: 1px solid var(--color-border); border-radius: 6px; }
+.webhook-event-option:has(:checked) { border-color: var(--color-primary); background: var(--color-page); }
+.webhook-event-option:has(:disabled) { cursor: default; opacity: .65; }
+.webhook-event-option input { width: 17px; height: 17px; margin-top: 2px; flex-shrink: 0; accent-color: var(--color-primary); }
+.webhook-event-option > span { display: grid; gap: 3px; min-width: 0; }
+.webhook-event-option code { overflow-wrap: anywhere; }
 .webhook-enable-control { position: relative; display: inline-flex; align-items: center; gap: 12px; align-self: flex-start; cursor: pointer; }
 .webhook-enable-control:has(:disabled) { cursor: default; opacity: .6; }
 .webhook-enable-control input { position: absolute; opacity: 0; width: 44px; height: 24px; margin: 0; }
@@ -61,7 +71,7 @@
 .webhook-form-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .webhook-form-actions .button { min-height: 40px; height: auto; }
 .webhook-page .button > span { display: inline-flex; align-items: center; justify-content: center; gap: 8px; white-space: nowrap; }
-.webhook-footnote { max-width: 672px; margin-top: 16px; font-size: 12px; color: var(--color-text-muted); }
+.webhook-footnote { max-width: 840px; margin: 16px auto 0; font-size: 12px; color: var(--color-text-muted); }
 .webhook-feedback { margin-bottom: 16px; }
 .webhook-feedback p { color: inherit; }
 .webhook-status-card { display: grid; justify-items: center; gap: 12px; padding: 36px 20px; text-align: center; }
