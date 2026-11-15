@@ -4713,6 +4713,22 @@ a.button {
   margin: 0 auto;
 }
 
+/* Notification Track Link */
+.notification-track-link {
+  display: inline-flex;
+  align-items: center;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2563eb;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+.notification-track-link:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
 .parcel-details-tracking {
   margin: 6px 0 0;
   color: #64748b;

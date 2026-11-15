@@ -13,7 +13,7 @@ import {
 } from '../utils/notificationFormatter'
 
 export default function NotificationsPage() {
-  const { notifications, unreadCount, isLoading, markAsRead, refresh } = useNotifications()
+  const { notifications, unreadCount, isLoading, markAsRead, markAllAsRead } = useNotifications()
   const [filter, setFilter] = useState('ALL') // 'ALL' or 'UNREAD'
 
   const isNotificationRead = (n) => Boolean(n.read ?? n.isRead)
@@ -23,7 +23,7 @@ export default function NotificationsPage() {
     : notifications
 
   return (
-    <div className="page-container notifications-page" style={{ maxWidth: '840px', margin: '0 auto', padding: '24px 16px' }}>
+    <div className="delivery-page-container notifications-page" style={{ width: '100%', maxWidth: '1180px', margin: '0 auto', padding: '0 0 32px' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: 700, margin: '0 0 4px', color: '#0f172a' }}>
@@ -33,8 +33,13 @@ export default function NotificationsPage() {
             Stay updated with your parcel shipments, status changes, and delivery alerts.
           </p>
         </div>
-        <Button variant="secondary" size="sm" onClick={refresh} disabled={isLoading}>
-          {isLoading ? 'Refreshing...' : 'Refresh'}
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={markAllAsRead}
+          disabled={isLoading || unreadCount === 0}
+        >
+          Mark all as read
         </Button>
       </header>
 
@@ -163,29 +168,22 @@ export default function NotificationsPage() {
                     {description}
                   </p>
 
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap', gap: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '6px', flexWrap: 'wrap', gap: '8px' }}>
                     {notification.trackingNumber ? (
                       <Link
                         to={`/track/${encodeURIComponent(notification.trackingNumber)}`}
-                        className="notification-tracking-badge"
+                        className="notification-track-link"
                         title={`Track parcel ${notification.trackingNumber}`}
                         style={{
                           display: 'inline-flex',
                           alignItems: 'center',
-                          gap: '5px',
-                          fontSize: '11px',
-                          fontFamily: 'ui-monospace, monospace',
+                          fontSize: '13px',
                           fontWeight: 600,
-                          padding: '3px 8px',
-                          borderRadius: '4px',
-                          backgroundColor: '#e2e8f0',
-                          color: '#1e293b',
+                          color: '#2563eb',
                           textDecoration: 'none',
-                          transition: 'background-color 0.15s ease, color 0.15s ease',
                         }}
                       >
-                        <span aria-hidden="true">📦</span>
-                        <span>{notification.trackingNumber}</span>
+                        Track Parcel
                       </Link>
                     ) : <div />}
 

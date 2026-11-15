@@ -367,13 +367,11 @@
   color: #2563eb;
   font-weight: 600;
   text-decoration: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  transition: gap 0.2s ease, color 0.15s ease;
+  display: inline-block;
+  transition: color 0.15s ease;
 }
 
 .notification-view-all-link:hover {
   color: #1d4ed8;
-  gap: 7px;
+  text-decoration: underline;
 }

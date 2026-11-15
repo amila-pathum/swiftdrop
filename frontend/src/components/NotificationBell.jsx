@@ -172,8 +172,7 @@ export default function NotificationBell() {
               onClick={() => setIsOpen(false)}
               className="notification-view-all-link"
             >
-              <span>View all notifications</span>
-              <span aria-hidden="true">&rarr;</span>
+              View all notifications
             </Link>
           </div>
         </div>
