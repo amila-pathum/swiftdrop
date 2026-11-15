@@ -1,10 +1,20 @@
 import { useNotifications } from '../context/NotificationContext'
 import { Link } from 'react-router-dom'
+import NotificationStatusIcon from './NotificationStatusIcon'
+import {
+  getStatusCategory,
+  formatNotificationTitle,
+  formatNotificationDescription,
+} from '../utils/notificationFormatter'
 
 export default function NotificationToast() {
   const { toast, dismissToast } = useNotifications()
 
   if (!toast) return null
+
+  const category = getStatusCategory(toast.title, toast.message, toast.status)
+  const title = formatNotificationTitle(toast)
+  const description = formatNotificationDescription(toast)
 
   return (
     <div
@@ -25,33 +35,33 @@ export default function NotificationToast() {
         className="card notification-toast"
         style={{
           boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-          borderLeft: '4px solid #2563eb',
           padding: '16px',
           display: 'flex',
           flexDirection: 'column',
           gap: '8px',
           backgroundColor: '#ffffff',
-          borderRadius: '8px',
+          borderRadius: '10px',
+          border: '1px solid #e2e8f0',
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span
+              className={`notification-icon-wrapper ${category}`}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: '24px',
-                height: '24px',
+                width: '26px',
+                height: '26px',
+                minWidth: '26px',
                 borderRadius: '50%',
-                backgroundColor: '#eff6ff',
-                color: '#2563eb',
               }}
             >
-              🔔
+              <NotificationStatusIcon category={category} size={15} />
             </span>
-            <strong style={{ fontSize: '14px', color: '#1e293b' }}>
-              {toast.title || 'Parcel Status Update'}
+            <strong style={{ fontSize: '14px', color: '#0f172a' }}>
+              {title}
             </strong>
           </div>
           <button
@@ -72,29 +82,31 @@ export default function NotificationToast() {
           </button>
         </div>
 
-        <p style={{ margin: 0, fontSize: '13px', color: '#475569', lineHeight: 1.4 }}>
-          {toast.message}
+        <p style={{ margin: 0, fontSize: '13px', color: '#475569', lineHeight: 1.45 }}>
+          {description}
         </p>
 
         {toast.trackingNumber && (
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
             <span
-              className="pill pill-info"
+              className="notification-tracking-badge"
               style={{
                 fontSize: '11px',
                 padding: '2px 8px',
-                borderRadius: '12px',
-                backgroundColor: '#f1f5f9',
-                color: '#0f172a',
-                fontFamily: 'monospace',
+                borderRadius: '4px',
+                backgroundColor: '#e2e8f0',
+                color: '#1e293b',
+                fontFamily: 'ui-monospace, monospace',
+                fontWeight: 600,
               }}
             >
-              {toast.trackingNumber}
+              <span aria-hidden="true">📦 </span>
+              <span>{toast.trackingNumber}</span>
             </span>
             <Link
               to={`/track/${encodeURIComponent(toast.trackingNumber)}`}
               onClick={dismissToast}
-              style={{ fontSize: '12px', color: '#2563eb', textDecoration: 'none', fontWeight: 500 }}
+              style={{ fontSize: '12px', color: '#2563eb', textDecoration: 'none', fontWeight: 600 }}
             >
               Track Live &rarr;
             </Link>
@@ -104,4 +116,3 @@ export default function NotificationToast() {
     </div>
   )
 }
-

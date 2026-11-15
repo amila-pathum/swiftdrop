@@ -4,14 +4,13 @@ import { useNotifications } from '../context/NotificationContext'
 import Button from '../components/Button'
 import EmptyState from '../components/EmptyState'
 import LoadingSpinner from '../components/LoadingSpinner'
-
-function formatDateTime(dateString) {
-  if (!dateString) return '—'
-  const date = new Date(dateString)
-  return Number.isNaN(date.getTime())
-    ? '—'
-    : date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
-}
+import NotificationStatusIcon from '../components/NotificationStatusIcon'
+import {
+  getStatusCategory,
+  formatNotificationTitle,
+  formatNotificationDescription,
+  formatNotificationDate,
+} from '../utils/notificationFormatter'
 
 export default function NotificationsPage() {
   const { notifications, unreadCount, isLoading, markAsRead, refresh } = useNotifications()
@@ -24,7 +23,7 @@ export default function NotificationsPage() {
     : notifications
 
   return (
-    <div className="page-container notifications-page" style={{ maxWidth: '800px', margin: '0 auto', padding: '24px 16px' }}>
+    <div className="page-container notifications-page" style={{ maxWidth: '840px', margin: '0 auto', padding: '24px 16px' }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <h1 style={{ fontSize: '24px', fontWeight: 700, margin: '0 0 4px', color: '#0f172a' }}>
@@ -94,83 +93,112 @@ export default function NotificationsPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           {filtered.map((notification) => {
             const isRead = isNotificationRead(notification)
+            const category = getStatusCategory(notification.title, notification.message, notification.status)
+            const title = formatNotificationTitle(notification)
+            const description = formatNotificationDescription(notification)
+            const formattedDate = formatNotificationDate(notification.createdAt)
+
             return (
               <article
                 key={notification.id}
-                className="card notification-card"
+                className={`card notification-card ${isRead ? 'read' : 'unread'}`}
                 style={{
                   padding: '16px 20px',
-                  borderLeft: isRead ? '4px solid #cbd5e1' : '4px solid #2563eb',
-                  backgroundColor: isRead ? '#ffffff' : '#f8fafc',
+                  backgroundColor: isRead ? '#ffffff' : '#f8faff',
+                  borderRadius: '10px',
+                  border: '1px solid #e2e8f0',
                   display: 'flex',
-                  flexDirection: 'column',
-                  gap: '8px',
-                  transition: 'border-color 0.2s, background-color 0.2s',
+                  gap: '14px',
+                  alignItems: 'flex-start',
+                  transition: 'background-color 0.18s ease, border-color 0.18s ease',
                 }}
               >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {!isRead && (
-                      <span
-                        style={{
-                          width: '8px',
-                          height: '8px',
-                          borderRadius: '50%',
-                          backgroundColor: '#2563eb',
-                          display: 'inline-block',
-                        }}
-                        aria-label="Unread"
-                      />
-                    )}
-                    <h2 style={{ fontSize: '15px', fontWeight: 600, margin: 0, color: '#1e293b' }}>
-                      {notification.title}
-                    </h2>
-                  </div>
-                  <time style={{ fontSize: '12px', color: '#94a3b8' }}>
-                    {formatDateTime(notification.createdAt)}
-                  </time>
+                {/* Status Icon Wrapper */}
+                <div
+                  className={`notification-icon-wrapper ${category}`}
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    minWidth: '36px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginTop: '2px',
+                  }}
+                >
+                  <NotificationStatusIcon category={category} size={18} />
                 </div>
 
-                <p style={{ margin: 0, fontSize: '14px', color: '#475569', lineHeight: 1.5 }}>
-                  {notification.message}
-                </p>
+                {/* Content */}
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+                      {!isRead && (
+                        <span
+                          style={{
+                            width: '7px',
+                            height: '7px',
+                            minWidth: '7px',
+                            borderRadius: '50%',
+                            backgroundColor: '#2563eb',
+                            display: 'inline-block',
+                          }}
+                          aria-label="Unread"
+                        />
+                      )}
+                      <h2 style={{ fontSize: '15px', fontWeight: 600, margin: 0, color: '#0f172a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {title}
+                      </h2>
+                    </div>
+                    <time
+                      dateTime={notification.createdAt}
+                      style={{ fontSize: '12px', color: '#64748b', whiteSpace: 'nowrap' }}
+                    >
+                      {formattedDate}
+                    </time>
+                  </div>
 
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {notification.trackingNumber && (
-                      <span
-                        className="pill pill-info"
+                  <p style={{ margin: '2px 0 6px', fontSize: '13.5px', color: '#334155', lineHeight: 1.5, wordBreak: 'break-word' }}>
+                    {description}
+                  </p>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px', flexWrap: 'wrap', gap: '8px' }}>
+                    {notification.trackingNumber ? (
+                      <Link
+                        to={`/track/${encodeURIComponent(notification.trackingNumber)}`}
+                        className="notification-tracking-badge"
+                        title={`Track parcel ${notification.trackingNumber}`}
                         style={{
-                          fontSize: '12px',
-                          fontFamily: 'monospace',
-                          padding: '2px 8px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          fontSize: '11px',
+                          fontFamily: 'ui-monospace, monospace',
+                          fontWeight: 600,
+                          padding: '3px 8px',
                           borderRadius: '4px',
                           backgroundColor: '#e2e8f0',
                           color: '#1e293b',
+                          textDecoration: 'none',
+                          transition: 'background-color 0.15s ease, color 0.15s ease',
                         }}
                       >
-                        {notification.trackingNumber}
-                      </span>
-                    )}
-                    {notification.trackingNumber && (
-                      <Link
-                        to={`/track/${encodeURIComponent(notification.trackingNumber)}`}
-                        style={{ fontSize: '13px', color: '#2563eb', textDecoration: 'none', fontWeight: 500 }}
-                      >
-                        Track Parcel &rarr;
+                        <span aria-hidden="true">📦</span>
+                        <span>{notification.trackingNumber}</span>
                       </Link>
+                    ) : <div />}
+
+                    {!isRead && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => markAsRead(notification.id)}
+                      >
+                        Mark as read
+                      </Button>
                     )}
                   </div>
-
-                  {!isRead && (
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => markAsRead(notification.id)}
-                    >
-                      Mark as read
-                    </Button>
-                  )}
                 </div>
               </article>
             )
@@ -180,4 +208,3 @@ export default function NotificationsPage() {
     </div>
   )
 }
-

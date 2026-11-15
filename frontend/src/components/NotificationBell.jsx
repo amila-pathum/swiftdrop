@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useNotifications } from '../context/NotificationContext'
+import NotificationStatusIcon from './NotificationStatusIcon'
+import {
+  getStatusCategory,
+  formatNotificationTitle,
+  formatNotificationDescription,
+  formatNotificationDate,
+  formatRelativeTime,
+} from '../utils/notificationFormatter'
+import './NotificationBell.css'
 
 function BellIcon() {
   return (
@@ -19,18 +28,6 @@ function BellIcon() {
       <path d="M13.73 21a2 2 0 0 1-3.46 0" />
     </svg>
   )
-}
-
-function formatRelativeTime(dateString) {
-  if (!dateString) return ''
-  const date = new Date(dateString)
-  if (Number.isNaN(date.getTime())) return ''
-  const diffSec = Math.floor((Date.now() - date.getTime()) / 1000)
-
-  if (diffSec < 60) return 'Just now'
-  if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m ago`
-  if (diffSec < 86400) return `${Math.floor(diffSec / 3600)}h ago`
-  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
 export default function NotificationBell() {
@@ -60,13 +57,12 @@ export default function NotificationBell() {
     }
   }, [isOpen])
 
-  const recent = notifications.slice(0, 5)
+  const recent = notifications.slice(0, 4)
 
   return (
     <div
       ref={containerRef}
       className="notification-bell-container"
-      style={{ position: 'relative', display: 'inline-block' }}
     >
       <button
         type="button"
@@ -75,41 +71,12 @@ export default function NotificationBell() {
         aria-label={`Notifications (${unreadCount} unread)`}
         aria-expanded={isOpen}
         aria-haspopup="true"
-        style={{
-          position: 'relative',
-          padding: '8px',
-          background: 'none',
-          border: 'none',
-          cursor: 'pointer',
-          borderRadius: '50%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'var(--color-text, #334155)',
-        }}
       >
         <BellIcon />
         {unreadCount > 0 && (
           <span
             className="notification-badge"
             aria-hidden="true"
-            style={{
-              position: 'absolute',
-              top: '2px',
-              right: '2px',
-              backgroundColor: '#ef4444',
-              color: '#ffffff',
-              fontSize: '10px',
-              fontWeight: 700,
-              minWidth: '18px',
-              height: '18px',
-              borderRadius: '9px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '0 4px',
-              lineHeight: 1,
-            }}
           >
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
@@ -121,108 +88,74 @@ export default function NotificationBell() {
           className="notification-dropdown card"
           role="menu"
           aria-label="Recent notifications"
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 8px)',
-            right: 0,
-            width: '320px',
-            backgroundColor: '#ffffff',
-            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-            borderRadius: '8px',
-            border: '1px solid #e2e8f0',
-            zIndex: 1000,
-            overflow: 'hidden',
-          }}
         >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              padding: '12px 16px',
-              borderBottom: '1px solid #f1f5f9',
-            }}
-          >
-            <span style={{ fontWeight: 600, fontSize: '14px', color: '#0f172a' }}>
+          {/* Header */}
+          <div className="notification-dropdown-header">
+            <span className="notification-dropdown-title">
               Notifications
             </span>
             {unreadCount > 0 && (
-              <span
-                style={{
-                  fontSize: '11px',
-                  backgroundColor: '#fee2e2',
-                  color: '#dc2626',
-                  padding: '2px 8px',
-                  borderRadius: '10px',
-                  fontWeight: 600,
-                }}
-              >
+              <span className="notification-unread-pill">
                 {unreadCount} new
               </span>
             )}
           </div>
 
-          <div style={{ maxHeight: '320px', overflowY: 'auto' }}>
+          {/* Items without scrollbars */}
+          <div className="notification-scroll-area">
             {recent.length === 0 ? (
-              <div style={{ padding: '24px 16px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
-                No notifications yet.
+              <div className="notification-empty">
+                <BellIcon />
+                <span>No notifications yet.</span>
               </div>
             ) : (
-              <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
+              <ul className="notification-list">
                 {recent.map((n) => {
                   const isRead = Boolean(n.read ?? n.isRead)
+                  const category = getStatusCategory(n.title, n.message, n.status)
+                  const title = formatNotificationTitle(n)
+                  const description = formatNotificationDescription(n)
+                  const relativeTime = formatRelativeTime(n.createdAt)
+                  const fullDate = formatNotificationDate(n.createdAt)
+
                   return (
                     <li
                       key={n.id}
-                      style={{
-                        padding: '12px 16px',
-                        borderBottom: '1px solid #f8fafc',
-                        backgroundColor: isRead ? '#ffffff' : '#f8fafc',
-                        transition: 'background-color 0.2s',
-                      }}
+                      className={`notification-item ${isRead ? 'read' : 'unread'}`}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                        <strong style={{ fontSize: '13px', color: '#1e293b' }}>
-                          {n.title}
-                        </strong>
-                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>
-                          {formatRelativeTime(n.createdAt)}
-                        </span>
+                      {/* Icon */}
+                      <div className={`notification-icon-wrapper ${category}`}>
+                        <NotificationStatusIcon category={category} />
                       </div>
-                      <p style={{ margin: '4px 0 6px', fontSize: '12px', color: '#475569', lineHeight: 1.4 }}>
-                        {n.message}
-                      </p>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        {n.trackingNumber && (
-                          <span
-                            style={{
-                              fontSize: '10px',
-                              fontFamily: 'monospace',
-                              backgroundColor: '#e2e8f0',
-                              padding: '1px 6px',
-                              borderRadius: '4px',
-                              color: '#334155',
-                            }}
-                          >
-                            {n.trackingNumber}
+
+                      {/* Content */}
+                      <div className="notification-content">
+                        <div className="notification-top-row">
+                          <div className="notification-title-group">
+                            {!isRead && <span className="notification-unread-dot" aria-hidden="true" />}
+                            <strong className="notification-title" title={title}>
+                              {title}
+                            </strong>
+                          </div>
+                          <span className="notification-time" title={fullDate}>
+                            {relativeTime}
                           </span>
-                        )}
-                        {!isRead && (
-                          <button
-                            type="button"
-                            onClick={() => markAsRead(n.id)}
-                            style={{
-                              border: 'none',
-                              background: 'none',
-                              color: '#2563eb',
-                              fontSize: '11px',
-                              cursor: 'pointer',
-                              fontWeight: 500,
-                              padding: 0,
-                            }}
-                          >
-                            Mark as read
-                          </button>
+                        </div>
+
+                        <p className="notification-message">
+                          {description}
+                        </p>
+
+                            {!isRead && (
+                          <div className="notification-meta-row">
+                            <button
+                              type="button"
+                              onClick={() => markAsRead(n.id)}
+                              className="notification-mark-read-btn"
+                            >
+                              <span aria-hidden="true">✓</span> Mark as read
+                            </button>
+                        </div>
                         )}
                       </div>
                     </li>
@@ -232,25 +165,15 @@ export default function NotificationBell() {
             )}
           </div>
 
-          <div
-            style={{
-              padding: '10px 16px',
-              backgroundColor: '#f8fafc',
-              borderTop: '1px solid #f1f5f9',
-              textAlign: 'center',
-            }}
-          >
+          {/* Footer */}
+          <div className="notification-dropdown-footer">
             <Link
               to="/notifications"
               onClick={() => setIsOpen(false)}
-              style={{
-                fontSize: '12px',
-                color: '#2563eb',
-                fontWeight: 600,
-                textDecoration: 'none',
-              }}
+              className="notification-view-all-link"
             >
-              View all notifications &rarr;
+              <span>View all notifications</span>
+              <span aria-hidden="true">&rarr;</span>
             </Link>
           </div>
         </div>
@@ -258,4 +181,3 @@ export default function NotificationBell() {
     </div>
   )
 }
-
