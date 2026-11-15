@@ -79,6 +79,8 @@ The shared RDS database also has an out-of-repo V2, "add zone code and districts
 
 V5 seeds the zones: Sri Lanka's nine provinces (codes WP, CP, SP, NP, EP, NWP, NCP, UP, SGP), each covering its districts' capital cities, 25 in all. It replaces any zones created before it, along with any rates that referred to them (rates must be published for the provinces). Admins can add more cities afterwards on the Delivery Zones page.
 
+V6 publishes rate version v1 for all 45 province pairs. It is skipped when a database already has published rates. The base fee (covering 1 kg) is 300 + 3.3 LKR per km of approximate road distance between the province capitals, to the nearest 50, at most 2,000. Each additional kg is 60 + 0.2 LKR per km, to the nearest 10. Within a province, a typical in-province distance is used instead. So fees run from LKR 350 (within Western) to LKR 2,000 (Southern–Northern). Express is ×1.5, and the size surcharges are 0 / 150 / 300.
+
 ## Running and testing
 
 Set `JWT_SECRET` (the same base64 key Identity uses) and `PRICING_DB_PASSWORD`. Optional defaults are `POSTGRES_HOST=localhost`, `POSTGRES_PORT=5433` and `PRICING_SERVICE_PORT=8086`. Never point tests at a shared database.
@@ -95,7 +97,7 @@ Docker is needed for the PostgreSQL Testcontainers tests. The tests cover:
 - quote validation and errors;
 - ADMIN-only access, including the 403 responses;
 - the full zone → publish → quote flow, including stale publishes and disabled zones;
-- the V4 and V5 data migrations.
+- the V4–V6 data migrations, plus a quote against the seeded rates.
 
 Frontend:
 - `frontend/src/components/pricing/FeeEstimate.jsx` is the reusable estimate used by Create Delivery.

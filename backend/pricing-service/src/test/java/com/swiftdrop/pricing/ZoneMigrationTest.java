@@ -79,5 +79,33 @@ class ZoneMigrationTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM zone_localities", Integer.class)).isEqualTo(25);
         assertThat(jdbc.queryForObject("SELECT bool_and(active) FROM zones", Boolean.class)).isTrue();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM zone_districts", Integer.class)).isZero();
+
+        // V6 publishes v1 with a rate for all 45 province pairs, LKR 350 to 2,000.
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM rate_versions WHERE version = 1", Integer.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM route_rates", Integer.class)).isEqualTo(45);
+        assertThat(jdbc.queryForObject("SELECT min(base_fee) || '-' || max(base_fee) FROM route_rates", String.class))
+            .isEqualTo("350.00-2000.00");
+        assertThat(jdbc.queryForObject(
+            "SELECT bool_and(base_weight_kg = 1 AND express_multiplier = 1.5) FROM route_rates", Boolean.class)).isTrue();
+    }
+
+    // The seed never replaces rates an admin already published.
+    @Test void rateSeedSkipsDatabasesThatAlreadyHaveRates() {
+        var other = new PostgreSQLContainer("postgres:18");
+        other.start();
+        try {
+            var dataSource = new DriverManagerDataSource(other.getJdbcUrl(), other.getUsername(), other.getPassword());
+            var jdbc = new JdbcTemplate(dataSource);
+            Flyway.configure().dataSource(dataSource).target("5").load().migrate();
+            jdbc.execute("""
+                INSERT INTO rate_versions (id, version, small_surcharge, medium_surcharge, large_surcharge, published_by, published_at)
+                VALUES (gen_random_uuid(), 7, 1, 2, 3, 'admin', now())
+                """);
+            Flyway.configure().dataSource(dataSource).load().migrate();
+            assertThat(jdbc.queryForList("SELECT version FROM rate_versions", Integer.class)).containsExactly(7);
+            assertThat(jdbc.queryForObject("SELECT count(*) FROM route_rates", Integer.class)).isZero();
+        } finally {
+            other.stop();
+        }
     }
 }
