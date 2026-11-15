@@ -1927,6 +1927,15 @@ a.button {
   margin: 20px 0 24px;
 }
 
+/* Track parcel page — wider than the default narrow container */
+.track-parcel-section {
+  padding: 56px 0;
+}
+
+.track-parcel-container {
+  max-width: 860px;
+}
+
 .tracking-result {
   padding: 24px;
 }

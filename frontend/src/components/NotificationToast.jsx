@@ -1,5 +1,4 @@
 import { useNotifications } from '../context/NotificationContext'
-import { Link } from 'react-router-dom'
 import NotificationStatusIcon from './NotificationStatusIcon'
 import {
   getStatusCategory,
@@ -87,7 +86,7 @@ export default function NotificationToast() {
         </p>
 
         {toast.trackingNumber && (
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginTop: '4px' }}>
             <span
               className="notification-tracking-badge"
               style={{
@@ -103,13 +102,6 @@ export default function NotificationToast() {
               <span aria-hidden="true">📦 </span>
               <span>{toast.trackingNumber}</span>
             </span>
-            <Link
-              to={`/track/${encodeURIComponent(toast.trackingNumber)}`}
-              onClick={dismissToast}
-              style={{ fontSize: '12px', color: '#2563eb', textDecoration: 'none', fontWeight: 600 }}
-            >
-              Track Live &rarr;
-            </Link>
           </div>
         )}
       </div>

@@ -53,8 +53,7 @@ function TrackingResult({ parcel, onLiveUpdate }) {
               status: ev.status,
               timestamp: ev.occurredAt || ev.timestamp || new Date().toISOString(),
               occurredAt: ev.occurredAt,
-              description: ev.description || ev.note || 'Live status update',
-              note: 'Live status update',
+              description: ev.description || ev.note || null,
             })
           }
         }
@@ -74,8 +73,7 @@ function TrackingResult({ parcel, onLiveUpdate }) {
             status: liveStatus,
             timestamp: liveUpdatedAt || new Date().toISOString(),
             occurredAt: liveUpdatedAt || new Date().toISOString(),
-            description: 'Live status update',
-            note: 'Live status update',
+            description: null,
           },
         ]
       })
@@ -229,8 +227,8 @@ export default function TrackParcelPage() {
   const loading = valid && current === null
 
   return (
-    <div className="section">
-      <div className="container container-narrow">
+    <div className="section track-parcel-section">
+      <div className="container track-parcel-container">
         <h1 className="section-title">Track a parcel</h1>
         <p className="section-lead">Enter the tracking number from your booking confirmation.</p>
         <div className="track-page-search">

@@ -41,7 +41,7 @@ describe('NotificationToast', () => {
     expect(screen.getByText('Status Alert')).toBeInTheDocument()
     expect(screen.getByText('Parcel is out for delivery')).toBeInTheDocument()
     expect(screen.getByText('SD-777')).toBeInTheDocument()
-    expect(screen.getByText(/Track Live/i)).toBeInTheDocument()
+    expect(screen.queryByText(/Track Live/i)).not.toBeInTheDocument()
 
     const dismissButton = screen.getByRole('button', { name: /dismiss/i })
     fireEvent.click(dismissButton)
