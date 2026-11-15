@@ -56,7 +56,14 @@ Integration changes in Identity and Parcel require review from their owners befo
 
 `MERCHANT_ORDER_SERVICE_TOKEN`: a separate 32+ character service credential shared by Merchant and Identity. `INTERNAL_WEBHOOK_TOKEN`: Merchant ↔ Notification internal authentication. `WEBHOOK_ENCRYPTION_KEY`: Base64-encoded 32-byte AES key, shared by every Merchant instance that uses the same encrypted settings. These are distinct from merchant API keys and per-merchant webhook signing secrets. Real values belong only in ignored environment files.
 
-See [`README.md`](../notification-service/src/test/resources/webhook/README.md) for the existing HTTPS mock receiver, signature checks, forced failures and Delivery History demo. The separate clothing-store application is deferred.
+See [`README.md`](../notification-service/src/test/resources/webhook/README.md) for the HTTPS mock receiver, signature checks, forced failures and Delivery History checks. The separate clothing store is documented in [StyleCart](../../stylecart/README.md).
+
+## Webhook event subscriptions
+
+`PUT /api/merchants/me/webhook` accepts `url`, `enabled`, and an optional `events` array containing any of `CREATED`, `PICKED_UP`, `IN_TRANSIT`, `OUT_FOR_DELIVERY`, `DELIVERED`, `FAILED`, `CANCELLED`.
+GET returns the saved selection. An omitted array preserves an existing selection; new settings and existing rows migrated by Merchant V6 default to all seven statuses. An empty array sends no parcel status events, but enabled endpoints can still receive test events.
+
+The worker checks the current selection before every delivery attempt, including retries. Unselected events are recorded as `SKIPPED` with `EVENT_NOT_SUBSCRIBED`; selecting that status later does not replay already skipped events. Deploy Merchant Service with V6 and Notification Service together to enable filtering. V6 only adds a column; it does not replace existing endpoints or signing secrets.
 
 ## Verification
 
