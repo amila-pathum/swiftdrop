@@ -78,6 +78,32 @@ class NotificationServiceTest {
     }
 
     @Test
+    void markAllAsReadMarksAllUnreadNotificationsAsRead() {
+        String userId = "user-123";
+        Notification n1 = Notification.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .isRead(false)
+                .build();
+        Notification n2 = Notification.builder()
+                .id(UUID.randomUUID())
+                .userId(userId)
+                .isRead(true)
+                .build();
+
+        when(notificationRepository.findByUserIdInOrderByCreatedAtDesc(List.of(userId)))
+                .thenReturn(List.of(n1, n2));
+
+        notificationService.markAllAsRead(userId);
+
+        assertThat(n1.isRead()).isTrue();
+        verify(notificationRepository).saveAll(argThat(iterable -> {
+            List<Notification> list = (List<Notification>) iterable;
+            return list.size() == 1 && list.contains(n1);
+        }));
+    }
+
+    @Test
     void markAsReadThrowsForbiddenWhenNotificationBelongsToAnotherUser() {
         UUID id = UUID.randomUUID();
         String ownerUserId = "user-owner";

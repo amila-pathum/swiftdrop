@@ -52,6 +52,14 @@ public class NotificationController {
     }
 
     /**
+     * Marks all notifications as read for the authenticated user.
+     */
+    @PatchMapping("/read-all")
+    public void markAllAsRead(@AuthenticationPrincipal Jwt jwt) {
+        notificationService.markAllAsRead(jwt.getSubject(), jwt.getClaimAsString("email"));
+    }
+
+    /**
      * Server-Sent Events stream for the authenticated user's real-time notifications.
      */
     @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
