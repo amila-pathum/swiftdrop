@@ -5,6 +5,17 @@ export const merchantService = {
   getMyMerchant: (signal) =>
     request('/api/merchants/me', { auth: true, signal }),
 
+  // Merchant Dashboard statistics and real orders
+  getMyDashboard: (signal) =>
+    request('/api/merchants/me/dashboard', { auth: true, signal }),
+
+  registerMyMerchant: ({ businessName, registrationNumber, contactName, email, phone, address }) =>
+    request('/api/merchants/register', {
+      method: 'POST',
+      body: { businessName, registrationNumber, contactName, email, phone, address },
+      auth: true,
+    }),
+
   // Admin approvals
   getAllMerchants: (status, signal) => {
     const query = status ? `?status=${encodeURIComponent(status)}` : ''

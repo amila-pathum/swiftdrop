@@ -9,6 +9,12 @@ import {
 
 const NotificationContext = createContext(null)
 
+const normalizeNotification = (n) => ({
+  ...n,
+  read: Boolean(n.read ?? n.isRead),
+  isRead: Boolean(n.read ?? n.isRead),
+})
+
 export function NotificationProvider({ children }) {
   const { user } = useAuth()
   const [notifications, setNotifications] = useState([])
@@ -50,7 +56,7 @@ export function NotificationProvider({ children }) {
         getUnreadCount().catch(() => ({ count: 0 })),
       ])
       if (isMountedRef.current) {
-        setNotifications(Array.isArray(list) ? list : [])
+        setNotifications(Array.isArray(list) ? list.map(normalizeNotification) : [])
         setUnreadCount(typeof countData?.count === 'number' ? countData.count : 0)
       }
     } finally {
@@ -65,7 +71,7 @@ export function NotificationProvider({ children }) {
     try {
       await markNotificationRead(id)
       setNotifications((prev) =>
-        prev.map((item) => (item.id === id ? { ...item, read: true } : item))
+        prev.map((item) => (item.id === id ? { ...item, read: true, isRead: true } : item))
       )
       setUnreadCount((prev) => Math.max(0, prev - 1))
     } catch {
@@ -110,9 +116,10 @@ export function NotificationProvider({ children }) {
         // Handle 'notification' events
         const onNotificationReceived = (data) => {
           if (!isMountedRef.current || !data) return
-          setNotifications((prev) => [data, ...prev.filter((n) => n.id !== data.id)])
+          const normalized = normalizeNotification(data)
+          setNotifications((prev) => [normalized, ...prev.filter((n) => n.id !== normalized.id)])
           setUnreadCount((prev) => prev + 1)
-          showToast(data)
+          showToast(normalized)
         }
 
         es.addEventListener('notification', (e) => {

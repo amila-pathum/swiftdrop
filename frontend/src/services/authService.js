@@ -1,6 +1,6 @@
-import { ApiError, ApiErrorKind, callEndpoint } from './apiClient'
+import { ApiError, ApiErrorKind, callEndpoint, request } from './apiClient'
 import { ENDPOINTS } from './endpoints'
-import { saveSession } from './tokenStorage'
+import { isPersistentSession, saveSession } from './tokenStorage'
 
 // Identity Service calls through the API Gateway. Endpoint paths and their
 // implementation status live in endpoints.js.
@@ -35,13 +35,19 @@ export function registerCourierAccount(details) {
   return callEndpoint(ENDPOINTS.registerCourier, { body: accountBody(details) })
 }
 
-// Checks a LoginResponse and stores its token. Shared by every sign-in method.
+// Checks a LoginResponse and stores its tokens. Shared by every sign-in method.
+// The refresh token is optional: without one the session ends with the access token.
 function saveLoginResponse(response, { persistent = false } = {}) {
+  const hasRefresh = response?.refreshToken !== undefined && response?.refreshToken !== null
   const valid = typeof response?.accessToken === 'string'
     && response.accessToken !== ''
     && response.tokenType?.toLowerCase?.() === 'bearer'
     && Number.isFinite(response.expiresIn)
     && response.expiresIn > 0
+    && (!hasRefresh || (typeof response.refreshToken === 'string'
+      && response.refreshToken !== ''
+      && Number.isFinite(response.refreshExpiresIn)
+      && response.refreshExpiresIn > 0))
     && response.user !== null
     && typeof response.user === 'object'
   if (!valid) {
@@ -51,17 +57,26 @@ function saveLoginResponse(response, { persistent = false } = {}) {
     })
   }
 
-  const expiresAt = saveSession(response.accessToken, response.expiresIn, undefined, { persistent })
+  const expiresAt = saveSession(response.accessToken, response.expiresIn, undefined, {
+    persistent,
+    ...(hasRefresh && {
+      refreshToken: response.refreshToken,
+      refreshExpiresInSeconds: response.refreshExpiresIn,
+    }),
+  })
   return { user: response.user, expiresAt }
 }
 
 /**
- * Signs in and stores the access token (sessionStorage, or localStorage with
- * `remember`). The token itself is not returned; the API client reads it.
+ * Signs in and stores the tokens (sessionStorage, or localStorage with
+ * `remember`, which also asks for a longer-lived refresh token). The tokens
+ * are not returned; the API client reads them.
  * @returns {Promise<{user: object, expiresAt: number}>}
  */
 export async function login(email, password, { remember = false } = {}) {
-  const response = await callEndpoint(ENDPOINTS.login, { body: { email, password } })
+  const response = await callEndpoint(ENDPOINTS.login, {
+    body: { email, password, rememberMe: remember },
+  })
   return saveLoginResponse(response, { persistent: remember })
 }
 
@@ -85,7 +100,40 @@ export function getCurrentUser() {
 }
 
 /**
- * Tells the backend to invalidate every access token of the signed-in user.
+ * Updates the signed-in user's profile.
+ * @param {{name: string, phone?: string, address?: string}} details
+ * @returns {Promise<{id, name, email, phone, address, role, status, createdAt}>}
+ */
+export function updateProfile(details) {
+  return request('/api/users/me', {
+    method: 'PUT',
+    body: details,
+    auth: true,
+  })
+}
+
+/**
+ * Changes the signed-in user's password. The backend signs out every other
+ * session and returns new tokens for this one, which are stored here.
+ * @param {{currentPassword: string, newPassword: string, confirmPassword?: string, confirmNewPassword?: string}} details
+ * @returns {Promise<object>} The backend's LoginResponse.
+ */
+export async function changePassword(details) {
+  const persistent = isPersistentSession()
+  const response = await request('/api/users/me/change-password', {
+    method: 'PUT',
+    body: { ...details, rememberMe: persistent },
+    auth: true,
+  })
+  if (response?.accessToken !== undefined) {
+    saveLoginResponse(response, { persistent })
+  }
+  return response
+}
+
+/**
+ * Tells the backend to invalidate every access and refresh token of the
+ * signed-in user (renewing an expired access token first if needed).
  * The caller clears the local session whether or not this succeeds.
  */
 export function logout() {

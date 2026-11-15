@@ -169,62 +169,65 @@ export default function NotificationBell() {
               </div>
             ) : (
               <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
-                {recent.map((n) => (
-                  <li
-                    key={n.id}
-                    style={{
-                      padding: '12px 16px',
-                      borderBottom: '1px solid #f8fafc',
-                      backgroundColor: n.read ? '#ffffff' : '#f8fafc',
-                      transition: 'background-color 0.2s',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                      <strong style={{ fontSize: '13px', color: '#1e293b' }}>
-                        {n.title}
-                      </strong>
-                      <span style={{ fontSize: '11px', color: '#94a3b8' }}>
-                        {formatRelativeTime(n.createdAt)}
-                      </span>
-                    </div>
-                    <p style={{ margin: '4px 0 6px', fontSize: '12px', color: '#475569', lineHeight: 1.4 }}>
-                      {n.message}
-                    </p>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      {n.trackingNumber && (
-                        <span
-                          style={{
-                            fontSize: '10px',
-                            fontFamily: 'monospace',
-                            backgroundColor: '#e2e8f0',
-                            padding: '1px 6px',
-                            borderRadius: '4px',
-                            color: '#334155',
-                          }}
-                        >
-                          {n.trackingNumber}
+                {recent.map((n) => {
+                  const isRead = Boolean(n.read ?? n.isRead)
+                  return (
+                    <li
+                      key={n.id}
+                      style={{
+                        padding: '12px 16px',
+                        borderBottom: '1px solid #f8fafc',
+                        backgroundColor: isRead ? '#ffffff' : '#f8fafc',
+                        transition: 'background-color 0.2s',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                        <strong style={{ fontSize: '13px', color: '#1e293b' }}>
+                          {n.title}
+                        </strong>
+                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>
+                          {formatRelativeTime(n.createdAt)}
                         </span>
-                      )}
-                      {!n.read && (
-                        <button
-                          type="button"
-                          onClick={() => markAsRead(n.id)}
-                          style={{
-                            border: 'none',
-                            background: 'none',
-                            color: '#2563eb',
-                            fontSize: '11px',
-                            cursor: 'pointer',
-                            fontWeight: 500,
-                            padding: 0,
-                          }}
-                        >
-                          Mark as read
-                        </button>
-                      )}
-                    </div>
-                  </li>
-                ))}
+                      </div>
+                      <p style={{ margin: '4px 0 6px', fontSize: '12px', color: '#475569', lineHeight: 1.4 }}>
+                        {n.message}
+                      </p>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        {n.trackingNumber && (
+                          <span
+                            style={{
+                              fontSize: '10px',
+                              fontFamily: 'monospace',
+                              backgroundColor: '#e2e8f0',
+                              padding: '1px 6px',
+                              borderRadius: '4px',
+                              color: '#334155',
+                            }}
+                          >
+                            {n.trackingNumber}
+                          </span>
+                        )}
+                        {!isRead && (
+                          <button
+                            type="button"
+                            onClick={() => markAsRead(n.id)}
+                            style={{
+                              border: 'none',
+                              background: 'none',
+                              color: '#2563eb',
+                              fontSize: '11px',
+                              cursor: 'pointer',
+                              fontWeight: 500,
+                              padding: 0,
+                            }}
+                          >
+                            Mark as read
+                          </button>
+                        )}
+                      </div>
+                    </li>
+                  )
+                })}
               </ul>
             )}
           </div>

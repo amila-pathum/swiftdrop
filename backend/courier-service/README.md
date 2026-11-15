@@ -82,7 +82,13 @@ For multipart requests send `data` as an application/json part containing the sa
 
 The checkpoint and optional proof are committed locally before the remote parcel mutation. This is not a distributed database transaction. The remote request carries the same submissionId as `Idempotency-Key`. CONFIRMED returns HTTP 200; processing/unknown returns 202; a definite remote rejection returns 409 and releases the rejected final-proof slot. Rejected checkpoints are retained for audit but are not displayed as accepted tracking events. Unknown outcomes retain evidence for an authenticated retry after 30 seconds. Retry the identical payload, including the same photo, with the same submission ID; changed content returns 409. There is no unattended worker storing user tokens. A crash before confirmation can require retry even if the remote side applied the update.
 
-Member 3 must implement idempotency and atomically validate assignment identity/version before accepting the remote status update. Without those downstream guarantees, local retries cannot provide exactly-once mutations or eliminate an assignment-change race. Ownership checks in courier-service still fail closed.
+Parcel Service now provides transactional `Idempotency-Key` handling and checks
+its current numeric courier assignment under the parcel write lock. Identical
+retries do not duplicate status history or status events. Full assignment
+identity/version validation remains pending because Dispatch still exposes UUID
+profile assignments rather than this service's proposed numeric assignment,
+version and attempt contract. Ownership checks in courier-service continue to
+fail closed until that Dispatch contract is reconciled.
 
 ## Required external contracts (handoffs, not existing functionality)
 

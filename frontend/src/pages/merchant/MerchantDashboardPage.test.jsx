@@ -9,6 +9,7 @@ vi.mock('../../context/AuthContext', () => ({ useAuth: vi.fn() }))
 vi.mock('../../services/merchantService', () => ({
   merchantService: {
     getMyMerchant: vi.fn(),
+    getMyDashboard: vi.fn(),
   },
 }))
 
@@ -25,9 +26,42 @@ const MOCK_MERCHANT = {
   createdAt: '2026-11-12T10:00:00Z',
 }
 
+const MOCK_DASHBOARD_DATA = {
+  totalOrders: 1248,
+  pendingOrders: 86,
+  inTransitOrders: 214,
+  deliveredOrders: 948,
+  otherOrders: 0,
+  recentOrders: [
+    {
+      id: 841,
+      trackingNumber: 'SD-20261112-0841',
+      customerName: 'Olivia Bennett',
+      destination: 'Austin, TX',
+      status: 'IN_TRANSIT',
+      createdAt: '2026-11-12T09:30:00Z',
+      statusHistory: [
+        { status: 'REGISTERED', description: 'Parcel registered', timestamp: '2026-11-12T09:30:00Z' },
+        { status: 'PICKED_UP', description: 'Picked up by courier', timestamp: '2026-11-12T10:15:00Z' },
+        { status: 'IN_TRANSIT', description: 'Package in transit to Austin hub', timestamp: '2026-11-12T11:00:00Z' },
+      ],
+    },
+    {
+      id: 840,
+      trackingNumber: 'SD-20261112-0840',
+      customerName: 'James Wilson',
+      destination: 'Seattle, WA',
+      status: 'PENDING',
+      createdAt: '2026-11-12T08:15:00Z',
+      statusHistory: [],
+    },
+  ],
+}
+
 describe('MerchantDashboardPage', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+    merchantService.getMyDashboard.mockResolvedValue(null)
     useAuth.mockReturnValue({
       user: { id: 1, name: 'Alex Morgan', role: 'MERCHANT' },
     })
@@ -75,8 +109,15 @@ describe('MerchantDashboardPage', () => {
     expect(screen.getByText('Delivered Orders')).toBeInTheDocument()
     expect(screen.getByText('Unavailable (Parcel Service pending)')).toBeInTheDocument()
 
+    // Order statistics links to orders page with filters
+    expect(screen.getByRole('link', { name: /Total Orders/i })).toHaveAttribute('href', '/merchant/orders')
+    expect(screen.getByRole('link', { name: /Pending Orders/i })).toHaveAttribute('href', '/merchant/orders?status=PENDING')
+    expect(screen.getByRole('link', { name: /In Transit Orders/i })).toHaveAttribute('href', '/merchant/orders?status=IN_TRANSIT')
+    expect(screen.getByRole('link', { name: /Delivered Orders/i })).toHaveAttribute('href', '/merchant/orders?status=DELIVERED')
+
     // Recent orders empty state
     expect(screen.getByText('Order data currently unavailable')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'View all orders →' })).toHaveAttribute('href', '/merchant/orders')
 
     // Workflow links
     expect(screen.getByRole('link', { name: 'Manage API keys →' })).toHaveAttribute('href', '/merchant/api-keys')
@@ -146,6 +187,7 @@ describe('MerchantDashboardPage', () => {
 
   it('allows selecting date filter range', async () => {
     merchantService.getMyMerchant.mockResolvedValue(MOCK_MERCHANT)
+    merchantService.getMyDashboard.mockResolvedValue(null)
     renderPage()
 
     await waitFor(() => {
@@ -159,6 +201,69 @@ describe('MerchantDashboardPage', () => {
     fireEvent.click(option30Days)
 
     expect(screen.getByRole('button', { name: 'Filter date range' })).toHaveTextContent('Last 30 days')
+  })
+
+  it('renders real order statistics and recent orders table when dashboard data is returned', async () => {
+    merchantService.getMyMerchant.mockResolvedValue(MOCK_MERCHANT)
+    merchantService.getMyDashboard.mockResolvedValue(MOCK_DASHBOARD_DATA)
+    renderPage()
+
+    await waitFor(() => {
+      expect(screen.getByText('1,248')).toBeInTheDocument()
+    })
+
+    expect(screen.getByText('86')).toBeInTheDocument()
+    expect(screen.getByText('214')).toBeInTheDocument()
+    expect(screen.getByText('948')).toBeInTheDocument()
+
+    // Table rows
+    expect(screen.getByText('SD-20261112-0841')).toBeInTheDocument()
+    expect(screen.getByText('Olivia Bennett')).toBeInTheDocument()
+    expect(screen.getByText('Austin, TX')).toBeInTheDocument()
+    expect(screen.getByText('In transit')).toBeInTheDocument()
+
+    expect(screen.getByText('SD-20261112-0840')).toBeInTheDocument()
+    expect(screen.getByText('James Wilson')).toBeInTheDocument()
+    expect(screen.getByText('Seattle, WA')).toBeInTheDocument()
+  })
+
+  it('opens order status history modal when clicking an order tracking number', async () => {
+    merchantService.getMyMerchant.mockResolvedValue(MOCK_MERCHANT)
+    merchantService.getMyDashboard.mockResolvedValue(MOCK_DASHBOARD_DATA)
+    renderPage()
+
+    await waitFor(() => {
+      expect(screen.getByText('SD-20261112-0841')).toBeInTheDocument()
+    })
+
+    // Click tracking number button
+    fireEvent.click(screen.getByText('SD-20261112-0841'))
+
+    // Modal dialog
+    const modal = screen.getByRole('dialog')
+    expect(modal).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Order Status History' })).toBeInTheDocument()
+    expect(modal).toHaveTextContent('Austin, TX')
+    expect(modal).toHaveTextContent('Package in transit to Austin hub')
+    expect(modal).toHaveTextContent('Picked up by courier')
+
+    // Close modal
+    fireEvent.click(screen.getByRole('button', { name: 'Close' }))
+    expect(screen.queryByRole('heading', { name: 'Order Status History' })).not.toBeInTheDocument()
+  })
+
+  it('links Details button on recent orders row to full order details page', async () => {
+    merchantService.getMyMerchant.mockResolvedValue(MOCK_MERCHANT)
+    merchantService.getMyDashboard.mockResolvedValue(MOCK_DASHBOARD_DATA)
+    renderPage()
+
+    await waitFor(() => {
+      expect(screen.getByText('SD-20261112-0841')).toBeInTheDocument()
+    })
+
+    const detailsLinks = screen.getAllByRole('link', { name: 'Details' })
+    expect(detailsLinks.length).toBe(2)
+    expect(detailsLinks[0]).toHaveAttribute('href', '/merchant/orders?tracking=SD-20261112-0841')
   })
 })
 

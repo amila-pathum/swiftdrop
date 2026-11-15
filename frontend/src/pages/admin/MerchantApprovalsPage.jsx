@@ -143,7 +143,7 @@ export default function MerchantApprovalsPage() {
     try {
       const updated = await merchantService.approveMerchant(merchantToApprove.id)
       setMerchants((prev) => prev.map((m) => (m.id === updated.id ? updated : m)))
-      setActionSuccess(`Merchant "${merchantToApprove.businessName}" has been approved.`)
+      setActionSuccess(`Merchant "${merchantToApprove.businessName}" has been approved and the login account is active.`)
       setMerchantToApprove(null)
       if (detailMerchant?.id === updated.id) {
         setDetailMerchant(updated)
@@ -409,6 +409,8 @@ export default function MerchantApprovalsPage() {
                                   </button>
                                 </>
                               )}
+                              {isApproved && <button type="button" className="action-link action-link-primary"
+                                onClick={() => setMerchantToApprove(merchant)}>Sync account activation</button>}
                             </div>
                           </td>
                         </tr>
@@ -565,7 +567,7 @@ export default function MerchantApprovalsPage() {
           <div className="modal-dialog">
             <div className="modal-header">
               <div>
-                <h2 id="approve-modal-title" className="modal-title">Approve Merchant Application</h2>
+                <h2 id="approve-modal-title" className="modal-title">{merchantToApprove.status === 'APPROVED' ? 'Sync account activation' : 'Approve Merchant Application'}</h2>
                 <p className="modal-subtitle">{merchantToApprove.businessName}</p>
               </div>
               <button
@@ -583,7 +585,7 @@ export default function MerchantApprovalsPage() {
                 Are you sure you want to approve <strong>{merchantToApprove.businessName}</strong> (Reg: <code>{merchantToApprove.registrationNumber}</code>)?
               </p>
               <div className="modal-notice-box" style={{ backgroundColor: '#f0fdf4', borderColor: '#bbf7d0', color: '#166534' }}>
-                Once approved, this merchant will immediately be permitted to create deliveries, generate live API keys, and configure webhooks.
+                Confirm business approval and activate the linked login account. The merchant must sign in again to use their account.
               </div>
             </div>
 
@@ -597,7 +599,7 @@ export default function MerchantApprovalsPage() {
                 onClick={handleApproveConfirm}
                 style={{ backgroundColor: '#16a34a', borderColor: '#16a34a' }}
               >
-                {approving ? 'Approving…' : 'Approve Application'}
+                {approving ? 'Confirming…' : merchantToApprove.status === 'APPROVED' ? 'Confirm activation' : 'Approve Application'}
               </Button>
             </div>
           </div>

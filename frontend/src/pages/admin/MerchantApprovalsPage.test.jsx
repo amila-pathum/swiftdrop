@@ -153,6 +153,27 @@ describe('MerchantApprovalsPage', () => {
     expect(screen.getByText(/Merchant "Harbor & Pine" has been approved/)).toBeInTheDocument()
   })
 
+  it('can synchronize an already-approved business whose login account still needs activation', async () => {
+    merchantService.getAllMerchants.mockResolvedValue([MOCK_MERCHANTS[1]])
+    merchantService.approveMerchant.mockResolvedValue(MOCK_MERCHANTS[1])
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Sync account activation' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm activation' }))
+    await waitFor(() => expect(merchantService.approveMerchant).toHaveBeenCalledWith(2))
+    expect(await screen.findByText(/login account is active/)).toBeInTheDocument()
+  })
+
+  it('keeps approval pending when identity activation cannot be confirmed', async () => {
+    merchantService.getAllMerchants.mockResolvedValue([MOCK_MERCHANTS[0]])
+    merchantService.approveMerchant.mockRejectedValue(new Error('Account activation could not be confirmed'))
+    renderPage()
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Approve Application' }))
+    expect(await screen.findByText('Account activation could not be confirmed')).toBeInTheDocument()
+    expect(screen.queryByText(/login account is active/)).not.toBeInTheDocument()
+    expect(screen.getByText('Pending')).toBeInTheDocument()
+  })
+
   it('rejects a pending merchant application with reason', async () => {
     merchantService.getAllMerchants.mockResolvedValue(MOCK_MERCHANTS)
     merchantService.rejectMerchant.mockResolvedValue({

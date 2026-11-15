@@ -14,6 +14,17 @@ import java.util.Map;
 )
 public class MerchantApiExceptionHandler {
 
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, String>> invalidParameter(Exception exception) {
+        return ResponseEntity.badRequest().body(Map.of("error", "Invalid request parameter"));
+    }
+
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity<Map<String, String>> accessDenied(
+            org.springframework.security.access.AccessDeniedException exception) {
+        return ResponseEntity.status(403).body(Map.of("error", "Access is denied"));
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, String>> invalidOrder(
             MethodArgumentNotValidException exception

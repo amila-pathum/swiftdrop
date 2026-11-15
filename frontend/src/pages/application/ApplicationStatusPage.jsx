@@ -8,6 +8,8 @@ import { getMyApplication } from '../../services/applicationService'
 import { describeError, isNotImplemented } from '../../services/errorMessages'
 import { resolveApplicationView } from '../../utils/applicationStatus'
 import { homePathFor, isActive, requiresApproval } from '../../utils/roles'
+import MerchantProfileSetup from '../merchant/webhooks/MerchantProfileSetup'
+import '../merchant/webhooks/webhooks.css'
 import {
   AccountInactiveView,
   ApplicationApprovedView,
@@ -78,6 +80,16 @@ export default function ApplicationStatusPage() {
     </Button>
   )
   const signOut = <Button variant="ghost" fullWidth onClick={logout}>Sign out</Button>
+
+  if (role === 'MERCHANT' && user?.status === 'PENDING_APPROVAL' && application.error?.status === 404) {
+    return <div className="merchant-scope webhook-page">
+      <MerchantProfileSetup onRefresh={checkLatest} onRegistered={(profile) => setApplication({
+        loaded: true, error: null,
+        data: { status: profile.status, submittedAt: profile.createdAt, reviewNote: profile.rejectionReason },
+      })} />
+      {signOut}
+    </div>
+  }
 
   return (
     <div className="status-stack">

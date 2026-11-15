@@ -1,446 +1,204 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Button from '../../components/Button'
 import FormField from '../../components/FormField'
-import Input from '../../components/Input'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import { merchantService } from '../../services/merchantService'
+import { webhookDeliveries } from '../../services/webhookDeliveries'
+import WebhookPageLayout from './webhooks/WebhookPageLayout'
+import WebhookActionIcon from './webhooks/WebhookActionIcon'
+import WebhookDialog from './webhooks/WebhookDialog'
+import MerchantProfileSetup from './webhooks/MerchantProfileSetup'
 
-function formatDate(value) {
-  if (!value) return '—'
-  const date = new Date(value)
-  return !Number.isNaN(date.getTime())
-    ? date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-    : '—'
-}
+const statuses = [
+  ['Created', 'CREATED'], ['Picked Up', 'PICKED_UP'],
+  ['In Transit', 'IN_TRANSIT'], ['Out for Delivery', 'OUT_FOR_DELIVERY'],
+  ['Delivered', 'DELIVERED'], ['Failed', 'FAILED'], ['Cancelled', 'CANCELLED'],
+]
+const emptySettings = { url: '', enabled: true }
 
 export default function MerchantWebhookPage() {
   const [merchant, setMerchant] = useState(null)
-  const [url, setUrl] = useState('')
-  const [enabled, setEnabled] = useState(true)
-  const [lastRotated, setLastRotated] = useState(null)
-  const [isConfigured, setIsConfigured] = useState(false)
+  const [settings, setSettings] = useState(emptySettings)
+  const [savedSettings, setSavedSettings] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
-  // Status feedback
-  const [successMessage, setSuccessMessage] = useState('')
-  const [formError, setFormError] = useState(null)
-  const [saving, setSaving] = useState(false)
-
-  // New signing secret (shown only once)
+  const [loadError, setLoadError] = useState('')
+  const [profileMissing, setProfileMissing] = useState(false)
+  const [loadVersion, setLoadVersion] = useState(0)
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [operation, setOperation] = useState('')
   const [newSecret, setNewSecret] = useState(null)
-  const [copiedSecret, setCopiedSecret] = useState(false)
-
-  // Rotate Modal
-  const [showRotateModal, setShowRotateModal] = useState(false)
-  const [rotating, setRotating] = useState(false)
-  const [rotateError, setRotateError] = useState(null)
-
-  const handleRetry = () => {
-    setLoading(true)
-    setError(null)
-    merchantService.getMyMerchant()
-      .then((profile) => {
-        setMerchant(profile)
-        if (profile?.status === 'APPROVED') {
-          return merchantService.getWebhookSettings()
-            .then((config) => {
-              if (config) {
-                setUrl(config.url || '')
-                setEnabled(config.enabled ?? true)
-                setLastRotated(config.updatedAt || null)
-                setIsConfigured(true)
-              }
-              setLoading(false)
-            })
-            .catch((webhookErr) => {
-              if (webhookErr?.status === 404) {
-                setIsConfigured(false)
-                setUrl('')
-                setEnabled(true)
-              } else {
-                setError(webhookErr)
-              }
-              setLoading(false)
-            })
-        }
-        setLoading(false)
-      })
-      .catch((err) => {
-        setError(err)
-        setLoading(false)
-      })
-  }
+  const [copied, setCopied] = useState(false)
+  const [rotateOpen, setRotateOpen] = useState(false)
+  const [rotateError, setRotateError] = useState('')
+  const lock = useRef(false)
 
   useEffect(() => {
-    let ignore = false
     const controller = new AbortController()
-
-    merchantService.getMyMerchant(controller.signal)
-      .then((profile) => {
-        if (!ignore) {
-          setMerchant(profile)
-          if (profile?.status === 'APPROVED') {
-            return merchantService.getWebhookSettings(controller.signal)
-              .then((config) => {
-                if (!ignore && config) {
-                  setUrl(config.url || '')
-                  setEnabled(config.enabled ?? true)
-                  setLastRotated(config.updatedAt || null)
-                  setIsConfigured(true)
-                }
-                if (!ignore) {
-                  setLoading(false)
-                }
-              })
-              .catch((webhookErr) => {
-                if (!ignore) {
-                  if (webhookErr?.status === 404) {
-                    setIsConfigured(false)
-                    setUrl('')
-                    setEnabled(true)
-                  } else if (webhookErr?.name !== 'AbortError') {
-                    setError(webhookErr)
-                  }
-                  setLoading(false)
-                }
-              })
+    async function load() {
+      try {
+        let profile
+        try { profile = await merchantService.getMyMerchant(controller.signal) }
+        catch (err) {
+          if (err.status === 404) {
+            if (!controller.signal.aborted) setProfileMissing(true)
+            return
           }
-          setLoading(false)
+          throw err
         }
-      })
-      .catch((err) => {
-        if (!ignore && err?.name !== 'AbortError') {
-          setError(err)
-          setLoading(false)
+        let config = null
+        if (profile?.status === 'APPROVED') {
+          try { config = await merchantService.getWebhookSettings(controller.signal) }
+          catch (err) { if (err.status !== 404) throw err }
         }
-      })
-
-    return () => {
-      ignore = true
-      controller.abort()
+        if (controller.signal.aborted) return
+        setMerchant(profile)
+        setProfileMissing(false)
+        setSavedSettings(config)
+        setSettings(config || emptySettings)
+      } catch (err) {
+        if (!controller.signal.aborted) setLoadError(err.message || 'Unable to load webhook settings.')
+      } finally {
+        if (!controller.signal.aborted) setLoading(false)
+      }
     }
-  }, [])
+    load()
+    return () => controller.abort()
+  }, [loadVersion])
 
-  const handleSaveSettings = async (e) => {
-    e.preventDefault()
-    setFormError(null)
-    setSuccessMessage('')
+  const approved = merchant?.status === 'APPROVED'
+  const busy = Boolean(operation)
+  const dirty = !savedSettings || settings.url.trim() !== savedSettings.url || settings.enabled !== savedSettings.enabled
+  const canTest = approved && savedSettings?.enabled && settings.enabled && !dirty
 
-    if (!url.trim()) {
-      setFormError('Webhook endpoint URL is required.')
+  async function save(event) {
+    event.preventDefault()
+    if (lock.current || !approved) return
+    setError(''); setMessage('')
+    let endpoint
+    try { endpoint = new URL(settings.url.trim()) } catch { /* handled below */ }
+    if (!endpoint || endpoint.protocol !== 'https:' || !endpoint.hostname || endpoint.username || endpoint.password || endpoint.hash) {
+      setError('Webhook URL must be a valid HTTPS URL.')
       return
     }
-
-    if (!url.trim().toLowerCase().startsWith('https://')) {
-      setFormError('Webhook URL must be a valid HTTPS URL.')
-      return
-    }
-
-    setSaving(true)
+    lock.current = true; setOperation('save')
     try {
-      const response = await merchantService.updateWebhookSettings(url.trim(), enabled)
-      setIsConfigured(true)
-      if (response?.settings) {
-        setUrl(response.settings.url)
-        setEnabled(response.settings.enabled)
-        setLastRotated(response.settings.updatedAt)
-      }
-      if (response?.signingSecret) {
-        setNewSecret(response.signingSecret)
-        setCopiedSecret(false)
-      }
-      setSuccessMessage(`Webhook settings saved. Delivery updates are ${enabled ? 'enabled' : 'paused'}.`)
-    } catch (err) {
-      setFormError(err.message || 'Failed to save webhook settings.')
-    } finally {
-      setSaving(false)
-    }
+      const response = await merchantService.updateWebhookSettings(settings.url.trim(), settings.enabled)
+      const config = response.settings
+      setSettings(config); setSavedSettings(config)
+      if (response.signingSecret) { setNewSecret(response.signingSecret); setCopied(false) }
+      setMessage(`Webhook settings saved. Delivery updates are ${config.enabled ? 'enabled' : 'paused'}.`)
+    } catch (err) { setError(err.message || 'Failed to save webhook settings.') }
+    finally { lock.current = false; setOperation('') }
   }
 
-  const handleRotateConfirm = async () => {
-    setRotating(true)
-    setRotateError(null)
+  async function sendTest() {
+    if (lock.current || !canTest) return
+    lock.current = true; setOperation('test'); setError(''); setMessage('')
+    try {
+      await webhookDeliveries.test()
+      setMessage('Test event queued. Open Delivery History to check the receiver outcome.')
+    } catch (err) { setError(err.message || 'Unable to queue the test event.') }
+    finally { lock.current = false; setOperation('') }
+  }
+
+  async function rotate() {
+    if (lock.current || !approved || !savedSettings) return
+    lock.current = true; setOperation('rotate'); setRotateError('')
     try {
       const response = await merchantService.rotateWebhookSecret()
-      if (response?.settings) {
-        setLastRotated(response.settings.updatedAt)
-      }
-      if (response?.signingSecret) {
-        setNewSecret(response.signingSecret)
-        setCopiedSecret(false)
-      }
-      setShowRotateModal(false)
-      setSuccessMessage('Signing secret rotated successfully. Remember to update your application with the new secret.')
-    } catch (err) {
-      setRotateError(err.message || 'Failed to rotate signing secret.')
-    } finally {
-      setRotating(false)
-    }
+      setSavedSettings(response.settings)
+      setNewSecret(response.signingSecret); setCopied(false)
+      setRotateOpen(false)
+      setMessage('Signing secret rotated. Update your receiver with the new secret.')
+    } catch (err) { setRotateError(err.message || 'Failed to rotate signing secret.') }
+    finally { lock.current = false; setOperation('') }
   }
 
-  const handleCopySecret = () => {
-    if (newSecret) {
-      navigator.clipboard.writeText(newSecret)
-      setCopiedSecret(true)
-      setTimeout(() => setCopiedSecret(false), 2500)
-    }
+  async function copySecret() {
+    try {
+      await navigator.clipboard.writeText(newSecret)
+      setCopied(true)
+    } catch { setError('Unable to copy the secret. Select and copy it manually.') }
   }
 
-  const isApproved = merchant?.status === 'APPROVED'
-
-  return (
-    <div className="merchant-scope merchant-webhooks">
-      <nav className="page-breadcrumb" aria-label="Breadcrumb">
-        <span>Workspace</span>
-        <span>/</span>
-        <strong>Webhook settings</strong>
-      </nav>
-
-      <header className="page-header-row">
-        <div>
-          <h1 className="page-title">Webhook Settings</h1>
-          <p className="page-subtitle">Receive real-time updates about your parcel deliveries.</p>
-        </div>
-      </header>
-
-      {/* Success Banner */}
-      {successMessage && (
-        <div className="alert alert-success" role="status" style={{ marginBottom: '20px' }}>
-          <span>✓ {successMessage}</span>
-          <button
-            type="button"
-            className="alert-dismiss"
-            onClick={() => setSuccessMessage('')}
-            aria-label="Dismiss notification"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
-
-      {loading ? (
-        <div className="card status-card status-card-loading" style={{ margin: '30px auto' }}>
-          <LoadingSpinner />
-          <p role="status">Loading webhook settings…</p>
-        </div>
-      ) : error ? (
-        <div className="card status-card" role="alert" style={{ margin: '30px auto' }}>
-          <h2 className="card-title">Unable to load webhook settings</h2>
-          <p className="card-subtitle">{error.message || 'An error occurred while fetching webhook configuration.'}</p>
-          <Button onClick={handleRetry}>Try again</Button>
-        </div>
-      ) : (
-        <>
-          {/* Unapproved Banner */}
-          {!isApproved && (
-            <div className="info-banner info-banner-warning" role="alert">
-              <span className="info-banner-icon" aria-hidden="true">⚠️</span>
-              <div className="info-banner-content">
-                <strong>Webhook settings require business approval</strong>
-                Your merchant account status is <strong>{merchant?.status || 'PENDING'}</strong>. Webhook endpoints and live parcel delivery events will be enabled once your account is approved.
-              </div>
-            </div>
-          )}
-
-          <div className="webhook-grid">
-            {/* Left Column: Endpoint configuration */}
-            <section className="webhook-main-card" aria-label="Endpoint configuration">
-              <div className="webhook-card-header">
-                <h2>Endpoint configuration</h2>
-                <p>Send delivery events directly to your application.</p>
-              </div>
-
-              <form onSubmit={handleSaveSettings} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                {formError && (
-                  <div className="alert alert-error" role="alert">
-                    {formError}
-                  </div>
-                )}
-
-                <FormField
-                  id="webhook-url"
-                  label="Webhook Endpoint URL"
-                  hint="Must be a secure HTTPS URL capable of receiving POST events."
-                  type="url"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  placeholder="https://api.urbannest.co/webhooks/swiftdrop"
-                  disabled={!isApproved}
-                  required
-                />
-
-                {/* Toggle Row */}
-                <div className="toggle-row">
-                  <div className="toggle-info">
-                    <strong>Enable Webhook</strong>
-                    <p>Receive events at your endpoint. Turn off to pause delivery.</p>
-                  </div>
-
-                  <label className="toggle-control">
-                    <input
-                      type="checkbox"
-                      checked={enabled}
-                      onChange={(e) => isApproved && setEnabled(e.target.checked)}
-                      disabled={!isApproved}
-                      style={{ position: 'absolute', opacity: 0, width: 0, height: 0 }}
-                      aria-label="Enable Webhook"
-                    />
-                    <span className={`toggle-switch ${enabled ? 'toggle-switch-on' : ''}`}>
-                      <span className="toggle-switch-handle" />
-                    </span>
-                    <span className="toggle-status-label">{enabled ? 'Enabled' : 'Disabled'}</span>
-                  </label>
-                </div>
-
-                {/* Signing Secret Section */}
-                <div className="secret-section">
-                  <div className="secret-header">
-                    <span className="secret-title">Signing Secret</span>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      disabled={!isApproved || !isConfigured}
-                      onClick={() => setShowRotateModal(true)}
-                      title={!isConfigured ? 'Save endpoint first to generate a secret' : undefined}
-                    >
-                      Rotate Secret
-                    </Button>
-                  </div>
-
-                  <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: 0 }}>
-                    Verify incoming requests using the <code>SwiftDrop-Signature</code> header.
-                  </p>
-
-                  {/* Secret display box */}
-                  {newSecret ? (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      <div className="modal-notice-box" style={{ margin: 0 }}>
-                        <strong>New signing secret generated:</strong>
-                        Copy it now. After navigating away, the secret will be masked.
-                      </div>
-                      <div className="secret-display-box" style={{ backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' }}>
-                        <code style={{ wordBreak: 'break-all' }}>{newSecret}</code>
-                        <Button type="button" variant="secondary" onClick={handleCopySecret}>
-                          {copiedSecret ? '✓ Copied' : 'Copy'}
-                        </Button>
-                      </div>
-                    </div>
-                  ) : isConfigured ? (
-                    <div className="secret-display-box">
-                      <span>whsec_••••••••••••••••••••••••••••</span>
-                      <span className="secret-rotated-time">
-                        {lastRotated ? `Last rotated ${formatDate(lastRotated)}` : 'Active'}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="secret-display-box" style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>
-                      A secret will be generated automatically when you save your configuration.
-                    </div>
-                  )}
-
-                  <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', margin: 0 }}>
-                    Secrets are only visible once, immediately after generation.
-                  </p>
-                </div>
-
-                {/* Footer */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: '12px', paddingTop: '16px', borderTop: '1px solid var(--color-border)', flexWrap: 'wrap', gap: '12px' }}>
-                  <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                    Changes apply to future delivery events.
-                  </span>
-                  <Button type="submit" disabled={saving || !isApproved}>
-                    {saving ? 'Saving…' : 'Save Settings'}
-                  </Button>
-                </div>
-              </form>
+  return <WebhookPageLayout>
+    {message && <div className="alert alert-success webhook-feedback" role="status">{message}</div>}
+    {error && <div className="alert alert-error webhook-feedback" role="alert">{error}</div>}
+    {loading ? <div className="webhook-status-card"><LoadingSpinner /><p role="status">Loading webhook settings…</p></div>
+      : loadError ? <div className="webhook-status-card" role="alert">
+        <h2>Unable to load webhook settings</h2><p>{loadError}</p>
+        <Button onClick={() => { setLoadError(''); setLoading(true); setLoadVersion((n) => n + 1) }}>Try again</Button>
+      </div> : profileMissing ? <MerchantProfileSetup
+        onRefresh={() => { setLoadError(''); setLoading(true); setLoadVersion((n) => n + 1) }}
+        onRegistered={(profile) => {
+          setMerchant(profile); setProfileMissing(false)
+          setMessage('Business profile submitted. An administrator must approve it before you can configure webhooks.')
+        }} /> : <>
+        {!approved && <div className="info-banner info-banner-warning webhook-feedback" role="alert">
+          <div className="info-banner-content"><strong>Webhook settings require business approval</strong>
+            Your business profile status is {merchant?.status || 'PENDING'}. Ask an administrator to review it, then refresh this page.
+          </div>
+        </div>}
+        <section className="webhook-endpoint-card" aria-label="Endpoint configuration">
+          <div className="webhook-endpoint-heading"><h2>Endpoint</h2></div>
+          <form className="webhook-endpoint-form" onSubmit={save} noValidate>
+            <FormField id="webhook-url" label="Endpoint URL" type="url" required
+              hint="Use an HTTPS endpoint that accepts POST requests."
+              value={settings.url} onChange={(event) => setSettings({ ...settings, url: event.target.value })}
+              disabled={!approved || busy} placeholder="https://your-store.example/hooks/swiftdrop" />
+            <section className="webhook-event-section" aria-labelledby="webhook-events-title">
+              <h3 id="webhook-events-title">Status-change events</h3>
+              <ul className="webhook-event-grid">
+                {statuses.map(([label, status]) => <li key={status}>
+                  <WebhookActionIcon name="check" /><span>{label}</span><code>{status}</code>
+                </li>)}
+              </ul>
+              <p className="webhook-help">All parcel status changes are sent while the endpoint is enabled.</p>
             </section>
-
-            {/* Right Column: Information Cards */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <section className="info-card" aria-label="Delivery events">
-                <h3>Delivery events</h3>
-                <p>Your endpoint receives these events:</p>
-                <div style={{ marginTop: '8px' }}>
-                  <div className="event-item">
-                    <span className="event-name">parcel.created</span>
-                    <span className="event-desc">A new parcel is registered</span>
-                  </div>
-                  <div className="event-item">
-                    <span className="event-name">parcel.in_transit</span>
-                    <span className="event-desc">A parcel is on its way</span>
-                  </div>
-                  <div className="event-item">
-                    <span className="event-name">parcel.delivered</span>
-                    <span className="event-desc">Delivery is complete</span>
-                  </div>
-                  <div className="event-item">
-                    <span className="event-name">parcel.delivery_failed</span>
-                    <span className="event-desc">A delivery needs attention</span>
-                  </div>
-                </div>
-              </section>
-
-              <section className="info-card" aria-label="Set up a reliable endpoint">
-                <h3>Set up a reliable endpoint</h3>
-                <p>
-                  Use HTTPS and return a 2xx response to acknowledge each event. Validate signatures before processing any delivery updates.
-                </p>
-                <div className="info-card-links">
-                  <a href="#webhook-docs" className="action-link action-link-primary">
-                    View webhook documentation ↗
-                  </a>
-                </div>
-              </section>
-            </div>
-          </div>
-        </>
-      )}
-
-      {/* Rotate Secret Confirmation Modal */}
-      {showRotateModal && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="rotate-modal-title">
-          <div className="modal-dialog">
-            <div className="modal-header">
-              <div>
-                <h2 id="rotate-modal-title" className="modal-title">Rotate Signing Secret</h2>
-                <p className="modal-subtitle">Invalidate the current secret and issue a new one</p>
+            <label className="webhook-enable-control">
+              <input type="checkbox" role="switch" checked={settings.enabled} disabled={!approved || busy}
+                onChange={(event) => setSettings({ ...settings, enabled: event.target.checked })}
+                aria-label="Endpoint enabled" />
+              <span className={`toggle-switch ${settings.enabled ? 'toggle-switch-on' : ''}`} aria-hidden="true"><span className="toggle-switch-handle" /></span>
+              <span>Endpoint {settings.enabled ? 'enabled' : 'disabled'}</span>
+            </label>
+            <section className="secret-section" aria-labelledby="webhook-secret-title">
+              <div className="secret-header">
+                <h3 id="webhook-secret-title" className="secret-title">Signing secret</h3>
+                <Button variant="secondary" size="sm" disabled={!approved || !savedSettings || busy}
+                  onClick={() => { setRotateError(''); setRotateOpen(true) }}>Rotate secret</Button>
               </div>
-              <button
-                type="button"
-                className="modal-close-btn"
-                onClick={() => setShowRotateModal(false)}
-                aria-label="Close dialog"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="modal-body">
-              {rotateError && (
-                <div className="alert alert-error" role="alert">
-                  {rotateError}
+              <p className="webhook-help">Verify requests using the <code>X-SwiftDrop-Signature</code> and timestamp headers.</p>
+              {newSecret ? <>
+                <p className="webhook-help">Copy this secret now. It is only shown after generation and is cleared when you leave this page.</p>
+                <div className="secret-display-box secret-new"><code>{newSecret}</code>
+                  <Button variant="secondary" size="sm" onClick={copySecret}>{copied ? 'Copied' : 'Copy'}</Button>
                 </div>
-              )}
-              <p style={{ margin: 0 }}>
-                Are you sure you want to rotate your signing secret?
-              </p>
-              <div className="modal-notice-box" style={{ backgroundColor: '#fffbeb', borderColor: '#fde68a', color: '#92400e' }}>
-                Your current secret will be immediately revoked. Any incoming webhook deliveries validated with the old secret will fail until you update your application configuration.
-              </div>
-            </div>
-
-            <div className="modal-footer">
-              <Button variant="secondary" type="button" onClick={() => setShowRotateModal(false)}>
-                Cancel
+              </> : savedSettings ? <div className="secret-display-box">
+                <span aria-label="Signing secret hidden">••••••••••••••••••••••••</span>
+                <span className="secret-rotated-time">Secret saved securely</span>
+              </div> : <p className="webhook-help">A secret will be generated automatically when you save your configuration.</p>}
+            </section>
+            {approved && (!savedSettings || dirty) && <p className="webhook-help">Save changes before sending a test event.</p>}
+            {approved && savedSettings && !savedSettings.enabled && !dirty && <p className="webhook-help">Enable the endpoint and save changes before sending a test event.</p>}
+            <div className="webhook-form-actions">
+              <Button variant="secondary" disabled={busy || !canTest} loading={operation === 'test'} loadingText="Queuing…" onClick={sendTest}>
+                <WebhookActionIcon name="send" />Send Test Event
               </Button>
-              <Button type="button" onClick={handleRotateConfirm} disabled={rotating}>
-                {rotating ? 'Rotating…' : 'Rotate Secret'}
-              </Button>
+              <Button type="submit" disabled={busy || !approved} loading={operation === 'save'} loadingText="Saving…">Save changes</Button>
             </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
+          </form>
+        </section>
+        <p className="webhook-footnote">Failed deliveries retry after 1, 5, 15 and 60 minutes, up to five attempts in total.
+          Payloads include the tracking number, your order reference, the new status, event ID and timestamp.</p>
+      </>}
+    {rotateOpen && <WebhookDialog title="Rotate signing secret" onClose={() => setRotateOpen(false)} busy={busy}
+      footer={<><Button variant="secondary" disabled={busy} onClick={() => setRotateOpen(false)}>Cancel</Button>
+        <Button loading={operation === 'rotate'} loadingText="Rotating…" onClick={rotate}>Rotate secret</Button></>}>
+      {rotateError && <div className="alert alert-error" role="alert">{rotateError}</div>}
+      <p>Invalidate the current signing secret and issue a new one?</p>
+      <p className="webhook-secret-notice">Update your receiver immediately after rotating. Requests signed with the new secret cannot be verified using the old one.</p>
+    </WebhookDialog>}
+  </WebhookPageLayout>
 }

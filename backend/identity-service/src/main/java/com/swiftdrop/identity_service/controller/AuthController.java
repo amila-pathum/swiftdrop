@@ -6,6 +6,7 @@ import com.swiftdrop.identity_service.dto.LoginResponse;
 import com.swiftdrop.identity_service.dto.MessageResponse;
 import com.swiftdrop.identity_service.dto.PasswordResetConfirmRequest;
 import com.swiftdrop.identity_service.dto.PasswordResetRequest;
+import com.swiftdrop.identity_service.dto.RefreshRequest;
 import com.swiftdrop.identity_service.dto.RegisterRequest;
 import com.swiftdrop.identity_service.dto.UserResponse;
 import com.swiftdrop.identity_service.security.AuthenticatedUser;
@@ -65,7 +66,16 @@ public class AuthController {
         return authService.exchangeGoogleCode(request);
     }
 
-    /** Invalidates every access token of the signed-in user. */
+    /**
+     * Exchanges a refresh token for new tokens. Public: the access token may
+     * already have expired. Answers 401 if the refresh token is not accepted.
+     */
+    @PostMapping("/refresh")
+    public LoginResponse refresh(@Valid @RequestBody RefreshRequest request) {
+        return authService.refresh(request);
+    }
+
+    /** Invalidates every access and refresh token of the signed-in user. */
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(@AuthenticationPrincipal AuthenticatedUser principal) {
         authService.logout(principal.id());

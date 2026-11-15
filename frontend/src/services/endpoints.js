@@ -43,7 +43,8 @@ export const ENDPOINTS = Object.freeze({
     method: 'POST',
     path: '/api/auth/login',
     available: true,
-    // Body: { email, password } -> LoginResponse { accessToken, tokenType, expiresIn, user }
+    // Body: { email, password, rememberMe? } -> LoginResponse { accessToken,
+    // tokenType, expiresIn, refreshToken, refreshExpiresIn, user }
     // ACTIVE and PENDING_APPROVAL accounts may sign in; SUSPENDED and DISABLED get 403.
   },
   logout: {
@@ -51,7 +52,16 @@ export const ENDPOINTS = Object.freeze({
     path: '/api/auth/logout',
     available: true,
     auth: true,
-    // -> 204. Invalidates every access token of the signed-in user.
+    // -> 204. Invalidates every access and refresh token of the signed-in user.
+  },
+  refresh: {
+    method: 'POST',
+    path: '/api/auth/refresh',
+    available: true,
+    // Body: { refreshToken } -> LoginResponse with a new access token and a
+    // new refresh token; the old refresh token cannot be used again. 401 when
+    // the refresh token is unknown, used, expired or revoked. Called only by
+    // apiClient.refreshSession.
   },
   googleExchange: {
     method: 'POST',
@@ -89,30 +99,57 @@ export const ENDPOINTS = Object.freeze({
     // ADMIN only. Body: { name, email, password, role: "DISPATCHER" }
     // -> 201 { id, name, email, role, status, createdAt }.
   },
+  listAdminUsers: {
+    method: 'GET',
+    path: '/api/admin/users',
+    available: true,
+    auth: true,
+    // ADMIN only. Query: search, q, role, status, page (0-based), size, sort
+    // -> Page<UserResponse> { content:[{id,name,email,phone,address,role,status,createdAt}],
+    //    totalPages, totalElements, number, size }
+  },
+  getAdminUser: {
+    method: 'GET',
+    path: '/api/admin/users/:id',
+    available: true,
+    auth: true,
+    // ADMIN only. -> UserResponse
+  },
+  changeUserRole: {
+    method: 'PATCH',
+    path: '/api/admin/users/:id/role',
+    available: true,
+    auth: true,
+    // ADMIN only. Body: { role: "CUSTOMER"|"MERCHANT"|"COURIER"|"DISPATCHER"|"ADMIN" }
+    // -> Updated UserResponse. Admin cannot change their own role (403).
+  },
+  changeUserStatus: {
+    method: 'PATCH',
+    path: '/api/admin/users/:id/status',
+    available: true,
+    auth: true,
+    // ADMIN only. Body: { status: "ACTIVE"|"SUSPENDED"|"DISABLED" }
+    // -> Updated UserResponse. Invalidates all existing tokens for the user.
+    // Admin cannot change their own status (403).
+  },
 
   // ---------------------------------------------------------------- Merchant
   merchantApplication: {
     method: 'POST',
-    path: '/api/merchants/applications',
-    available: false,
+    path: '/api/merchants/register',
+    available: true,
     auth: true,
-    // PLANNED (Merchant Service). Called with the new merchant's own token.
-    // Body: { businessName, businessRegistrationNumber, businessEmail,
-    //         businessPhone, businessAddress }
-    // -> 201 { id, status: "PENDING", submittedAt }. 409 if already applied.
-    //
-    // Permission contract: the caller has authority APPLICANT_MERCHANT (pending)
-    // or ROLE_MERCHANT (active). Use:
-    //   @PreAuthorize("hasAnyAuthority('APPLICANT_MERCHANT','ROLE_MERCHANT')")
-    // Never read the raw JWT "role" claim to authorize this endpoint.
+    // Merchant Service's implemented registration contract. Uses the applicant's JWT.
+    // Body: { businessName, registrationNumber, contactName, email, phone, address }
+    // -> 201 MerchantResponse with status PENDING. 409 if already applied.
   },
   myMerchantApplication: {
     method: 'GET',
-    path: '/api/merchants/me/application',
-    available: false,
+    path: '/api/merchants/me',
+    available: true,
     auth: true,
-    // PLANNED (Merchant Service). Requires APPLICANT_MERCHANT or ROLE_MERCHANT.
-    // -> { status, submittedAt, reviewedAt, reviewNote }. 404 if none submitted.
+    // -> MerchantResponse. The application service maps createdAt/rejectionReason
+    // to the status page's submittedAt/reviewNote fields. 404 if none submitted.
   },
 
   // ----------------------------------------------------------------- Courier

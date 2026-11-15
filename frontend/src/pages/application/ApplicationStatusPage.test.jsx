@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, fireEvent, render, screen } from '@testing-library/react'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import ApplicationStatusPage from './ApplicationStatusPage'
@@ -6,8 +6,10 @@ import ApplicationSubmittedPage from './ApplicationSubmittedPage'
 import { useAuth } from '../../context/AuthContext'
 import { ApiError, ApiErrorKind } from '../../services/apiClient'
 import { getMyApplication } from '../../services/applicationService'
+import { merchantService } from '../../services/merchantService'
 
 vi.mock('../../context/AuthContext', () => ({ useAuth: vi.fn() }))
+vi.mock('../../services/merchantService', () => ({ merchantService: { registerMyMerchant: vi.fn() } }))
 vi.mock('../../services/applicationService', async (importOriginal) => ({
   ...(await importOriginal()),
   getMyApplication: vi.fn(),
@@ -44,6 +46,31 @@ const title = () => screen.getByRole('heading', { level: 1 })
 describe('ApplicationStatusPage', () => {
   afterEach(() => {
     vi.resetAllMocks()
+  })
+
+  it('allows an already-created pending merchant to submit its missing business profile', async () => {
+    mockAuth('MERCHANT', 'PENDING_APPROVAL')
+    getMyApplication.mockRejectedValue(new ApiError('Merchant application not found', { status: 404 }))
+    merchantService.registerMyMerchant.mockResolvedValue({ id: 7, status: 'PENDING', createdAt: '2026-11-14T00:00:00Z' })
+    await renderStatus()
+    expect(screen.getByRole('heading', { name: 'Set up your business profile' })).toBeInTheDocument()
+    const details = { businessName: 'Example Store', registrationNumber: 'BR-001', contactName: 'Owner',
+      email: 'owner@example.test', phone: '0771234567', address: 'Example Street' }
+    for (const [name, value] of Object.entries(details)) {
+      fireEvent.change(document.getElementById(`merchant-setup-${name}`), { target: { value } })
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Submit business profile' }))
+    expect(await screen.findByRole('heading', { name: 'Application pending' })).toBeInTheDocument()
+    expect(merchantService.registerMyMerchant).toHaveBeenCalledWith(details)
+    expect(screen.queryByRole('link', { name: 'Go to your dashboard' })).not.toBeInTheDocument()
+  })
+
+  it('does not offer profile registration to suspended merchants', async () => {
+    mockAuth('MERCHANT', 'SUSPENDED')
+    getMyApplication.mockRejectedValue(new ApiError('Not found', { status: 404 }))
+    await renderStatus()
+    expect(title()).toHaveTextContent('Account not active')
+    expect(screen.queryByRole('button', { name: 'Submit business profile' })).not.toBeInTheDocument()
   })
 
   it('falls back to the account status while the application endpoint is planned', async () => {

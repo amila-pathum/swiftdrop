@@ -21,12 +21,14 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final RefreshTokenService refreshTokens;
 
     public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder,
-            JwtService jwtService) {
+            JwtService jwtService, RefreshTokenService refreshTokens) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.refreshTokens = refreshTokens;
     }
 
     @Transactional(readOnly = true)
@@ -86,8 +88,10 @@ public class UserService {
         user.invalidateTokens();
         userRepository.save(user);
 
-        String token = jwtService.generateToken(user);
-        return new LoginResponse(token, "Bearer", jwtService.getExpirationSeconds(),
+        // Every other session ends; this one continues with fresh tokens.
+        var refresh = refreshTokens.issue(user, request.persistent());
+        return new LoginResponse(jwtService.generateToken(user), "Bearer",
+            jwtService.getExpirationSeconds(), refresh.token(), refresh.expiresInSeconds(),
             UserResponse.from(user));
     }
 }
