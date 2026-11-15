@@ -21,6 +21,7 @@ class MerchantOrderStoreIntegrationTest {
         var jdbc = new JdbcTemplate(ds);
         jdbc.execute("DROP TABLE IF EXISTS merchant_integration_orders");
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V4__create_merchant_integration_orders.sql")).execute(ds);
+        new ResourceDatabasePopulator(new ClassPathResource("db/migration/V5__store_integration_parcel_details.sql")).execute(ds);
         store = new MerchantOrderStore(jdbc);
     }
     @Test void concurrentReservationHasExactlyOneWinner() throws Exception {

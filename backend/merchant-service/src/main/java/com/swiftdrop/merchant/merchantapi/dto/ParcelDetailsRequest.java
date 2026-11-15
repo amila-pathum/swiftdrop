@@ -30,7 +30,17 @@ public record ParcelDetailsRequest(
         BigDecimal heightCm,
 
         @Size(max = 1000)
-        String handlingNote
+        String handlingNote,
+
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        @jakarta.validation.constraints.Pattern(regexp="SMALL|MEDIUM|LARGE") String size,
+        @com.fasterxml.jackson.annotation.JsonInclude(com.fasterxml.jackson.annotation.JsonInclude.Include.NON_NULL)
+        @jakarta.validation.constraints.Pattern(regexp="STANDARD|EXPRESS") String serviceType
 
 ) {
+    public ParcelDetailsRequest(String description, BigDecimal weightKg, BigDecimal lengthCm,
+            BigDecimal widthCm, BigDecimal heightCm, String handlingNote) {
+        this(description, weightKg, lengthCm, widthCm, heightCm, handlingNote, null, null);
+    }
+    @Override public String toString() { return "ParcelDetailsRequest[weightKg=" + weightKg + "]"; }
 }

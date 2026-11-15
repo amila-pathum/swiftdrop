@@ -257,9 +257,11 @@ export default function MerchantOrdersPage() {
     const lastUpdate = formatDateTime(selectedOrder.updatedAt || selectedOrder.createdAt)
     const pickupCity = extractCity(selectedOrder.pickupAddress || merchantProfile?.address)
     const weightNum = Number(selectedOrder.weight) || 1.0
-    const baseFee = 350
-    const extraWeightFee = weightNum > 1 ? Math.round((weightNum - 1) * 100) : 0
-    const totalCharge = Number(selectedOrder.charge) || (baseFee + extraWeightFee)
+    // Parcel responses retain the booked charge, but not its historical breakdown.
+    // Never reconstruct that breakdown using guessed or currently published rates.
+    const totalCharge = selectedOrder.charge
+    const hasCharge = totalCharge !== null && totalCharge !== undefined &&
+      String(totalCharge).trim() !== '' && Number.isFinite(Number(totalCharge)) && Number(totalCharge) >= 0
 
     return (
       <div className="merchant-scope">
@@ -460,21 +462,12 @@ export default function MerchantOrdersPage() {
             {/* Fee Summary */}
             <div className="detail-card">
               <h2 className="detail-card-title">Fee summary</h2>
-              <div className="fee-row">
-                <span>Base fee (first 1 kg)</span>
-                <span>LKR {baseFee.toFixed(2)}</span>
-              </div>
-              <div className="fee-row">
-                <span>Additional weight</span>
-                <span>LKR {extraWeightFee.toFixed(2)}</span>
-              </div>
-              <div className="fee-row">
-                <span>Size surcharge ({selectedOrder.size || 'Small'})</span>
-                <span>LKR 0.00</span>
-              </div>
+              <p className="muted">{hasCharge
+                ? 'Charge recorded when this shipment was booked. Itemized fees are not available for this order.'
+                : 'The recorded delivery charge is currently unavailable.'}</p>
               <div className="fee-total-row">
-                <span>Estimated delivery fee</span>
-                <span>{money(totalCharge)}</span>
+                <span>Booked delivery fee</span>
+                <span>{hasCharge ? money(totalCharge) : 'Unavailable'}</span>
               </div>
             </div>
           </div>

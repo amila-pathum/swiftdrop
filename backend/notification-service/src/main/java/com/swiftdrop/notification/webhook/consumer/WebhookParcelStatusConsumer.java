@@ -2,6 +2,7 @@ package com.swiftdrop.notification.webhook.consumer;
 
 import com.swiftdrop.notification.event.ParcelStatusChangedEvent;
 import com.swiftdrop.notification.webhook.retry.WebhookEventRecorder;
+import com.swiftdrop.notification.webhook.retry.MerchantProfileLookup;
 import org.springframework.amqp.rabbit.annotation.RabbitListener;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -18,15 +19,18 @@ public class WebhookParcelStatusConsumer {
 
     private final ObjectReader reader;
     private final WebhookEventRecorder recorder;
+    private final MerchantProfileLookup merchants;
 
     public WebhookParcelStatusConsumer(
             ObjectMapper objectMapper,
-            WebhookEventRecorder recorder
+            WebhookEventRecorder recorder,
+            MerchantProfileLookup merchants
     ) {
         this.reader = objectMapper
                 .readerFor(ParcelStatusChangedEvent.class)
                 .without(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
         this.recorder = recorder;
+        this.merchants = merchants;
     }
 
     @RabbitListener(
@@ -43,12 +47,15 @@ public class WebhookParcelStatusConsumer {
             return;
         }
 
-        // Do not catch database failures here.
+        var profileId = merchants.profileForUser(event.merchantId());
+        if (profileId.isEmpty()) return;
+
+        // Dependency/database failures must propagate: never fall back to the input user ID.
         // The listener must fail if durable persistence fails.
         recorder.record(
                 event.eventId(),
                 event.occurredAt(),
-                event.merchantId(),
+                profileId.get(),
                 event.trackingNumber(),
                 event.merchantOrderReference(),
                 event.newStatus()

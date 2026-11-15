@@ -92,6 +92,12 @@ public class MerchantWebhookService {
         return merchant;
     }
 
+    @Transactional(readOnly = true)
+    public Long profileIdForUser(Long userId) {
+        return merchants.findByUserId(userId).orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Merchant profile not found")).getId();
+    }
+
     private void validateHttpsUrl(String url) {
         try {
             URI uri = URI.create(url.trim());

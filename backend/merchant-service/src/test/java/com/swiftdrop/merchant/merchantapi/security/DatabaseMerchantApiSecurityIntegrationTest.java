@@ -35,6 +35,14 @@ class DatabaseMerchantApiSecurityIntegrationTest {
     @Autowired MockMvc mockMvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired MerchantApiKeyService keyService;
+    @Autowired org.springframework.context.ApplicationContext context;
+
+    @Test
+    void keyServiceIsTheOnlyRegisteredLookup() {
+        var lookups = context.getBeansOfType(MerchantApiKeyLookup.class);
+        org.junit.jupiter.api.Assertions.assertEquals(1, lookups.size());
+        org.junit.jupiter.api.Assertions.assertSame(keyService, lookups.values().iterator().next());
+    }
 
     private Long userId;
 
