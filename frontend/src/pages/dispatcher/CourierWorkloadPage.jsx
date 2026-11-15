@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Button from '../../components/Button'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import { dispatchService } from '../../services/dispatchService'
+import { availabilityLabel, formatDateTime, statusLabel } from './dispatchFormat'
 
 export default function CourierWorkloadPage() {
   const [couriers, setCouriers] = useState([])
@@ -32,7 +33,10 @@ export default function CourierWorkloadPage() {
     setAssignedParcels([])
     setError('')
     try {
-      setAssignedParcels(await dispatchService.getCourierParcels(courier.courierId))
+      const result = await dispatchService.getAssignments({
+        state: 'ACTIVE', courierId: courier.courierId, pageSize: 100,
+      })
+      setAssignedParcels(result.content)
     } catch (requestError) {
       setError(requestError.message || 'Unable to load this courier’s active parcels.')
     }
@@ -43,7 +47,7 @@ export default function CourierWorkloadPage() {
       <header className="dispatch-page-header">
         <div>
           <h1>Courier workload</h1>
-          <p>Active assignment counts are calculated from Dispatch’s assignment records.</p>
+          <p>Active delivery counts come from Dispatch’s assignment records; availability from Courier service.</p>
         </div>
         <Button variant="secondary" onClick={load}>Refresh</Button>
       </header>
@@ -56,15 +60,15 @@ export default function CourierWorkloadPage() {
             <article className="dispatch-courier-card card" key={courier.courierId}>
               <div>
                 <strong>{courier.name}</strong>
-                <span className={courier.active && courier.available
-                  ? 'availability available' : 'availability unavailable'}>
-                  {!courier.active ? 'Inactive' : courier.available ? 'Available' : 'Unavailable'}
+                <span className={courier.available ? 'availability available' : 'availability unavailable'}>
+                  {availabilityLabel(courier)}
                 </span>
               </div>
               <div className="dispatch-courier-card-actions">
-                <span className="workload-count">{courier.activeParcelCount}<small> active parcels</small></span>
-                <Button variant="secondary" onClick={() => showAssignedParcels(courier)}>
-                  Assigned parcels
+                <span className="workload-count">{courier.activeParcelCount}<small> active deliveries</small></span>
+                <Button variant="secondary" onClick={() => showAssignedParcels(courier)}
+                  aria-label={`Show active parcels of ${courier.name}`}>
+                  Active parcels
                 </Button>
               </div>
             </article>
@@ -84,11 +88,11 @@ export default function CourierWorkloadPage() {
             <div className="dispatch-table-wrap">
               <table className="dispatch-table">
                 <thead><tr><th>Parcel</th><th>Status</th><th>Assigned at</th></tr></thead>
-                <tbody>{assignedParcels.map((parcel) => (
-                  <tr key={parcel.parcelId}>
-                    <td>{parcel.trackingNumber || parcel.parcelId}</td>
-                    <td>{parcel.status || 'CREATED'}</td>
-                    <td>{new Date(parcel.assignedAt).toLocaleString()}</td>
+                <tbody>{assignedParcels.map((assignment) => (
+                  <tr key={assignment.assignmentId}>
+                    <td>{assignment.trackingNumber}</td>
+                    <td>{statusLabel(assignment.parcelStatus)}</td>
+                    <td>{formatDateTime(assignment.assignedAt)}</td>
                   </tr>
                 ))}</tbody>
               </table>
