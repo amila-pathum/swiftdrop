@@ -5498,9 +5498,9 @@ a.button {
 }
 
 .delivery-badge-in-transit {
-  background-color: #eff6ff;
-  border: 1px solid #bfdbfe;
-  color: #2563eb;
+  background-color: #eef2ff;
+  border: 1px solid #c7d2fe;
+  color: #4f46e5;
 }
 
 .delivery-badge-delivered {
@@ -5529,9 +5529,9 @@ a.button {
 }
 
 .delivery-badge-cancelled {
-  background-color: #f1f5f9;
-  border: 1px solid #e2e8f0;
-  color: #64748b;
+  background-color: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #dc2626;
 }
 
 .delivery-actions-cell {
@@ -5746,87 +5746,106 @@ a.button {
 
 .customer-track-card {
   background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 10px;
-  padding: 10px 18px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  border: 1px solid #eef2f6;
+  border-radius: 12px;
+  padding: 20px 24px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
 }
 
-.customer-track-content {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
+.tracking-search-card-form {
   width: 100%;
-  flex-wrap: wrap;
+  display: flex;
+  flex-direction: column;
 }
 
-.customer-track-info {
+.tracking-search-card-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 10px;
+  display: block;
+}
+
+.tracking-search-card-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  width: 100%;
+}
+
+.tracking-search-card-input {
   flex: 1;
-  min-width: 200px;
-}
-
-.customer-track-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--color-primary);
-  flex-shrink: 0;
-}
-
-.customer-track-label {
-  font-size: 13.5px;
-  color: #334155;
-  line-height: 1.4;
-}
-
-.customer-track-label strong {
-  color: #0f172a;
-  font-weight: 600;
-}
-
-.customer-track-input-wrap {
-  min-width: 260px;
-  max-width: 380px;
-  flex: 1;
-}
-
-.customer-track-input-wrap .tracking-search {
-  max-width: none;
-}
-
-.customer-track-input-wrap .tracking-search-row {
-  padding: 3px 3px 3px 12px;
-  border-radius: 8px;
+  min-width: 0;
+  height: 42px;
+  padding: 0 14px;
+  background: #ffffff;
   border: 1px solid #cbd5e1;
-  box-shadow: none;
-  background: #f8fafc;
+  border-radius: 8px;
+  font-size: 14px;
+  color: #0f172a;
   transition: all 0.15s ease;
 }
 
-.customer-track-input-wrap .tracking-search-row:focus-within {
-  background: #ffffff;
-  border-color: var(--color-primary);
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
-}
-
-.customer-track-input-wrap .tracking-search-input {
-  height: 32px;
-  font-size: 13px;
-}
-
-.customer-track-input-wrap .tracking-search-input::placeholder {
+.tracking-search-card-input::placeholder {
   color: #94a3b8;
-  font-size: 13px;
+  font-size: 14px;
 }
 
-.customer-track-input-wrap .button-sm {
-  height: 30px;
-  padding: 0 14px;
+.tracking-search-card-input:focus {
+  outline: none;
+  border-color: var(--color-primary, #2563eb);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.tracking-search-card-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 42px;
+  padding: 0 20px;
+  background-color: var(--color-primary, #2563eb);
+  color: #ffffff;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, box-shadow 0.15s ease;
+  flex-shrink: 0;
+}
+
+.tracking-search-card-button:hover {
+  background-color: #1d4ed8;
+}
+
+.tracking-search-card-button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.35);
+}
+
+.tracking-search-card-helper {
+  margin: 8px 0 0;
   font-size: 12.5px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+@media (max-width: 600px) {
+  .customer-track-card {
+    padding: 16px 16px;
+  }
+
+  .tracking-search-card-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .tracking-search-card-button {
+    width: 100%;
+  }
 }
 
 .customer-dashboard-empty-card {
@@ -6080,17 +6099,162 @@ a.button {
   margin: 0;
 }
 
-.delivery-badge-out-for-delivery,
-.delivery-badge-in-transit,
-.delivery-badge-failed,
-.delivery-badge-delivered,
-.delivery-badge-created,
-.delivery-badge-assigned,
-.delivery-badge-picked-up,
-.delivery-badge-cancelled {
-  background-color: #eff6ff;
-  color: #2563eb;
-  border: 1px solid #bfdbfe;
+.parcel-timeline-status-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px;
+  white-space: nowrap !important;
+  line-height: 1.2;
+  background-color: #eff6ff !important;
+  color: #2563eb !important;
+  border: 1px solid #bfdbfe !important;
   border-radius: 9999px;
-  padding: 3px 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.parcel-timeline-status-badge svg {
+  flex-shrink: 0;
+  display: inline-block;
+  vertical-align: middle;
+}
+
+/* Recent Deliveries List Section on Customer Dashboard */
+.recent-deliveries-section {
+  display: flex;
+  flex-direction: column;
+  margin-top: 4px;
+}
+
+.recent-deliveries-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.recent-deliveries-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  letter-spacing: -0.01em;
+}
+
+.recent-deliveries-view-all {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-primary, #2563eb);
+  text-decoration: none;
+  transition: opacity 0.15s ease;
+}
+
+.recent-deliveries-view-all:hover {
+  text-decoration: underline;
+  opacity: 0.85;
+}
+
+.recent-deliveries-card {
+  background: #ffffff;
+  border: 1px solid #eef2f6;
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.recent-deliveries-empty {
+  padding: 32px 20px;
+  text-align: center;
+  color: #64748b;
+  font-size: 14px;
+}
+
+.recent-delivery-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  background: #ffffff;
+  border-bottom: 1px solid #f1f5f9;
+  text-decoration: none;
+  color: inherit;
+  transition: background-color 0.15s ease;
+}
+
+.recent-delivery-row:last-child {
+  border-bottom: none;
+}
+
+.recent-delivery-row:hover {
+  background-color: #f8fafc;
+}
+
+.recent-delivery-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.recent-delivery-tracking {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+  letter-spacing: 0.01em;
+}
+
+.recent-delivery-meta {
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.3;
+}
+
+.recent-delivery-extra {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-shrink: 0;
+}
+
+.recent-delivery-fee {
+  font-size: 14px;
+  font-weight: 600;
+  color: #475569;
+  white-space: nowrap;
+  min-width: 68px;
+  text-align: right;
+}
+
+.recent-delivery-badge-wrap {
+  min-width: 135px;
+  display: flex;
+  align-items: center;
+}
+
+.recent-delivery-arrow {
+  color: #94a3b8;
+  flex-shrink: 0;
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+
+.recent-delivery-row:hover .recent-delivery-arrow {
+  color: #64748b;
+  transform: translateX(2px);
+}
+
+@media (max-width: 640px) {
+  .recent-delivery-row {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px 16px;
+  }
+
+  .recent-delivery-extra {
+    width: 100%;
+    justify-content: space-between;
+    gap: 12px;
+  }
 }
