@@ -361,7 +361,7 @@ export default function CustomerDashboardPage() {
           <section className="recent-deliveries-section" aria-label="Recent Deliveries">
             <div className="recent-deliveries-header">
               <h2 className="recent-deliveries-title">Recent Deliveries</h2>
-              <Link to="/customer/deliveries" className="recent-deliveries-view-all">
+              <Link to="/customer/deliveries" className="recent-deliveries-view-all" style={{ textDecoration: 'none' }}>
                 View All
               </Link>
             </div>
@@ -389,6 +389,7 @@ export default function CustomerDashboardPage() {
                     key={parcel.id || parcel.trackingNumber}
                     to={targetUrl}
                     className="recent-delivery-row"
+                    style={{ textDecoration: 'none' }}
                   >
                     <div className="recent-delivery-main">
                       <span className="recent-delivery-tracking">

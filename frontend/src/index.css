@@ -6151,8 +6151,8 @@ a.button {
 }
 
 .recent-deliveries-view-all:hover {
-  text-decoration: underline;
-  opacity: 0.85;
+  text-decoration: none;
+  opacity: 0.8;
 }
 
 .recent-deliveries-card {
@@ -6178,7 +6178,7 @@ a.button {
   padding: 16px 20px;
   background: #ffffff;
   border-bottom: 1px solid #f1f5f9;
-  text-decoration: none;
+  text-decoration: none !important;
   color: inherit;
   transition: background-color 0.15s ease;
 }
@@ -6187,8 +6187,18 @@ a.button {
   border-bottom: none;
 }
 
-.recent-delivery-row:hover {
+.recent-delivery-row:hover,
+.recent-delivery-row:focus,
+.recent-delivery-row:active {
   background-color: #f8fafc;
+  text-decoration: none !important;
+  color: inherit;
+}
+
+.recent-delivery-row *,
+.recent-delivery-row:hover *,
+.recent-delivery-row:focus * {
+  text-decoration: none !important;
 }
 
 .recent-delivery-main {
