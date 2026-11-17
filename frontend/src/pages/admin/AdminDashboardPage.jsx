@@ -487,6 +487,78 @@ export default function AdminDashboardPage() {
           )}
         </>
       ) : null}
+      {/* ── Dispatcher Account Creation Card (Preserved) ── */}
+      <section className="card admin-dispatcher-card" aria-labelledby="create-dispatcher-title">
+        <h2 id="create-dispatcher-title" className="card-title">Create dispatcher account</h2>
+        <p className="card-subtitle">
+          The account is active immediately. Share the temporary password through a secure channel.
+        </p>
+
+        {result && (
+          <Alert variant="success">
+            Dispatcher {result.name} ({result.email}) was created successfully.
+          </Alert>
+        )}
+        {error && <Alert variant="error">{error}</Alert>}
+
+        <form className="form" onSubmit={submit} noValidate>
+          <FormField
+            id="dispatcher-name"
+            name="name"
+            label="Full name"
+            required
+            autoComplete="name"
+            value={values.name}
+            onChange={change}
+            error={errors.name}
+          />
+          <FormField
+            id="dispatcher-email"
+            name="email"
+            label="Email"
+            type="email"
+            required
+            autoComplete="email"
+            value={values.email}
+            onChange={change}
+            error={errors.email}
+          />
+          <FormField
+            id="dispatcher-password"
+            name="password"
+            label="Temporary password"
+            type="password"
+            revealable
+            required
+            autoComplete="new-password"
+            hint="12 to 72 characters. The password is sent only to Identity Service."
+            value={values.password}
+            onChange={change}
+            error={errors.password}
+          />
+          <FormField
+            id="dispatcher-role"
+            name="role"
+            label="Role"
+            value="DISPATCHER"
+            readOnly
+            disabled
+          />
+          <Button type="submit" loading={submitting} loadingText="Creating dispatcher…">
+            Create dispatcher
+          </Button>
+        </form>
+
+        <p className="form-hint" style={{ marginTop: '16px' }}>
+          Looking to view, search, or update accounts? Go to{' '}
+          <Link
+            to="/admin/users"
+            style={{ color: 'var(--color-primary)', fontWeight: 500, textDecoration: 'underline' }}
+          >
+            User Management
+          </Link>.
+        </p>
+      </section>
     </div>
   )
 }
