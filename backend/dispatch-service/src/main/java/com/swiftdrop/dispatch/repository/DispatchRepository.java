@@ -41,6 +41,15 @@ public class DispatchRepository {
           LEFT JOIN dispatch_couriers c ON c.courier_id = p.assigned_courier_id
         """;
     private final NamedParameterJdbcTemplate jdbc;
+    @org.springframework.beans.factory.annotation.Value("${swiftdrop.dispatch.numeric-assignments:false}")
+    private boolean numericAssignments;
+
+    public boolean usesNumericAssignments() { return numericAssignments; }
+
+    public void lockAssignment(UUID parcelId) {
+        if (numericAssignments) jdbc.query("SELECT pg_advisory_xact_lock(hashtextextended(:key,0))",
+            Map.of("key",parcelId.toString()), rs -> { });
+    }
 
     public DispatchRepository(NamedParameterJdbcTemplate jdbc) {
         this.jdbc = jdbc;
@@ -117,6 +126,11 @@ public class DispatchRepository {
     }
 
     public Optional<ActiveAssignment> activeAssignment(UUID parcelId) {
+        if (numericAssignments) return jdbc.query("""
+            SELECT assignment_id,courier_profile_id,assigned_by,assigned_at FROM dispatch_assignments
+            WHERE parcel_id=:parcelId AND state='ACTIVE'
+            """,Map.of("parcelId",parcelId),(rs,row)->new ActiveAssignment(rs.getObject("assignment_id",UUID.class),
+                null,rs.getString("assigned_by"),rs.getTimestamp("assigned_at").toInstant(),rs.getLong("courier_profile_id"))).stream().findFirst();
         List<ActiveAssignment> rows = jdbc.query("""
             SELECT assignment_id, courier_id, assigned_by, assigned_at
               FROM dispatch_assignments WHERE parcel_id = :parcelId AND state = 'ACTIVE'
@@ -135,6 +149,30 @@ public class DispatchRepository {
                 counts.put(rs.getObject("courier_id", UUID.class), rs.getLong("active_count"));
             });
         return counts;
+    }
+
+    public Map<Long,Long> numericActiveAssignmentCounts() {
+        Map<Long,Long> result=new LinkedHashMap<>();
+        jdbc.query("SELECT courier_profile_id,count(*) AS total FROM dispatch_assignments WHERE state='ACTIVE' GROUP BY courier_profile_id",
+            Map.of(),rs->{result.put(rs.getLong("courier_profile_id"),rs.getLong("total"));});
+        return result;
+    }
+
+    public AssignmentResult saveNumericAssignment(UUID parcelId,CourierProfile courier,Long previousProfileId,
+            UUID previousCourierId,String trackingNumber,String assignedBy,Instant assignedAt) {
+        jdbc.update("""
+            UPDATE dispatch_assignments SET state='CANCELLED',cancelled_by=:actor,cancelled_at=:at
+            WHERE parcel_id=:parcel AND state='ACTIVE'
+            """,Map.of("actor",assignedBy,"at",Timestamp.from(assignedAt),"parcel",parcelId));
+        UUID id=UUID.randomUUID();
+        jdbc.update("""
+            INSERT INTO dispatch_assignments(assignment_id,parcel_id,courier_profile_id,courier_user_id,courier_name,
+                previous_courier_profile_id,tracking_number,assigned_by,assigned_at,state,version)
+            VALUES (:id,:parcel,:profile,:user,:name,:previous,:tracking,:actor,:at,'ACTIVE',0)
+            """,new MapSqlParameterSource("id",id).addValue("parcel",parcelId).addValue("profile",courier.profileId())
+                .addValue("user",courier.userId()).addValue("name",courier.name()).addValue("previous",previousProfileId)
+                .addValue("tracking",trackingNumber).addValue("actor",assignedBy).addValue("at",Timestamp.from(assignedAt)));
+        return new AssignmentResult(id,parcelId,courier.courierId(),previousCourierId,assignedBy,assignedAt,"ACTIVE");
     }
 
     public AssignmentResult saveAssignment(UUID parcelId, UUID courierId, UUID previousCourierId,
@@ -179,7 +217,7 @@ public class DispatchRepository {
                 .addValue("cancelledAt", Timestamp.from(cancelledAt))
                 .addValue("assignmentId", active.get().assignmentId()));
         if (changed == 0) return Optional.empty();
-        jdbc.update("""
+        if (!numericAssignments) jdbc.update("""
             UPDATE dispatch_parcels SET assigned_courier_id = NULL, updated_at = :cancelledAt
              WHERE parcel_id = :parcelId
             """, Map.of("cancelledAt", Timestamp.from(cancelledAt), "parcelId", parcelId));
@@ -204,6 +242,18 @@ public class DispatchRepository {
             """, Map.of("courierId", courierId), (rs, row) -> new AssignedParcel(
                 rs.getObject("parcel_id", UUID.class), rs.getString("tracking_number"),
                 rs.getString("parcel_status"), rs.getTimestamp("assigned_at").toInstant()));
+    }
+
+    public List<AssignedParcel> numericActiveAssignedParcels(Long profileId) {
+        return jdbc.query("""
+            SELECT a.parcel_id,a.tracking_number,coalesce(latest.new_status,'CREATED') AS parcel_status,a.assigned_at
+            FROM dispatch_assignments a LEFT JOIN LATERAL (
+                SELECT new_status FROM dispatch_report_events e WHERE e.parcel_id=a.parcel_id::text
+                ORDER BY e.occurred_at DESC,e.event_id DESC LIMIT 1
+            ) latest ON true WHERE a.courier_profile_id=:profile AND a.state='ACTIVE'
+            ORDER BY a.assigned_at,a.assignment_id
+            """,Map.of("profile",profileId),(rs,row)->new AssignedParcel(rs.getObject("parcel_id",UUID.class),
+                rs.getString("tracking_number"),rs.getString("parcel_status"),rs.getTimestamp("assigned_at").toInstant()));
     }
 
     public List<CountByStatus> countStatuses(Instant from, Instant to) {
@@ -318,6 +368,12 @@ public class DispatchRepository {
                 .addValue("oldStatus", event.oldStatus())
                 .addValue("newStatus", event.newStatus()));
         if (inserted == 0) return false;
+        if (numericAssignments) {
+            if (java.util.Set.of("DELIVERED","FAILED","CANCELLED").contains(event.newStatus()))
+                jdbc.update("UPDATE dispatch_assignments SET state=:state WHERE parcel_id=:id AND state='ACTIVE' AND assigned_at<=:at",
+                    Map.of("state",event.newStatus().equals("CANCELLED")?"CANCELLED":"COMPLETED","id",parcelId,"at",Timestamp.from(event.occurredAt())));
+            return true;
+        }
         jdbc.update("""
             UPDATE dispatch_parcels
                SET status = :newStatus,
@@ -408,7 +464,11 @@ public class DispatchRepository {
                 rs.getString("courier_id"), rs.getLong("total")));
     }
 
-    public record ActiveAssignment(UUID assignmentId, UUID courierId, String assignedBy, Instant assignedAt) { }
+    public record ActiveAssignment(UUID assignmentId, UUID courierId, String assignedBy, Instant assignedAt, Long courierProfileId) {
+        public ActiveAssignment(UUID assignmentId,UUID courierId,String assignedBy,Instant assignedAt) {
+            this(assignmentId,courierId,assignedBy,assignedAt,null);
+        }
+    }
 
     private static MapSqlParameterSource range(Instant from, Instant to) {
         return new MapSqlParameterSource("from", Timestamp.from(from)).addValue("to", Timestamp.from(to));

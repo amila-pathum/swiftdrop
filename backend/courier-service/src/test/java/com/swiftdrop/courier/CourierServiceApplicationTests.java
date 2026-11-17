@@ -23,6 +23,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Starts the whole service against a throwaway PostgreSQL (needs Docker). */
 @SpringBootTest(properties = {
+    "spring.rabbitmq.listener.simple.auto-startup=false",
+    "management.health.rabbit.enabled=false",
     "COURIER_DB_PASSWORD=unused-with-service-connection",
     "swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })
@@ -46,8 +48,8 @@ class CourierServiceApplicationTests {
     }
 
     @Test
-    void dispatcherCanReadCourierProfiles() throws Exception {
-        mockMvc.perform(get("/api/couriers").header("Authorization", token("DISPATCHER")))
+    void merchantCanReadCourierProfiles() throws Exception {
+        mockMvc.perform(get("/api/couriers").header("Authorization", token("MERCHANT")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$", org.hamcrest.Matchers.hasSize(3)))
             .andExpect(jsonPath("$[0].courierId").exists())
@@ -60,7 +62,7 @@ class CourierServiceApplicationTests {
     }
 
     @Test
-    void courierProfileReadIsRestrictedToDispatchAndAdmin() throws Exception {
+    void courierProfileReadIsRestrictedToMerchantAndAdmin() throws Exception {
         mockMvc.perform(get("/api/couriers").header("Authorization", token("COURIER")))
             .andExpect(status().isForbidden());
     }

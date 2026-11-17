@@ -22,6 +22,8 @@ describe('assigned deliveries page', () => {
     useCourierDeliveries.mockReturnValue({ error: new Error('Dispatch unavailable'), reload })
     render(<MemoryRouter><CourierDeliveriesPage /></MemoryRouter>)
     expect(screen.getByText('Dispatch unavailable')).toBeInTheDocument()
+    expect(screen.getAllByRole('tab')).toHaveLength(3)
+    expect(screen.getByRole('tabpanel')).toHaveTextContent('Delivery information is currently unavailable.')
     expect(screen.queryByRole('link', { name: /Open delivery/ })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }))
     expect(reload).toHaveBeenCalledOnce()

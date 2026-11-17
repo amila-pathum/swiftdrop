@@ -17,7 +17,9 @@ import org.springframework.web.bind.annotation.*;
 public class CourierController {
     private final CourierProfileService profiles;
     private final com.swiftdrop.courier.service.CourierService legacy;
-    public CourierController(CourierProfileService profiles,com.swiftdrop.courier.service.CourierService legacy){this.profiles=profiles;this.legacy=legacy;}
+    private final com.swiftdrop.courier.service.CourierWorkflowService workflow;
+    public CourierController(CourierProfileService profiles,com.swiftdrop.courier.service.CourierService legacy,
+            com.swiftdrop.courier.service.CourierWorkflowService workflow){this.profiles=profiles;this.legacy=legacy;this.workflow=workflow;}
     static Long userId(Jwt jwt) {
         try {Long id=Long.valueOf(jwt.getSubject());if(id<=0||!id.toString().equals(jwt.getSubject()))throw new NumberFormatException();return id;}
         catch(NumberFormatException e){throw CourierException.forbidden("Invalid numeric user identifier.");}
@@ -27,13 +29,13 @@ public class CourierController {
         var result=profiles.provision(input,jwt.getTokenValue());
         return ResponseEntity.status(result.created()?201:200).body(result.profile());
     }
-    @GetMapping("/profiles") @PreAuthorize("hasAnyRole('ADMIN','DISPATCHER')")
+    @GetMapping("/profiles") @PreAuthorize("hasAnyRole('ADMIN','MERCHANT')")
     public PageResult<Profile> list(@RequestParam(required=false) Availability availability,@RequestParam(required=false) @Size(max=100) String area,
         @RequestParam(defaultValue="true") boolean active,@RequestParam(defaultValue="0") @Min(0) int page,
         @RequestParam(defaultValue="20") @Min(1) @Max(100) int size) {return profiles.list(availability,area,active,page,size);}
     // Preserve the UUID-based list used by the integrated Dispatch service.
     // Filtered requests remain an alias for the numeric-user profile API.
-    @GetMapping @PreAuthorize("hasAnyRole('ADMIN','DISPATCHER')")
+    @GetMapping @PreAuthorize("hasAnyRole('ADMIN','MERCHANT')")
     public Object compatibleList(@RequestParam(required=false) Availability availability,
         @RequestParam(required=false) @Size(max=100) String area,
         @RequestParam(defaultValue="true") boolean active,@RequestParam(defaultValue="0") @Min(0) int page,
@@ -43,7 +45,7 @@ public class CourierController {
             return profiles.list(availability,area,active,page,size);
         return legacy.list();
     }
-    @GetMapping("/{courierId}") @PreAuthorize("hasAnyRole('ADMIN','DISPATCHER')")
+    @GetMapping("/{courierId}") @PreAuthorize("hasAnyRole('ADMIN','MERCHANT')")
     public com.swiftdrop.courier.dto.CourierResponse legacyCourier(@PathVariable java.util.UUID courierId) {
         return legacy.find(courierId).orElseThrow(()->CourierException.missing("Courier not found."));
     }
@@ -52,7 +54,11 @@ public class CourierController {
     @PutMapping("/me") @PreAuthorize("hasRole('COURIER')")
     public Profile update(@AuthenticationPrincipal Jwt jwt,@Valid @RequestBody ProfileInput input){return profiles.update(userId(jwt),input);}
     @PatchMapping("/me/availability") @PreAuthorize("hasRole('COURIER')")
-    public Profile availability(@AuthenticationPrincipal Jwt jwt,@Valid @RequestBody AvailabilityInput input){return profiles.availability(userId(jwt),input.availability());}
+    public Profile availability(@AuthenticationPrincipal Jwt jwt,@Valid @RequestBody AvailabilityInput input){return workflow.changeAvailability(userId(jwt),input.availability());}
+    @GetMapping("/me/availability") @PreAuthorize("hasRole('COURIER')")
+    public com.swiftdrop.courier.dto.CourierWorkflowDtos.AvailableCourier ownAvailability(@AuthenticationPrincipal Jwt jwt) {
+        return workflow.availability(profiles.own(userId(jwt)).id);
+    }
     @PatchMapping("/{id}/active") @PreAuthorize("hasRole('ADMIN')")
-    public Profile active(@AuthenticationPrincipal Jwt jwt,@PathVariable @Positive Long id,@Valid @RequestBody ActiveInput input){return profiles.active(id,input.active(),jwt.getTokenValue());}
+    public Profile active(@AuthenticationPrincipal Jwt jwt,@PathVariable @Positive Long id,@Valid @RequestBody ActiveInput input){return workflow.changeActive(id,input.active(),jwt.getTokenValue());}
 }

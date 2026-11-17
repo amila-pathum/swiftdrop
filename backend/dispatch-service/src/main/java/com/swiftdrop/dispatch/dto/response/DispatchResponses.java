@@ -10,7 +10,7 @@ public final class DispatchResponses {
     private DispatchResponses() { }
 
     public record ParcelRow(
-        UUID parcelId,
+        @com.fasterxml.jackson.annotation.JsonAlias("id") UUID parcelId,
         String trackingNumber,
         String pickupArea,
         String dropoffArea,
@@ -22,8 +22,18 @@ public final class DispatchResponses {
         String courierName,
         BigDecimal charge,
         Instant createdAt,
-        Instant updatedAt
-    ) { }
+        Instant updatedAt,
+        BigDecimal weight,
+        String receiverName,
+        String receiverPhone
+    ) {
+        public ParcelRow(UUID parcelId,String trackingNumber,String pickupArea,String dropoffArea,String pickupAddress,
+                String deliveryAddress,String size,String status,UUID courierId,String courierName,BigDecimal charge,
+                Instant createdAt,Instant updatedAt) {
+            this(parcelId,trackingNumber,pickupArea,dropoffArea,pickupAddress,deliveryAddress,size,status,courierId,courierName,
+                charge,createdAt,updatedAt,null,null,null);
+        }
+    }
 
     public record StatusHistoryRow(
         String previousStatus,
@@ -43,7 +53,11 @@ public final class DispatchResponses {
         long activeParcelCount
     ) { }
 
-    public record CourierProfile(UUID courierId, String name, boolean active, boolean available) { }
+    public record CourierProfile(UUID courierId, String name, boolean active, boolean available, Long profileId, Long userId) {
+        public CourierProfile(UUID courierId,String name,boolean active,boolean available) {
+            this(courierId,name,active,available,null,null);
+        }
+    }
 
     public record AssignmentResult(
         UUID assignmentId,

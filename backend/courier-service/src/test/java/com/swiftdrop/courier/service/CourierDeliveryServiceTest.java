@@ -40,6 +40,16 @@ class CourierDeliveryServiceTest {
     DeliveryInput input(DeliveryStatus status,String name,FailureReason reason) {
         return new DeliveryInput(UUID.randomUUID(),status,name,reason,null,"Front gate",null,null,null,null);
     }
+    @Test void todayIncludesUnscheduledNewAssignmentsWithoutInventingDeliveryDates() {
+        LocalDate today=LocalDate.now(ZoneId.of("Asia/Colombo"));
+        Instant received=today.atStartOfDay(ZoneId.of("Asia/Colombo")).toInstant().plusSeconds(1);
+        when(dispatch.assignments(10L,"token")).thenReturn(List.of(new Assignment(UUID.randomUUID(),parcelId,10L,1,true,0,null,received)));
+        var page=service.deliveries(42L,"today",0,20,"token");
+        assertThat(page.content()).hasSize(1);
+        assertThat(page.content().getFirst().assignment().deliveryDate()).isNull();
+        when(dispatch.assignments(10L,"token")).thenReturn(List.of(new Assignment(UUID.randomUUID(),parcelId,10L,1,true,0,today.plusDays(1),received)));
+        assertThat(service.deliveries(42L,"today",0,20,"token").content()).isEmpty();
+    }
     @Test void rejectsOtherCouriersAssignmentsBeforeReadingOrUpdatingParcel() {
         when(dispatch.assignments(10L,"token")).thenReturn(List.of());
         assertThatThrownBy(()->service.submit(42L,parcelId,input(DeliveryStatus.DELIVERED,"Recipient",null),null,"token"))

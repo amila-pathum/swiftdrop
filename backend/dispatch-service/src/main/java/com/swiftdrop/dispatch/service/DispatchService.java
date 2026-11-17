@@ -117,6 +117,11 @@ public class DispatchService {
     }
 
     public List<CourierWorkload> couriers() {
+        if (repository.usesNumericAssignments()) {
+            var counts=repository.numericActiveAssignmentCounts();
+            return dataClient.couriers().stream().filter(c->c.profileId()!=null&&c.userId()!=null)
+                .map(c->new CourierWorkload(c.courierId(),c.name(),c.active(),c.available(),counts.getOrDefault(c.profileId(),0L))).toList();
+        }
         Map<UUID, Long> counts = repository.activeAssignmentCounts();
         return dataClient.couriers().stream()
             .map(courier -> new CourierWorkload(courier.courierId(), courier.name(),
@@ -159,6 +164,7 @@ public class DispatchService {
         if (assignedBy == null || assignedBy.isBlank() || assignedBy.length() > 80) {
             throw new DispatchException(HttpStatus.UNAUTHORIZED, "Invalid authenticated user");
         }
+        repository.lockAssignment(parcelId);
         ParcelRow parcel = dataClient.findParcel(parcelId)
             .orElseThrow(() -> new DispatchException(HttpStatus.NOT_FOUND, "Parcel not found"));
         parcel = dataClient.lockParcel(parcelId).orElse(parcel);
@@ -167,7 +173,7 @@ public class DispatchService {
                 "Courier can only be assigned or changed before pickup");
         }
         Optional<DispatchRepository.ActiveAssignment> activeAssignment = repository.activeAssignment(parcelId);
-        if (activeAssignment.isPresent() && activeAssignment.get().courierId().equals(courierId)) {
+        if (activeAssignment.isPresent() && courierId.equals(activeAssignment.get().courierId())) {
             throw new DispatchException(HttpStatus.CONFLICT, "Parcel is already assigned to this courier");
         }
         CourierProfile courier = dataClient.findCourier(courierId).orElse(null);
@@ -178,12 +184,21 @@ public class DispatchService {
             throw new DispatchException(HttpStatus.CONFLICT,
                 "Courier must be active and available to receive an assignment");
         }
+        if (repository.usesNumericAssignments() && (courier.profileId()==null||courier.userId()==null))
+            throw badRequest("Courier must have a linked authenticated profile");
+        if (repository.usesNumericAssignments() && activeAssignment.isPresent()
+                && courier.profileId().equals(activeAssignment.get().courierProfileId()))
+            throw new DispatchException(HttpStatus.CONFLICT,"Parcel is already assigned to this courier");
         UUID previous = activeAssignment.map(DispatchRepository.ActiveAssignment::courierId).orElse(null);
+        Long previousProfile=activeAssignment.map(DispatchRepository.ActiveAssignment::courierProfileId).orElse(null);
+        if (repository.usesNumericAssignments() && previousProfile!=null)
+            previous=dataClient.couriers().stream().filter(c->previousProfile.equals(c.profileId())).map(CourierProfile::courierId).findFirst().orElse(null);
         Instant assignedAt = Instant.now();
         AssignmentResult result;
         try {
-            result = repository.saveAssignment(
-                parcelId, courierId, previous, parcel.trackingNumber(), assignedBy, assignedAt);
+            result = repository.usesNumericAssignments()
+                ? repository.saveNumericAssignment(parcelId,courier,previousProfile,previous,parcel.trackingNumber(),assignedBy,assignedAt)
+                : repository.saveAssignment(parcelId,courierId,previous,parcel.trackingNumber(),assignedBy,assignedAt);
         } catch (DataIntegrityViolationException exception) {
             throw new DispatchException(HttpStatus.CONFLICT,
                 "Parcel already has an active assignment", exception);
@@ -191,7 +206,9 @@ public class DispatchService {
         events.publishEvent(new ParcelAssignedEvent(
             UUID.randomUUID(), "ParcelAssigned", assignedAt, parcelId.toString(),
             parcel.trackingNumber(), courierId.toString(),
-            previous == null ? null : previous.toString(), assignedBy));
+            previous == null ? null : previous.toString(), assignedBy,
+            new ParcelAssignedEvent.ParcelSnapshot(parcel.pickupAddress(),parcel.deliveryAddress(),parcel.receiverName(),
+                parcel.receiverPhone(),parcel.weight(),parcel.size())));
         return result;
     }
 
@@ -212,6 +229,11 @@ public class DispatchService {
     }
 
     public List<AssignedParcel> assignedParcels(UUID courierId) {
+        if (repository.usesNumericAssignments()) {
+            var courier=dataClient.findCourier(courierId).orElseThrow(()->badRequest("Courier not found"));
+            if(courier.profileId()==null)throw badRequest("Courier must have a linked authenticated profile");
+            return repository.numericActiveAssignedParcels(courier.profileId());
+        }
         return repository.activeAssignedParcels(courierId);
     }
 
