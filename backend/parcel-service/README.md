@@ -125,7 +125,8 @@ The parcel, initial `null -> CREATED` history, and outbox event commit together.
 ### Pricing dependency
 
 Creation calls `POST /api/pricing/quote` with pickup city, delivery city, weight,
-and service type. The caller's JWT is forwarded in memory so Pricing validates it
+service type and size (size carries a surcharge).
+The caller's JWT is forwarded in memory so Pricing validates it
 independently; the token is never stored in parcel data, logs, or events.
 
 - `PRICING_SERVICE_URL` defaults to `http://localhost:8086`.

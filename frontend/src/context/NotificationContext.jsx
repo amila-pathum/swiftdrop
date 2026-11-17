@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react'
 import { useAuth } from './AuthContext'
+import { apiClient } from '../services/apiClient'
 import {
   getNotifications,
   getUnreadCount,
@@ -53,11 +54,18 @@ export function NotificationProvider({ children }) {
     try {
       const [list, countData] = await Promise.all([
         getNotifications().catch(() => []),
-        getUnreadCount().catch(() => ({ count: 0 })),
+        getUnreadCount().catch(() => null),
       ])
       if (isMountedRef.current) {
-        setNotifications(Array.isArray(list) ? list.map(normalizeNotification) : [])
-        setUnreadCount(typeof countData?.count === 'number' ? countData.count : 0)
+        const normalized = Array.isArray(list) ? list.map(normalizeNotification) : []
+        setNotifications(normalized)
+        const unreadFromList = normalized.filter((n) => !n.read && !n.isRead).length
+        const rawServerCount = countData?.unreadCount ?? countData?.count
+        // Real unread count: prioritize server count if present, otherwise calculate from loaded notifications list
+        const resolved = typeof rawServerCount === 'number' && rawServerCount > 0
+          ? rawServerCount
+          : unreadFromList
+        setUnreadCount(resolved)
       }
     } finally {
       if (isMountedRef.current) {
@@ -76,6 +84,25 @@ export function NotificationProvider({ children }) {
       setUnreadCount((prev) => Math.max(0, prev - 1))
     } catch {
       // Failed to mark as read
+    }
+  }
+
+  const handleMarkAllAsRead = async () => {
+    const unreadItems = notifications.filter((item) => !item.read && !item.isRead)
+    if (unreadItems.length === 0) return
+
+    // Optimistically update all notifications to read
+    setNotifications((prev) =>
+      prev.map((item) => ({ ...item, read: true, isRead: true }))
+    )
+    setUnreadCount(0)
+
+    try {
+      await apiClient.patch('/api/notifications/read-all').catch(async () => {
+        await Promise.all(unreadItems.map((n) => markNotificationRead(n.id).catch(() => {})))
+      })
+    } catch {
+      await Promise.all(unreadItems.map((n) => markNotificationRead(n.id).catch(() => {})))
     }
   }
 
@@ -182,6 +209,7 @@ export function NotificationProvider({ children }) {
     toast,
     dismissToast,
     markAsRead: handleMarkAsRead,
+    markAllAsRead: handleMarkAllAsRead,
     refresh: loadNotifications,
   }
 
@@ -203,6 +231,7 @@ export function useNotifications() {
       toast: null,
       dismissToast: () => {},
       markAsRead: () => {},
+      markAllAsRead: () => {},
       refresh: () => {},
     }
   }

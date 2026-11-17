@@ -14,7 +14,9 @@ const statuses = [
   ['In Transit', 'IN_TRANSIT'], ['Out for Delivery', 'OUT_FOR_DELIVERY'],
   ['Delivered', 'DELIVERED'], ['Failed', 'FAILED'], ['Cancelled', 'CANCELLED'],
 ]
-const emptySettings = { url: '', enabled: true }
+const allEvents = statuses.map(([, status]) => status)
+const emptySettings = { url: '', enabled: true, events: allEvents }
+const normalize = config => ({ ...config, events: config.events ?? allEvents })
 
 export default function MerchantWebhookPage() {
   const [merchant, setMerchant] = useState(null)
@@ -54,8 +56,8 @@ export default function MerchantWebhookPage() {
         if (controller.signal.aborted) return
         setMerchant(profile)
         setProfileMissing(false)
-        setSavedSettings(config)
-        setSettings(config || emptySettings)
+        setSavedSettings(config ? normalize(config) : null)
+        setSettings(config ? normalize(config) : emptySettings)
       } catch (err) {
         if (!controller.signal.aborted) setLoadError(err.message || 'Unable to load webhook settings.')
       } finally {
@@ -69,6 +71,7 @@ export default function MerchantWebhookPage() {
   const approved = merchant?.status === 'APPROVED'
   const busy = Boolean(operation)
   const dirty = !savedSettings || settings.url.trim() !== savedSettings.url || settings.enabled !== savedSettings.enabled
+    || [...settings.events].sort().join(',') !== [...savedSettings.events].sort().join(',')
   const canTest = approved && savedSettings?.enabled && settings.enabled && !dirty
 
   async function save(event) {
@@ -83,8 +86,8 @@ export default function MerchantWebhookPage() {
     }
     lock.current = true; setOperation('save')
     try {
-      const response = await merchantService.updateWebhookSettings(settings.url.trim(), settings.enabled)
-      const config = response.settings
+      const response = await merchantService.updateWebhookSettings(settings.url.trim(), settings.enabled, settings.events)
+      const config = normalize(response.settings)
       setSettings(config); setSavedSettings(config)
       if (response.signingSecret) { setNewSecret(response.signingSecret); setCopied(false) }
       setMessage(`Webhook settings saved. Delivery updates are ${config.enabled ? 'enabled' : 'paused'}.`)
@@ -107,7 +110,7 @@ export default function MerchantWebhookPage() {
     lock.current = true; setOperation('rotate'); setRotateError('')
     try {
       const response = await merchantService.rotateWebhookSecret()
-      setSavedSettings(response.settings)
+      setSavedSettings(normalize(response.settings))
       setNewSecret(response.signingSecret); setCopied(false)
       setRotateOpen(false)
       setMessage('Signing secret rotated. Update your receiver with the new secret.')
@@ -151,10 +154,17 @@ export default function MerchantWebhookPage() {
               <h3 id="webhook-events-title">Status-change events</h3>
               <ul className="webhook-event-grid">
                 {statuses.map(([label, status]) => <li key={status}>
-                  <WebhookActionIcon name="check" /><span>{label}</span><code>{status}</code>
+                  <label className="webhook-event-option">
+                    <input type="checkbox" checked={settings.events.includes(status)} disabled={!approved || busy}
+                      aria-label={label} onChange={(event) => setSettings(current => ({ ...current,
+                        events: event.target.checked ? [...current.events, status] : current.events.filter(value => value !== status),
+                      }))} />
+                    <span><span>{label}</span><code>{status}</code></span>
+                  </label>
                 </li>)}
               </ul>
-              <p className="webhook-help">All parcel status changes are sent while the endpoint is enabled.</p>
+              <p className="webhook-help">Choose the status updates your store receives, then save changes. Test events are always available while the endpoint is enabled.</p>
+              {!settings.events.length && <p className="webhook-help" role="status">No status updates selected. Only test events will be sent.</p>}
             </section>
             <label className="webhook-enable-control">
               <input type="checkbox" role="switch" checked={settings.enabled} disabled={!approved || busy}

@@ -49,7 +49,7 @@ class CourierServiceApplicationTests {
 
     @Test
     void merchantCanReadCourierProfiles() throws Exception {
-        mockMvc.perform(get("/api/couriers").header("Authorization", token("MERCHANT")))
+        mockMvc.perform(get("/api/couriers").header("Authorization", token("DISPATCHER")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$", org.hamcrest.Matchers.hasSize(3)))
             .andExpect(jsonPath("$[0].courierId").exists())

@@ -1,61 +1,47 @@
 package com.swiftdrop.dispatch.service;
 
+import com.swiftdrop.dispatch.client.DispatchDataClient;
+import com.swiftdrop.dispatch.client.DispatchDataClient.CourierData;
 import com.swiftdrop.dispatch.dto.response.DispatchResponses.AssignmentResult;
-import com.swiftdrop.dispatch.dto.response.DispatchResponses.ActiveDeliveriesByCourier;
-import com.swiftdrop.dispatch.dto.response.DispatchResponses.AssignedParcel;
-import com.swiftdrop.dispatch.dto.response.DispatchResponses.CountByStatus;
-import com.swiftdrop.dispatch.dto.response.DispatchResponses.CourierPerformance;
-import com.swiftdrop.dispatch.dto.response.DispatchResponses.CourierProfile;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.AssignmentRow;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.CourierAssignment;
 import com.swiftdrop.dispatch.dto.response.DispatchResponses.CourierWorkload;
 import com.swiftdrop.dispatch.dto.response.DispatchResponses.DeliveryByDay;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.DeliveryRow;
 import com.swiftdrop.dispatch.dto.response.DispatchResponses.DispatchSummary;
-import com.swiftdrop.dispatch.dto.response.DispatchResponses.FailedDelivery;
 import com.swiftdrop.dispatch.dto.response.DispatchResponses.PageResult;
 import com.swiftdrop.dispatch.dto.response.DispatchResponses.ParcelDetail;
 import com.swiftdrop.dispatch.dto.response.DispatchResponses.ParcelRow;
-import com.swiftdrop.dispatch.dto.response.DispatchResponses.RouteRevenue;
-import com.swiftdrop.dispatch.dto.response.DispatchResponses.StatusHistoryRow;
-import com.swiftdrop.dispatch.dto.response.DispatchResponses.VolumeByPeriod;
-import com.swiftdrop.dispatch.client.DispatchDataClient;
 import com.swiftdrop.dispatch.event.ParcelAssignedEvent;
 import com.swiftdrop.dispatch.event.ParcelStatusChangedEvent;
 import com.swiftdrop.dispatch.exception.DispatchException;
 import com.swiftdrop.dispatch.repository.DispatchRepository;
+import com.swiftdrop.dispatch.repository.DispatchRepository.ActiveAssignment;
+import com.swiftdrop.dispatch.repository.DispatchRepository.CourierAssignmentRecord;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.dao.DataIntegrityViolationException;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.LinkedHashMap;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.sql.Timestamp;
-import java.util.Comparator;
-import java.util.Optional;
-import java.util.stream.Collectors;
-import java.math.BigDecimal;
 
 @Service
 public class DispatchService {
-    private static final List<String> REPORT_STATUSES =
-        List.of("CREATED", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED");
     private static final Set<String> VALID_EVENT_STATUSES =
         Set.of("CREATED", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED", "CANCELLED");
-    private static final Map<String, String> SORT_FIELDS = Map.of(
-        "createdAt", "p.created_at",
-        "updatedAt", "p.updated_at",
-        "trackingNumber", "p.tracking_number",
-        "status", "p.status",
-        "pickupArea", "p.pickup_area",
-        "dropoffArea", "p.dropoff_area",
-        "size", "p.size");
+    private static final List<String> DELIVERY_STATUSES =
+        List.of("PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED");
+    private static final Set<String> ASSIGNMENT_STATES = Set.of("ACTIVE", "COMPLETED", "CANCELLED");
 
     private final DispatchRepository repository;
     private final ApplicationEventPublisher events;
@@ -68,177 +54,162 @@ public class DispatchService {
         this.dataClient = dataClient;
     }
 
+    // ---------------------------------------------------------------- reads
+
+    /** CREATED parcels from parcel-service that have no ACTIVE assignment here. */
     public PageResult<ParcelRow> unassigned(String pickupArea, String dropoffArea,
             LocalDate from, LocalDate to, String size, int page, int pageSize,
             String sort, String direction) {
         validatePaging(page, pageSize);
         validateDateRange(from, to);
         if (hasText(size) && size.trim().length() > 30) throw badRequest("Size filter is too long");
+        Comparator<ParcelRow> order = parcelComparator(sort, direction);
+        Set<UUID> assigned = repository.activeAssignedParcelIds();
         List<ParcelRow> filtered = dataClient.createdParcels().stream()
-            .filter(parcel -> "CREATED".equals(parcel.status()))
-            .filter(parcel -> !repository.hasActiveAssignment(parcel.parcelId()))
+            .filter(parcel -> parcel.parcelId() != null && "CREATED".equals(parcel.status()))
+            .filter(parcel -> !assigned.contains(parcel.parcelId()))
             .filter(parcel -> matches(parcel.pickupArea(), pickupArea))
             .filter(parcel -> matches(parcel.dropoffArea(), dropoffArea))
             .filter(parcel -> matches(parcel.size(), size))
-            .filter(parcel -> from == null || !parcel.createdAt().isBefore(start(from)))
-            .filter(parcel -> to == null || parcel.createdAt().isBefore(end(to)))
-            .sorted(parcelComparator(sort, direction))
+            .filter(parcel -> from == null || parcel.createdAt() != null && !parcel.createdAt().isBefore(start(from)))
+            .filter(parcel -> to == null || parcel.createdAt() != null && parcel.createdAt().isBefore(end(to)))
+            .sorted(order)
             .toList();
         return page(filtered, page, pageSize);
     }
 
-    public PageResult<ParcelRow> parcels(String status, UUID courierId, LocalDate from,
-            LocalDate to, String trackingNumber, int page, int pageSize,
-            String sort, String direction) {
-        MapSqlParameterSource params = new MapSqlParameterSource();
-        StringBuilder where = new StringBuilder(" WHERE 1=1");
-        if (hasText(status)) {
-            String normalized = status.trim().toUpperCase();
-            if (!Set.of("CREATED", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY",
-                    "DELIVERED", "FAILED", "CANCELLED").contains(normalized)) {
-                throw badRequest("Invalid parcel status");
-            }
-            where.append(" AND p.status = :status");
-            params.addValue("status", normalized);
-        }
-        if (courierId != null) {
-            where.append(" AND p.assigned_courier_id = :courierId");
-            params.addValue("courierId", courierId);
-        }
-        if (hasText(trackingNumber)) {
-            String escaped = trackingNumber.trim().replace("!", "!!")
-                .replace("%", "!%").replace("_", "!_");
-            if (escaped.length() > 80) throw badRequest("Tracking search is too long");
-            where.append(" AND p.tracking_number ILIKE :tracking ESCAPE '!'");
-            params.addValue("tracking", "%" + escaped + "%");
-        }
-        addDateFilter(where, params, from, to);
-        return page(where.toString(), params, page, pageSize, sort, direction);
-    }
-
+    /** Every active courier from courier-service with its number of ACTIVE assignments. */
     public List<CourierWorkload> couriers() {
-        if (repository.usesNumericAssignments()) {
-            var counts=repository.numericActiveAssignmentCounts();
-            return dataClient.couriers().stream().filter(c->c.profileId()!=null&&c.userId()!=null)
-                .map(c->new CourierWorkload(c.courierId(),c.name(),c.active(),c.available(),counts.getOrDefault(c.profileId(),0L))).toList();
-        }
-        Map<UUID, Long> counts = repository.activeAssignmentCounts();
+        Map<Long, Long> counts = repository.activeAssignmentCounts();
         return dataClient.couriers().stream()
-            .map(courier -> new CourierWorkload(courier.courierId(), courier.name(),
-                courier.active(), courier.available(), counts.getOrDefault(courier.courierId(), 0L)))
+            .filter(courier -> courier.id() != null)
+            .map(courier -> new CourierWorkload(courier.id(), courier.userId(), courier.name(),
+                courier.active(), courier.availability(), courier.available(),
+                counts.getOrDefault(courier.id(), 0L)))
+            .sorted(Comparator.comparing(CourierWorkload::name, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
             .toList();
     }
 
-    public PageResult<ParcelRow> deliveries(String status, String trackingNumber,
-            int page, int pageSize, String sort, String direction) {
-        MapSqlParameterSource params = new MapSqlParameterSource();
-        StringBuilder where = new StringBuilder(" WHERE p.status IN "
-            + "('PICKED_UP','IN_TRANSIT','OUT_FOR_DELIVERY','DELIVERED','FAILED')");
+    public PageResult<AssignmentRow> assignments(String state, Long courierId, String trackingNumber,
+            int page, int pageSize) {
+        validatePaging(page, pageSize);
+        String normalizedState = null;
+        if (hasText(state)) {
+            normalizedState = state.trim().toUpperCase();
+            if (!ASSIGNMENT_STATES.contains(normalizedState)) throw badRequest("Invalid assignment state");
+        }
+        String pattern = trackingPattern(trackingNumber);
+        long total = repository.countAssignments(normalizedState, courierId, pattern);
+        List<AssignmentRow> rows = repository.findAssignments(normalizedState, courierId, pattern,
+            pageSize, (long) page * pageSize);
+        return new PageResult<>(rows, page, pageSize, total, totalPages(total, pageSize));
+    }
+
+    /**
+     * Deliveries by their latest stored status event. Without a status filter
+     * only parcels out with a courier (PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY) are returned.
+     */
+    public PageResult<DeliveryRow> deliveries(String status, String trackingNumber, int page, int pageSize) {
+        validatePaging(page, pageSize);
+        List<String> statuses = DispatchRepository.IN_PROGRESS_STATUSES;
         if (hasText(status)) {
             String normalized = status.trim().toUpperCase();
-            if (!Set.of("PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED").contains(normalized)) {
-                throw badRequest("Invalid delivery status");
-            }
-            where.append(" AND p.status = :status");
-            params.addValue("status", normalized);
+            if (!DELIVERY_STATUSES.contains(normalized)) throw badRequest("Invalid delivery status");
+            statuses = List.of(normalized);
         }
-        if (hasText(trackingNumber)) {
-            String escaped = trackingNumber.trim().replace("!", "!!")
-                .replace("%", "!%").replace("_", "!_");
-            if (escaped.length() > 80) throw badRequest("Tracking search is too long");
-            where.append(" AND p.tracking_number ILIKE :tracking ESCAPE '!'");
-            params.addValue("tracking", "%" + escaped + "%");
-        }
-        return page(where.toString(), params, page, pageSize, sort, direction);
+        String pattern = trackingPattern(trackingNumber);
+        long total = repository.countDeliveries(statuses, pattern);
+        List<DeliveryRow> rows = repository.findDeliveries(statuses, pattern, pageSize, (long) page * pageSize);
+        return new PageResult<>(rows, page, pageSize, total, totalPages(total, pageSize));
     }
 
     public ParcelDetail detail(UUID parcelId) {
-        ParcelRow parcel = repository.findParcel(parcelId)
-            .orElseThrow(() -> new DispatchException(HttpStatus.NOT_FOUND, "Parcel not found"));
-        return new ParcelDetail(parcel, repository.history(parcelId));
-    }
-
-    @Transactional
-    public AssignmentResult assign(UUID parcelId, UUID courierId, String assignedBy) {
-        if (courierId == null) throw badRequest("Courier is required");
-        if (assignedBy == null || assignedBy.isBlank() || assignedBy.length() > 80) {
-            throw new DispatchException(HttpStatus.UNAUTHORIZED, "Invalid authenticated user");
-        }
-        repository.lockAssignment(parcelId);
         ParcelRow parcel = dataClient.findParcel(parcelId)
             .orElseThrow(() -> new DispatchException(HttpStatus.NOT_FOUND, "Parcel not found"));
-        parcel = dataClient.lockParcel(parcelId).orElse(parcel);
-        if (!"CREATED".equals(parcel.status())) {
-            throw new DispatchException(HttpStatus.CONFLICT,
-                "Courier can only be assigned or changed before pickup");
+        return new ParcelDetail(parcel, repository.history(parcelId), repository.parcelAssignments(parcelId));
+    }
+
+    /**
+     * A courier's assignments in the shape courier-service reads. A COURIER may
+     * only read their own: every row must belong to their identity user id.
+     */
+    public List<CourierAssignment> courierAssignments(Long courierProfileId, Long callerUserId, boolean callerIsCourier) {
+        List<CourierAssignmentRecord> records = repository.courierAssignments(courierProfileId);
+        if (callerIsCourier && records.stream().anyMatch(record -> !record.courierUserId().equals(callerUserId))) {
+            throw new DispatchException(HttpStatus.FORBIDDEN, "Access is denied");
         }
-        Optional<DispatchRepository.ActiveAssignment> activeAssignment = repository.activeAssignment(parcelId);
-        if (activeAssignment.isPresent() && courierId.equals(activeAssignment.get().courierId())) {
-            throw new DispatchException(HttpStatus.CONFLICT, "Parcel is already assigned to this courier");
+        return records.stream().map(record -> new CourierAssignment(record.assignmentId(), record.parcelId(),
+                record.courierProfileId(), record.attemptNo(), "ACTIVE".equals(record.state()),
+                record.version(), record.deliveryDate(), record.assignedAt()))
+            .toList();
+    }
+
+    // ---------------------------------------------------------------- assignment changes
+
+    /**
+     * Assigns a courier to a parcel that is CREATED and has no ACTIVE assignment.
+     * The local row and the parcel-service update succeed or fail together: if
+     * parcel-service refuses, the exception rolls the insert back.
+     */
+    @Transactional
+    public AssignmentResult assign(UUID parcelId, Long courierId, String assignedBy) {
+        requireActor(assignedBy);
+        if (parcelId == null) throw badRequest("Parcel is required");
+        if (courierId == null) throw badRequest("Courier is required");
+        ParcelRow parcel = waitingParcel(parcelId, "Parcel is not waiting for a courier");
+        if (repository.activeAssignment(parcelId).isPresent()) {
+            throw new DispatchException(HttpStatus.CONFLICT, "Parcel already has an active assignment");
         }
-        CourierProfile courier = dataClient.findCourier(courierId).orElse(null);
-        if (courier == null) {
-            throw new DispatchException(HttpStatus.BAD_REQUEST, "Courier not found");
-        }
-        if (!courier.active() || !courier.available()) {
-            throw new DispatchException(HttpStatus.CONFLICT,
-                "Courier must be active and available to receive an assignment");
-        }
-        if (repository.usesNumericAssignments() && (courier.profileId()==null||courier.userId()==null))
-            throw badRequest("Courier must have a linked authenticated profile");
-        if (repository.usesNumericAssignments() && activeAssignment.isPresent()
-                && courier.profileId().equals(activeAssignment.get().courierProfileId()))
-            throw new DispatchException(HttpStatus.CONFLICT,"Parcel is already assigned to this courier");
-        UUID previous = activeAssignment.map(DispatchRepository.ActiveAssignment::courierId).orElse(null);
-        Long previousProfile=activeAssignment.map(DispatchRepository.ActiveAssignment::courierProfileId).orElse(null);
-        if (repository.usesNumericAssignments() && previousProfile!=null)
-            previous=dataClient.couriers().stream().filter(c->previousProfile.equals(c.profileId())).map(CourierProfile::courierId).findFirst().orElse(null);
-        Instant assignedAt = Instant.now();
-        AssignmentResult result;
-        try {
-            result = repository.usesNumericAssignments()
-                ? repository.saveNumericAssignment(parcelId,courier,previousProfile,previous,parcel.trackingNumber(),assignedBy,assignedAt)
-                : repository.saveAssignment(parcelId,courierId,previous,parcel.trackingNumber(),assignedBy,assignedAt);
-        } catch (DataIntegrityViolationException exception) {
-            throw new DispatchException(HttpStatus.CONFLICT,
-                "Parcel already has an active assignment", exception);
-        }
-        events.publishEvent(new ParcelAssignedEvent(
-            UUID.randomUUID(), "ParcelAssigned", assignedAt, parcelId.toString(),
-            parcel.trackingNumber(), courierId.toString(),
-            previous == null ? null : previous.toString(), assignedBy,
-            new ParcelAssignedEvent.ParcelSnapshot(parcel.pickupAddress(),parcel.deliveryAddress(),parcel.receiverName(),
-                parcel.receiverPhone(),parcel.weight(),parcel.size())));
+        CourierData courier = assignableCourier(courierId);
+        Instant now = Instant.now();
+        AssignmentResult result = insert(parcel, courier, null, assignedBy, now);
+        dataClient.assignParcelCourier(parcelId, courier.userId());
+        publish(result, parcel.trackingNumber(), courier, null, assignedBy, now);
         return result;
     }
 
+    /** Moves an ACTIVE assignment to another courier before pickup. */
+    @Transactional
+    public AssignmentResult reassign(UUID parcelId, Long courierId, String reassignedBy) {
+        requireActor(reassignedBy);
+        if (courierId == null) throw badRequest("Courier is required");
+        ParcelRow parcel = waitingParcel(parcelId, "Courier can only be changed before pickup");
+        ActiveAssignment current = repository.activeAssignment(parcelId)
+            .orElseThrow(() -> new DispatchException(HttpStatus.CONFLICT, "Parcel has no active assignment"));
+        if (current.courierProfileId().equals(courierId)) {
+            throw new DispatchException(HttpStatus.CONFLICT, "Parcel is already assigned to this courier");
+        }
+        CourierData courier = assignableCourier(courierId);
+        Instant now = Instant.now();
+        repository.cancelActiveAssignment(parcelId, reassignedBy, now);
+        AssignmentResult result = insert(parcel, courier, current.courierProfileId(), reassignedBy, now);
+        dataClient.assignParcelCourier(parcelId, courier.userId());
+        publish(result, parcel.trackingNumber(), courier, current, reassignedBy, now);
+        return result;
+    }
+
+    /** Cancels an ACTIVE assignment before pickup; the parcel returns to the waiting list. */
     @Transactional
     public AssignmentResult cancelAssignment(UUID parcelId, String cancelledBy) {
-        if (cancelledBy == null || cancelledBy.isBlank() || cancelledBy.length() > 80) {
-            throw new DispatchException(HttpStatus.UNAUTHORIZED, "Invalid authenticated user");
-        }
-        ParcelRow parcel = dataClient.findParcel(parcelId)
-            .orElseThrow(() -> new DispatchException(HttpStatus.NOT_FOUND, "Parcel not found"));
-        parcel = dataClient.lockParcel(parcelId).orElse(parcel);
-        if (!"CREATED".equals(parcel.status())) {
-            throw new DispatchException(HttpStatus.CONFLICT,
-                "An assignment can only be cancelled before pickup");
-        }
-        return repository.cancelAssignment(parcelId, cancelledBy, Instant.now())
+        requireActor(cancelledBy);
+        waitingParcel(parcelId, "An assignment can only be cancelled before pickup");
+        ActiveAssignment cancelled = repository.cancelActiveAssignment(parcelId, cancelledBy, Instant.now())
             .orElseThrow(() -> new DispatchException(HttpStatus.CONFLICT, "Parcel has no active assignment"));
+        // TODO(R1): clear the courier in parcel-service once it offers an un-assign call.
+        // Until then parcel-service keeps the previous courierUserId; the next assignment overwrites it.
+        return new AssignmentResult(cancelled.assignmentId(), parcelId, cancelled.trackingNumber(),
+            cancelled.courierProfileId(), cancelled.courierName(), null, cancelled.assignedBy(),
+            cancelled.assignedAt(), "CANCELLED");
     }
 
-    public List<AssignedParcel> assignedParcels(UUID courierId) {
-        if (repository.usesNumericAssignments()) {
-            var courier=dataClient.findCourier(courierId).orElseThrow(()->badRequest("Courier not found"));
-            if(courier.profileId()==null)throw badRequest("Courier must have a linked authenticated profile");
-            return repository.numericActiveAssignedParcels(courier.profileId());
-        }
-        return repository.activeAssignedParcels(courierId);
-    }
+    // ---------------------------------------------------------------- events
 
+    /**
+     * Validates and stores one parcel status event. Throws a 400
+     * {@link DispatchException} for an event that can never be stored.
+     */
     @Transactional
-    public void applyStatusEvent(ParcelStatusChangedEvent event) {
+    public boolean applyStatusEvent(ParcelStatusChangedEvent event) {
         if (event == null || event.eventId() == null || event.occurredAt() == null
                 || !"ParcelStatusChanged".equals(event.eventType())
                 || !hasText(event.parcelId()) || !hasText(event.trackingNumber())
@@ -255,41 +226,80 @@ public class DispatchService {
         } catch (IllegalArgumentException exception) {
             throw badRequest("Invalid parcel status event");
         }
-        repository.applyStatusEvent(event);
+        return repository.applyStatusEvent(event);
     }
+
+    // ---------------------------------------------------------------- reports
 
     public DispatchSummary reportSummary(LocalDate from, LocalDate to) {
-        Instant start = start(from);
-        Instant end = end(to);
-        return new DispatchSummary(repository.summaryDeliveriesPerDay(from, to.plusDays(1)),
-            repository.summarySuccessRate(start, end),
-            repository.summaryCountsByStatus(start, end),
-            repository.summaryActiveByCourier(end));
+        List<DeliveryByDay> perDay = repository.summaryDeliveriesPerDay(from, to);
+        long delivered = perDay.stream().mapToLong(DeliveryByDay::delivered).sum();
+        long failed = perDay.stream().mapToLong(DeliveryByDay::failed).sum();
+        BigDecimal successRate = percentage(delivered, delivered + failed);
+        BigDecimal failureRate = delivered + failed == 0 ? BigDecimal.ZERO.setScale(2)
+            : BigDecimal.valueOf(100).setScale(2).subtract(successRate);
+        return new DispatchSummary(perDay, successRate, failureRate,
+            repository.summaryCountsByStatus(start(from), end(to)),
+            repository.summaryActiveByCourier(end(to)));
     }
 
-    public List<CountByStatus> reportStatuses(LocalDate from, LocalDate to) {
-        var counts = new LinkedHashMap<String, Long>();
-        REPORT_STATUSES.forEach(status -> counts.put(status, 0L));
-        repository.countStatuses(start(from), end(to)).forEach(row -> {
-            if (counts.containsKey(row.status())) counts.put(row.status(), row.count());
-        });
-        return counts.entrySet().stream().map(entry -> new CountByStatus(entry.getKey(), entry.getValue())).toList();
+    // ---------------------------------------------------------------- helpers
+
+    private ParcelRow waitingParcel(UUID parcelId, String notWaitingMessage) {
+        ParcelRow parcel = dataClient.findParcel(parcelId)
+            .orElseThrow(() -> new DispatchException(HttpStatus.NOT_FOUND, "Parcel not found"));
+        if (!"CREATED".equals(parcel.status())) {
+            throw new DispatchException(HttpStatus.CONFLICT, notWaitingMessage);
+        }
+        return parcel;
     }
 
-    public List<VolumeByPeriod> reportVolume(LocalDate from, LocalDate to, boolean weekly) {
-        return repository.volume(start(from), end(to), weekly);
+    private CourierData assignableCourier(Long courierId) {
+        CourierData courier = dataClient.findCourier(courierId)
+            .orElseThrow(() -> badRequest("Courier not found"));
+        if (!courier.available()) {
+            throw new DispatchException(HttpStatus.CONFLICT, "Courier must be active and AVAILABLE");
+        }
+        if (courier.userId() == null) {
+            throw new DispatchException(HttpStatus.BAD_GATEWAY, "Courier service returned a courier without a user id");
+        }
+        return courier;
     }
 
-    public List<CourierPerformance> reportCourierPerformance(LocalDate from, LocalDate to) {
-        return repository.courierPerformance(start(from), end(to));
+    private AssignmentResult insert(ParcelRow parcel, CourierData courier, Long previousCourierId,
+            String assignedBy, Instant now) {
+        try {
+            return repository.insertAssignment(parcel.parcelId(), parcel.trackingNumber(), courier.id(),
+                courier.userId(), courierName(courier), previousCourierId, assignedBy, now);
+        } catch (DataIntegrityViolationException exception) {
+            throw new DispatchException(HttpStatus.CONFLICT, "Parcel already has an active assignment", exception);
+        }
     }
 
-    public List<FailedDelivery> reportFailed(LocalDate from, LocalDate to) {
-        return repository.failedDeliveries(start(from), end(to));
+    private void publish(AssignmentResult result, String trackingNumber, CourierData courier,
+            ActiveAssignment previous, String assignedBy, Instant now) {
+        events.publishEvent(new ParcelAssignedEvent(UUID.randomUUID(), "ParcelAssigned", now,
+            result.parcelId().toString(), trackingNumber,
+            courier.id().toString(), courier.userId().toString(),
+            previous == null ? null : previous.courierProfileId().toString(),
+            previous == null ? null : previous.courierUserId().toString(),
+            assignedBy));
     }
 
-    public List<RouteRevenue> reportRevenue(LocalDate from, LocalDate to) {
-        return repository.revenueByRoute(start(from), end(to));
+    private static String courierName(CourierData courier) {
+        String name = hasText(courier.name()) ? courier.name().trim() : "Courier " + courier.id();
+        return name.length() > 100 ? name.substring(0, 100) : name;
+    }
+
+    private static void requireActor(String actor) {
+        if (actor == null || actor.isBlank() || actor.length() > 80) {
+            throw new DispatchException(HttpStatus.UNAUTHORIZED, "Invalid authenticated user");
+        }
+    }
+
+    static BigDecimal percentage(long part, long total) {
+        if (total == 0) return BigDecimal.ZERO.setScale(2);
+        return BigDecimal.valueOf(part * 100L).divide(BigDecimal.valueOf(total), 2, RoundingMode.HALF_UP);
     }
 
     static Instant start(LocalDate date) {
@@ -300,26 +310,21 @@ public class DispatchService {
         return date.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();
     }
 
-    private PageResult<ParcelRow> page(String where, MapSqlParameterSource params, int page,
-            int pageSize, String sort, String direction) {
-        validatePaging(page, pageSize);
-        String column = SORT_FIELDS.get(sort);
-        if (column == null) throw badRequest("Unsupported sort field");
-        String order = direction.equalsIgnoreCase("asc") ? "ASC"
-            : direction.equalsIgnoreCase("desc") ? "DESC" : null;
-        if (order == null) throw badRequest("Sort direction must be asc or desc");
-        long total = repository.countParcels(where, params);
-        List<ParcelRow> content = repository.findParcels(where, params,
-            column + " " + order + ", p.parcel_id", pageSize, (long) page * pageSize);
-        int pages = (int) Math.ceil((double) total / pageSize);
-        return new PageResult<>(content, page, pageSize, total, pages);
+    private static String trackingPattern(String trackingNumber) {
+        if (!hasText(trackingNumber)) return null;
+        String escaped = trackingNumber.trim().replace("!", "!!").replace("%", "!%").replace("_", "!_");
+        if (escaped.length() > 80) throw badRequest("Tracking search is too long");
+        return "%" + escaped + "%";
     }
 
-    private PageResult<ParcelRow> page(List<ParcelRow> all, int page, int pageSize) {
+    private static int totalPages(long total, int pageSize) {
+        return (int) Math.ceil((double) total / pageSize);
+    }
+
+    private static PageResult<ParcelRow> page(List<ParcelRow> all, int page, int pageSize) {
         int start = (int) Math.min(all.size(), (long) page * pageSize);
         int end = (int) Math.min(all.size(), (long) start + pageSize);
-        return new PageResult<>(all.subList(start, end), page, pageSize, all.size(),
-            (int) Math.ceil((double) all.size() / pageSize));
+        return new PageResult<>(all.subList(start, end), page, pageSize, all.size(), totalPages(all.size(), pageSize));
     }
 
     private static boolean matches(String actual, String filter) {
@@ -329,13 +334,12 @@ public class DispatchService {
 
     private static Comparator<ParcelRow> parcelComparator(String sort, String direction) {
         Comparator<ParcelRow> comparator = switch (sort) {
-            case "createdAt" -> Comparator.comparing(ParcelRow::createdAt);
-            case "updatedAt" -> Comparator.comparing(ParcelRow::updatedAt);
-            case "trackingNumber" -> Comparator.comparing(ParcelRow::trackingNumber);
-            case "status" -> Comparator.comparing(ParcelRow::status);
-            case "pickupArea" -> Comparator.comparing(ParcelRow::pickupArea);
-            case "dropoffArea" -> Comparator.comparing(ParcelRow::dropoffArea);
-            case "size" -> Comparator.comparing(ParcelRow::size);
+            case "createdAt" -> Comparator.comparing(ParcelRow::createdAt, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "updatedAt" -> Comparator.comparing(ParcelRow::updatedAt, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "trackingNumber" -> Comparator.comparing(ParcelRow::trackingNumber, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "pickupArea" -> Comparator.comparing(ParcelRow::pickupArea, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "dropoffArea" -> Comparator.comparing(ParcelRow::dropoffArea, Comparator.nullsLast(Comparator.naturalOrder()));
+            case "size" -> Comparator.comparing(ParcelRow::size, Comparator.nullsLast(Comparator.naturalOrder()));
             default -> throw badRequest("Unsupported sort field");
         };
         if (direction.equalsIgnoreCase("desc")) comparator = comparator.reversed();
@@ -352,31 +356,6 @@ public class DispatchService {
     private static void validatePaging(int page, int pageSize) {
         if (page < 0 || pageSize < 1 || pageSize > 100) {
             throw badRequest("Page must be non-negative and page size must be between 1 and 100");
-        }
-    }
-
-    private static void addTextFilter(StringBuilder where, MapSqlParameterSource params,
-            String column, String name, String value) {
-        if (!hasText(value)) return;
-        String clean = value.trim();
-        if (clean.length() > 120) throw badRequest("Filter value is too long");
-        where.append(" AND ").append(column).append(" ILIKE :").append(name);
-        params.addValue(name, "%" + clean.replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%");
-        where.append(" ESCAPE '!'");
-    }
-
-    private static void addDateFilter(StringBuilder where, MapSqlParameterSource params,
-            LocalDate from, LocalDate to) {
-        if (from != null && to != null && from.isAfter(to)) {
-            throw badRequest("Start date must not be after end date");
-        }
-        if (from != null) {
-            where.append(" AND p.created_at >= :from");
-            params.addValue("from", Timestamp.from(start(from)));
-        }
-        if (to != null) {
-            where.append(" AND p.created_at < :to");
-            params.addValue("to", Timestamp.from(end(to)));
         }
     }
 

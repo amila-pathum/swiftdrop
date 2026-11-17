@@ -32,11 +32,12 @@ const MESSAGES = {
 
 // Messages are safe to show to users; tokens and request bodies are never included.
 export class ApiError extends Error {
-  constructor(message, { status = 0, kind = ApiErrorKind.HTTP } = {}) {
+  constructor(message, { status = 0, kind = ApiErrorKind.HTTP, fields = {} } = {}) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.kind = kind
+    this.fields = fields
   }
 }
 
@@ -76,7 +77,10 @@ function errorFromResponse(response, body) {
   const message = typeof body?.error === 'string' && body.error.trim() !== ''
     ? body.error
     : `Request failed with status ${response.status}.`
-  return new ApiError(message, { status: response.status, kind: ApiErrorKind.HTTP })
+  const fields = body?.fields && typeof body.fields === 'object' && !Array.isArray(body.fields)
+    ? Object.fromEntries(Object.entries(body.fields).filter(([, value]) => typeof value === 'string'))
+    : {}
+  return new ApiError(message, { status: response.status, kind: ApiErrorKind.HTTP, fields })
 }
 
 const notifyUnauthorized = () => unauthorizedListeners.forEach((listener) => listener())

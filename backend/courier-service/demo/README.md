@@ -1,18 +1,19 @@
-# Local courier sample data
+# Courier fixtures: compatibility notice
 
-## Current Merchant-owned workflow
+The current authority is **DISPATCHER**, through Dispatch Service. See
+[../API.md](../API.md). The develop merge replaced Dispatch's UUID API with numeric
+Courier profile/Identity IDs. Courier now consumes that contract through RabbitMQ.
 
-The assignment authority was corrected to **MERCHANT**. Use [../API.md](../API.md)
-for the current Courier-only API contract and [manual_merchant_example.sql](manual_merchant_example.sql)
-for manual data preparation in `courier_db`. Merchants call Courier's assignment
-API; couriers save activity locally and Courier publishes its own outbox events.
-No Merchant code or database is changed.
+**The scripts/instructions below are archived fixtures from before this merge.**
+Their assignment requests and cross-service seeding are not compatible with the
+current Dispatch API; do not run `seed_local.py` or `seed_rds.py --apply` unchanged.
+They are retained for reference, not as the current setup procedure. Existing
+credential files are local artifacts and should not be committed/shared.
+`manual_merchant_example.sql` touches Courier only and imports parcel metadata;
+it does not grant assignment authority. No Merchant owner import is required to
+accept a trusted Dispatch assignment.
 
-The older Dispatcher fixture scripts/credentials below are retained as historical
-test artifacts. Their Dispatcher assignment step is not authorized by the current
-Courier API. Do not use those scripts as the Merchant integration contract. The
-old read-only demo snapshots do not automatically confer merchant ownership or
-become locally managed assignments; import verified ownership and use the new API.
+## Historical instructions (superseded)
 
 ## Current RDS demo
 

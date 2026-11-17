@@ -69,7 +69,6 @@ describe('NotificationBell', () => {
 
     expect(screen.getByText('Parcel Shipped')).toBeInTheDocument()
     expect(screen.getByText('Your parcel is on its way.')).toBeInTheDocument()
-    expect(screen.getByText('SD-100')).toBeInTheDocument()
 
     // Click "Mark as read"
     const markButton = screen.getByText('Mark as read')

@@ -19,6 +19,10 @@ public class CourierProfileService {
     public CourierProfileService(CourierProfileRepository profiles,IdentityClient identity) { this.profiles=profiles;this.identity=identity; }
     @Transactional(readOnly=true)
     public CourierProfile own(Long userId) { return profiles.findByUserId(userId).orElseThrow(()->CourierException.missing("Courier profile not found.")); }
+    @Transactional(readOnly=true)
+    public Profile find(Long id) {
+        return Profile.from(profiles.findById(id).orElseThrow(()->CourierException.missing("Courier profile not found.")));
+    }
     public CourierProfile operational(Long userId) {
         CourierProfile p=own(userId);
         if(!p.active) throw CourierException.forbidden("Courier profile is inactive.");

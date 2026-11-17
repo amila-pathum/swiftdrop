@@ -6,6 +6,18 @@ import java.time.OffsetDateTime;
 @Entity
 @Table(name = "merchant_webhook_settings")
 public class MerchantWebhookSettings {
+    public static final java.util.Set<String> ALL_EVENTS = java.util.Set.of(
+            "CREATED", "PICKED_UP", "IN_TRANSIT", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED", "CANCELLED");
+    @Column(name = "subscribed_events", nullable = false, length = 200)
+    private String subscribedEvents = String.join(",", new java.util.TreeSet<>(ALL_EVENTS));
+
+    public java.util.Set<String> getEvents() {
+        return subscribedEvents.isEmpty() ? java.util.Set.of() : java.util.Set.copyOf(java.util.Arrays.asList(subscribedEvents.split(",")));
+    }
+    public void setEvents(java.util.Set<String> events) {
+        if (!ALL_EVENTS.containsAll(events)) throw new IllegalArgumentException("Unknown webhook event");
+        subscribedEvents = String.join(",", new java.util.TreeSet<>(events));
+    }
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;

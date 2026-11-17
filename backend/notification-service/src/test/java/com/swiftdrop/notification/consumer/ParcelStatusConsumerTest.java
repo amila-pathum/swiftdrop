@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -68,10 +69,12 @@ class ParcelStatusConsumerTest {
 
         consumer.consume(EVENT_JSON.getBytes(StandardCharsets.UTF_8));
 
-        // 1. Verify notification persisted
+        // 1. Verify notification persisted with customer-friendly title & description
         verify(notificationRepository).save(argThat(n ->
                 n.getUserId().equals("cust-42") &&
                 n.getTrackingNumber().equals("SD-999") &&
+                n.getTitle().equals("Parcel In Transit") &&
+                n.getMessage().equals("Your parcel SD-999 is on the way to the delivery location.") &&
                 !n.isRead()
         ));
 
@@ -137,6 +140,47 @@ class ParcelStatusConsumerTest {
 
         // Processed event recorded
         verify(processedEventRepository).save(argThat(pe -> pe.getEventId().equals(eventId)));
+    }
+
+    @Test
+    void generatesMeaningfulCustomerFriendlyTitlesAndDescriptions() {
+        // DELIVERED
+        assertThat(ParcelStatusConsumer.resolveNotificationTitle("DELIVERED"))
+                .isEqualTo("Parcel Delivered");
+        assertThat(ParcelStatusConsumer.resolveNotificationDescription("DELIVERED", "SD-2026-9003"))
+                .isEqualTo("Your parcel SD-2026-9003 has been successfully delivered.");
+
+        // IN_TRANSIT
+        assertThat(ParcelStatusConsumer.resolveNotificationTitle("IN_TRANSIT"))
+                .isEqualTo("Parcel In Transit");
+        assertThat(ParcelStatusConsumer.resolveNotificationDescription("IN_TRANSIT", "SD-2026-9003"))
+                .isEqualTo("Your parcel SD-2026-9003 is on the way to the delivery location.");
+
+        // OUT_FOR_DELIVERY
+        assertThat(ParcelStatusConsumer.resolveNotificationTitle("OUT_FOR_DELIVERY"))
+                .isEqualTo("Parcel Out for Delivery");
+        assertThat(ParcelStatusConsumer.resolveNotificationDescription("OUT_FOR_DELIVERY", "SD-2026-9003"))
+                .isEqualTo("Your parcel SD-2026-9003 is out for delivery and will arrive soon.");
+
+        // PICKED_UP
+        assertThat(ParcelStatusConsumer.resolveNotificationTitle("PICKED_UP"))
+                .isEqualTo("Parcel Picked Up");
+        assertThat(ParcelStatusConsumer.resolveNotificationDescription("PICKED_UP", "SD-2026-9003"))
+                .isEqualTo("Your parcel SD-2026-9003 has been picked up by the courier.");
+
+        // CREATED
+        assertThat(ParcelStatusConsumer.resolveNotificationTitle("CREATED"))
+                .isEqualTo("Parcel Registered");
+        assertThat(ParcelStatusConsumer.resolveNotificationDescription("CREATED", "SD-2026-9003"))
+                .isEqualTo("Your parcel SD-2026-9003 has been registered and is being processed.");
+
+        // CANCELLED
+        assertThat(ParcelStatusConsumer.resolveNotificationTitle("CANCELLED"))
+                .isEqualTo("Parcel Cancelled");
+
+        // FAILED
+        assertThat(ParcelStatusConsumer.resolveNotificationTitle("FAILED"))
+                .isEqualTo("Delivery Attempt Failed");
     }
 }
 

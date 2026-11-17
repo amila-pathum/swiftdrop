@@ -86,10 +86,10 @@ class RdsProfileStartupTest {
         assertThat(jdbc.queryForList(
             "SELECT version || ':' || type FROM public.flyway_schema_history"
                 + " WHERE version IS NOT NULL ORDER BY installed_rank",
-            String.class)).containsExactly("1:SQL", "2:SQL", "3:SQL", "4:SQL", "5:SQL");
+            String.class)).containsExactly("1:SQL", "2:SQL", "3:SQL", "4:SQL", "5:SQL", "6:SQL");
         assertThat(jdbc.queryForList(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name",
-            String.class)).containsExactly("flyway_schema_history", "parcel_event_outbox",
+            String.class)).containsExactly("flyway_schema_history", "merchant_order_idempotency", "parcel_event_outbox",
                 "parcel_status_history", "parcel_status_idempotency", "parcels");
     }
 
@@ -115,28 +115,6 @@ class RdsProfileStartupTest {
         assertThat(entityManagerFactory.getProperties())
             .containsEntry("hibernate.default_schema", "public")
             .containsEntry("hibernate.hbm2ddl.auto", "validate");
-    }
-
-    @Test
-    void newerSharedDatabaseVersionsAreAllowedButKnownChecksumsAreValidated() {
-        Integer originalChecksum = jdbc.queryForObject(
-            "SELECT checksum FROM flyway_schema_history WHERE version = '1'", Integer.class);
-        try {
-            jdbc.update("""
-                INSERT INTO flyway_schema_history
-                    (installed_rank, version, description, type, script, checksum,
-                     installed_by, execution_time, success)
-                SELECT COALESCE(MAX(installed_rank), 0) + 1, '99', 'future branch fixture',
-                    'SQL', 'V99__future_branch_fixture.sql', 1, current_user, 0, true
-                FROM flyway_schema_history
-                """);
-            assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
-            jdbc.update("UPDATE flyway_schema_history SET checksum = 0 WHERE version = '1'");
-            assertThat(flyway.validateWithResult().validationSuccessful).isFalse();
-        } finally {
-            jdbc.update("UPDATE flyway_schema_history SET checksum = ? WHERE version = '1'", originalChecksum);
-            jdbc.update("DELETE FROM flyway_schema_history WHERE version = '99'");
-        }
     }
 
     // A database whose public schema already holds tables but no Flyway

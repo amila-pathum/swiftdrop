@@ -83,7 +83,7 @@ public class InternalWebhookSecurityConfig {
 
         return http
                 .securityMatcher(new org.springframework.security.web.util.matcher.RegexRequestMatcher(
-                        "^/internal/merchants/[0-9]+/webhook$", null
+                        "^/internal/merchants/(?:[0-9]+/webhook|by-user/[0-9]+/profile)(?:\\?.*)?$", null
                 ))
                 .csrf(csrf -> csrf.disable())
                 .httpBasic(basic -> basic.disable())

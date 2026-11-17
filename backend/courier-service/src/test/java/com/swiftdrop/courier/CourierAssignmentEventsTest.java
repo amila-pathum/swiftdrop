@@ -63,7 +63,7 @@ class CourierAssignmentEventsTest {
         assertThat(condition.getAsBoolean()).isTrue();
     }
     @Test void actualRabbitAssignmentAppearsWithSnapshotWithoutCallingOtherServices() throws Exception {
-        var assignment=event("ParcelAssigned",at);assignment.put("courierId",owner);assignment.put("assignedBy","7");
+        var assignment=event("ParcelAssigned",at);assignment.put("courierId","10");assignment.put("courierUserId","42");assignment.put("assignedBy","7");
         assignment.put("parcel",Map.of("deliveryAddress","7 Hospital Road, Dehiwala","pickupAddress","Kandy",
             "receiverName","Demo Recipient","receiverPhone","0771234567","weight",2.5,"size","SMALL"));
         template.send(CourierRabbitConfig.EXCHANGE,CourierRabbitConfig.ASSIGNED,message(CourierRabbitConfig.ASSIGNED,assignment));

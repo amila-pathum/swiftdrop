@@ -170,6 +170,17 @@ describe('MerchantOrdersPage', () => {
     expect(screen.getByText('SDMERCHANT001')).toBeInTheDocument()
   })
 
+  it.each([800, 0, null])('shows the booked charge %s without inventing a breakdown', async (charge) => {
+    parcelService.getMerchantParcels.mockResolvedValue({ ...firstPage, content: [{ ...firstPage.content[0], charge }] })
+    render(<MemoryRouter><MerchantOrdersPage /></MemoryRouter>)
+    fireEvent.click(await screen.findByRole('button', { name: 'Details' }))
+    expect(screen.getByText('Booked delivery fee')).toBeInTheDocument()
+    expect(screen.getByText(charge === null ? 'Unavailable' : `LKR ${charge.toFixed(2)}`)).toBeInTheDocument()
+    expect(screen.queryByText('Base fee (first 1 kg)')).not.toBeInTheDocument()
+    expect(screen.queryByText('Additional weight')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Size surcharge/)).not.toBeInTheDocument()
+  })
+
   it('displays Back to Overview and breadcrumb when navigating from overview dashboard', async () => {
     parcelService.getMerchantParcels.mockResolvedValue(firstPage)
     render(

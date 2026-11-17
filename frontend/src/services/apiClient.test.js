@@ -30,6 +30,15 @@ describe('apiClient', () => {
     vi.unstubAllGlobals()
   })
 
+  it('preserves field validation messages for forms', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(400, {
+      error: 'Please correct the highlighted fields', fields: { weight: 'Weight must be positive' },
+    }))
+    await expect(apiClient.post('/api/pricing/quote', {})).rejects.toMatchObject({
+      status: 400, fields: { weight: 'Weight must be positive' },
+    })
+  })
+
   describe('successful requests', () => {
     it('lets the browser provide multipart boundaries for image uploads', async () => {
       fetchMock.mockResolvedValue(jsonResponse(202, { syncStatus: 'PENDING' }))

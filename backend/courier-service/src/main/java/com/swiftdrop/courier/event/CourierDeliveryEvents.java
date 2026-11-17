@@ -29,8 +29,8 @@ public class CourierDeliveryEvents {
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record Assigned(UUID eventId, String eventType, Instant occurredAt, UUID parcelId,
-        String trackingNumber, UUID courierId, UUID previousCourierId, String assignedBy,
-        UUID assignmentId, LocalDate deliveryDate, Integer attemptNo, Long version, AssignedParcel parcel) {}
+        String trackingNumber, String courierId, String previousCourierId, String assignedBy,
+        UUID assignmentId, LocalDate deliveryDate, Integer attemptNo, Long version, AssignedParcel parcel, String courierUserId) {}
 
     @JsonIgnoreProperties(ignoreUnknown = true)
     public record AssignedParcel(String pickupAddress,String deliveryAddress,String receiverName,
@@ -80,23 +80,27 @@ public class CourierDeliveryEvents {
         if (event.courierId() == null || event.attemptNo() != null && event.attemptNo() < 1
                 || event.version() != null && event.version() < 0) throw new IllegalArgumentException("Invalid assignment event");
         if (!begin(event.eventId(), event.eventType(), "ParcelAssigned", event.occurredAt(), event.parcelId(), event.trackingNumber(), CourierRabbitConfig.ASSIGNED)) return;
-        if(locallyManaged(event.parcelId()))return;
+        UUID courierReference=resolveCourier(event.courierId(),event.courierUserId());
         jdbc.update("""
             INSERT INTO courier_delivery_assignments(parcel_id,projection_id,dispatch_assignment_id,dispatch_courier_id,
                 assigned_at,delivery_date,attempt_no,assignment_version) VALUES (?,?,?,?,?,?,?,?)
             ON CONFLICT (parcel_id) DO UPDATE SET projection_id=excluded.projection_id,
                 dispatch_assignment_id=excluded.dispatch_assignment_id,dispatch_courier_id=excluded.dispatch_courier_id,
                 assigned_at=excluded.assigned_at,delivery_date=excluded.delivery_date,
-                attempt_no=excluded.attempt_no,assignment_version=excluded.assignment_version
-            WHERE courier_delivery_assignments.assigned_at < excluded.assigned_at AND NOT courier_delivery_assignments.managed_locally
-            """, event.parcelId(), event.eventId(), event.assignmentId(), event.courierId(), Timestamp.from(event.occurredAt()),
-            event.deliveryDate(), event.attemptNo() == null ? 1 : event.attemptNo(), event.version() == null ? 0 : event.version());
+                attempt_no=CASE WHEN CAST(? AS BIGINT) IS NOT NULL THEN excluded.attempt_no
+                    WHEN (SELECT status FROM courier_delivery_parcels WHERE parcel_id=excluded.parcel_id)='FAILED'
+                    THEN courier_delivery_assignments.attempt_no+1 ELSE courier_delivery_assignments.attempt_no END,
+                assignment_version=CASE WHEN CAST(? AS BIGINT) IS NOT NULL THEN excluded.assignment_version
+                    ELSE courier_delivery_assignments.assignment_version+1 END,
+                managed_locally=false,active=true
+            WHERE courier_delivery_assignments.assigned_at < excluded.assigned_at
+            """, event.parcelId(), event.eventId(), event.assignmentId(), courierReference, Timestamp.from(event.occurredAt()),
+            event.deliveryDate(), event.attemptNo() == null ? 1 : event.attemptNo(), event.version() == null ? 0 : event.version(), event.attemptNo(),event.version());
         // Dispatch currently accepts assignment only while Parcel is CREATED.
         // Preserve any later canonical Parcel status that has already arrived.
         jdbc.update("""
             UPDATE courier_delivery_parcels SET status='CREATED',status_at=?
             WHERE parcel_id=? AND (status_at IS NULL OR status_at < ?)
-                AND NOT EXISTS (SELECT 1 FROM courier_delivery_assignments a WHERE a.parcel_id=courier_delivery_parcels.parcel_id AND a.managed_locally)
             """, Timestamp.from(event.occurredAt()), event.parcelId(), Timestamp.from(event.occurredAt()));
         if (event.parcel()!=null) {
             var p=event.parcel();
@@ -124,7 +128,6 @@ public class CourierDeliveryEvents {
                 merchantOwner(event.parcelId(),merchant);
             } catch(NumberFormatException e) {throw new IllegalArgumentException("Invalid merchant identity in Parcel event");}
         }
-        if(locallyManaged(event.parcelId()))return;
         saveHistory(event.parcelId(),new History(event.eventId(),event.newStatus(),event.occurredAt(),event.locationDescription(),event.attemptNo(),event.actorRole()));
         jdbc.update("""
             UPDATE courier_delivery_parcels SET status=?,status_at=?
@@ -146,14 +149,27 @@ public class CourierDeliveryEvents {
             """, event.trackingNumber(), event.pickupAddress(), event.deliveryAddress(), event.receiverName(), event.receiverPhone(),
             event.weight(), event.size(), event.deliveryDate(), Timestamp.from(event.occurredAt()),event.pickupContactName(),event.pickupContactPhone(),
             event.contentsDescription(),event.lengthCm(),event.widthCm(),event.heightCm(),event.parcelId(), Timestamp.from(event.occurredAt()));
-        if(event.history()!=null&&!locallyManaged(event.parcelId())) {
+        if(event.history()!=null) {
             if(event.history().size()>500)throw new IllegalArgumentException("History snapshot is too large");
             for(var entry:event.history())saveHistory(event.parcelId(),entry);
         }
     }
 
-    private boolean locallyManaged(UUID parcelId) {
-        return Boolean.TRUE.equals(jdbc.queryForObject("SELECT EXISTS (SELECT 1 FROM courier_delivery_assignments WHERE parcel_id=? AND managed_locally)",Boolean.class,parcelId));
+    /** Current Dispatch sends numeric profile and Identity IDs; UUID-only events are legacy. */
+    private UUID resolveCourier(String id,String userId) {
+        if(id.matches("[1-9][0-9]*")) {
+            if(userId==null||!userId.matches("[1-9][0-9]*"))
+                throw new IllegalArgumentException("Dispatch assignment requires a courier Identity user ID");
+            try {
+                var rows=jdbc.query("SELECT dispatch_courier_id FROM courier_profiles WHERE id=? AND user_id=?",
+                    (rs,row)->rs.getObject(1,UUID.class),Long.valueOf(id),Long.valueOf(userId));
+                if(rows.isEmpty())throw new IllegalArgumentException("Dispatch courier profile and Identity do not match");
+                return rows.getFirst();
+            } catch(NumberFormatException e) {throw new IllegalArgumentException("Invalid numeric courier identity");}
+        }
+        if(userId!=null)throw new IllegalArgumentException("Invalid Dispatch courier profile ID");
+        try {return UUID.fromString(id);}
+        catch(IllegalArgumentException e) {throw new IllegalArgumentException("Invalid legacy courier reference");}
     }
     private void merchantOwner(UUID parcelId,Long merchant) {
         var current=jdbc.queryForObject("SELECT merchant_user_id FROM courier_delivery_parcels WHERE parcel_id=?",Long.class,parcelId);

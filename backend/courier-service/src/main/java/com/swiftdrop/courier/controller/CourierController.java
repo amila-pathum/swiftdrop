@@ -29,13 +29,15 @@ public class CourierController {
         var result=profiles.provision(input,jwt.getTokenValue());
         return ResponseEntity.status(result.created()?201:200).body(result.profile());
     }
-    @GetMapping("/profiles") @PreAuthorize("hasAnyRole('ADMIN','MERCHANT')")
+    @GetMapping("/profiles") @PreAuthorize("hasAnyRole('ADMIN','DISPATCHER')")
     public PageResult<Profile> list(@RequestParam(required=false) Availability availability,@RequestParam(required=false) @Size(max=100) String area,
         @RequestParam(defaultValue="true") boolean active,@RequestParam(defaultValue="0") @Min(0) int page,
         @RequestParam(defaultValue="20") @Min(1) @Max(100) int size) {return profiles.list(availability,area,active,page,size);}
+    @GetMapping("/profiles/{id}") @PreAuthorize("hasAnyRole('ADMIN','DISPATCHER')")
+    public Profile profile(@PathVariable @Positive Long id) { return profiles.find(id); }
     // Preserve the UUID-based list used by the integrated Dispatch service.
     // Filtered requests remain an alias for the numeric-user profile API.
-    @GetMapping @PreAuthorize("hasAnyRole('ADMIN','MERCHANT')")
+    @GetMapping @PreAuthorize("hasAnyRole('ADMIN','DISPATCHER')")
     public Object compatibleList(@RequestParam(required=false) Availability availability,
         @RequestParam(required=false) @Size(max=100) String area,
         @RequestParam(defaultValue="true") boolean active,@RequestParam(defaultValue="0") @Min(0) int page,
@@ -45,7 +47,7 @@ public class CourierController {
             return profiles.list(availability,area,active,page,size);
         return legacy.list();
     }
-    @GetMapping("/{courierId}") @PreAuthorize("hasAnyRole('ADMIN','MERCHANT')")
+    @GetMapping("/{courierId}") @PreAuthorize("hasAnyRole('ADMIN','DISPATCHER')")
     public com.swiftdrop.courier.dto.CourierResponse legacyCourier(@PathVariable java.util.UUID courierId) {
         return legacy.find(courierId).orElseThrow(()->CourierException.missing("Courier not found."));
     }

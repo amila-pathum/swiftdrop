@@ -60,6 +60,21 @@ public class JwtService {
         return generateToken(user, Instant.now());
     }
 
+    /** Only the protected Merchant integration exchange calls this method. */
+    public String generateMerchantIntegrationToken(User user) {
+        if (user.getRole() != Role.MERCHANT || user.getStatus() != UserStatus.ACTIVE) {
+            throw new IllegalArgumentException("An active merchant account is required");
+        }
+        Instant issuedAt = Instant.now();
+        return Jwts.builder().subject(user.getId().toString())
+                .claim(CLAIM_EMAIL, user.getEmail()).claim(CLAIM_ROLE, user.getRole().name())
+                .claim(CLAIM_STATUS, user.getStatus().name()).claim(CLAIM_TOKEN_VERSION, user.getTokenVersion())
+                .claim("purpose", "MERCHANT_ORDER_INTEGRATION")
+                .audience().add("parcel-service").add("pricing-service").and()
+                .issuedAt(Date.from(issuedAt)).expiration(Date.from(issuedAt.plusSeconds(60)))
+                .signWith(signingKey).compact();
+    }
+
     String generateToken(User user, Instant issuedAt) {
         return Jwts.builder()
             .subject(user.getId().toString())

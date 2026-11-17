@@ -15,6 +15,7 @@ public final class WebhookDeliveryProcessor {
     private final WebhookRetryPolicy retries;
     private final Clock clock;
     private final Set<String> allowedOrigins;
+    private static final tools.jackson.databind.ObjectMapper JSON = new tools.jackson.databind.ObjectMapper();
 
     public WebhookDeliveryProcessor(MerchantWebhookSettingsLookup settings,
             WebhookHttpSender sender, WebhookRetryPolicy retries,
@@ -41,6 +42,13 @@ public final class WebhookDeliveryProcessor {
                 return new Outcome("SKIPPED", attemptedAt, null, null, "WEBHOOK_DISABLED");
             }
             var config = found.get();
+            if (config.events() != null) {
+                var payload = JSON.readTree(delivery.payload());
+                boolean testEvent = "WebhookTest".equals(payload.path("eventType").asText());
+                if (!testEvent && !config.events().contains(payload.path("newStatus").asText())) {
+                    return new Outcome("SKIPPED", attemptedAt, null, null, "EVENT_NOT_SUBSCRIBED");
+                }
+            }
             URI endpoint = config.endpoint();
             if (!allowedOrigins.contains(origin(endpoint))) {
                 return new Outcome("FAILED", attemptedAt, null, null, "ENDPOINT_NOT_ALLOWED");

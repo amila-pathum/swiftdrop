@@ -1,45 +1,39 @@
-# Courier API: Merchant assignment and Courier activity
+# Courier API: Dispatcher assignments and Courier activity
 
-Courier owns this workflow and all of its tables in `courier_db`. Merchant calls
-these APIs with its existing Identity-issued JWT. No Merchant code, Merchant
-database, or other service database is read or changed by these APIs.
+Dispatch Service owns assignment, reassignment and cancellation. Dispatcher selects
+an active AVAILABLE Courier profile; Dispatch publishes `parcel.assigned`.
+Courier consumes that message, saves a projection in `courier_db`, and displays it
+only to the assigned courier. Courier saves delivery activity/evidence locally and
+publishes its own RabbitMQ events. Merchant has no assignment authority here.
 
-All paths already fit the gateway's `/api/couriers/**` route. Send
-`Authorization: Bearer <access_token>` and `Content-Type: application/json`.
-The caller's numeric Identity user ID is the JWT subject; never send an actor ID
-or merchant owner ID in an API request to impersonate another account.
-
-## Roles and identifiers
-
-- **MERCHANT** lists available couriers, assigns/reassigns/cancels its own
-  deliveries, and reads its own deliveries' activity/history.
-- **COURIER** reads its own assignments, edits its own availability, and records
-  delivery progress and proof. It cannot edit another courier's deliveries.
-- **ADMIN** provisions/deactivates courier profiles and can read the directory.
-- DISPATCHER is not an assignment authority in this workflow.
-
-`courierId` in assignment requests is the numeric `courier_profiles.id`, returned
-as `id` by the available-courier API. It is not the Identity user ID and not the
-legacy UUID. `courierReference` is the stable UUID used for event correlation.
-`parcelId`, `assignmentId` and `submissionId` are UUIDs.
+Send `Authorization: Bearer <Identity access_token>` on `/api/couriers/**`.
+The gateway already routes these endpoints. Numeric JWT subjects are Identity user
+IDs. Numeric profile IDs (`courier_profiles.id`) are different from Identity IDs.
+The UUID `courierReference` is an internal/legacy correlation value.
 
 ## Directory and availability
 
 | Method | Path | Role | Purpose |
 | --- | --- | --- | --- |
-| GET | `/api/couriers/available` | MERCHANT, ADMIN | Active AVAILABLE profiles from `courier_profiles`, with active workload count |
-| GET | `/api/couriers/{id}/availability` | MERCHANT, ADMIN | Current availability/activation/workload for one numeric profile ID |
-| GET | `/api/couriers/profiles` | MERCHANT, ADMIN | Paginated profile directory; filter availability, area and active |
-| GET | `/api/couriers/me` | COURIER | Own profile |
-| PUT | `/api/couriers/me` | COURIER | Own contact/vehicle/area fields |
-| GET | `/api/couriers/me/availability` | COURIER | Own availability and workload |
-| PATCH | `/api/couriers/me/availability` | COURIER | Set AVAILABLE, BUSY or OFFLINE |
-| POST | `/api/couriers` | ADMIN | Provision a verified COURIER Identity user |
-| PATCH | `/api/couriers/{id}/active` | ADMIN | Activate/deactivate the operational profile |
+| GET | `/api/couriers/profiles` | DISPATCHER, ADMIN | Paginated real Courier profiles, including numeric `id` and `userId` |
+| GET | `/api/couriers/profiles/{id}` | DISPATCHER, ADMIN | One numeric profile |
+| GET | `/api/couriers/available` | DISPATCHER, ADMIN | Active AVAILABLE profiles and active workload count |
+| GET | `/api/couriers/{id}/availability` | DISPATCHER, ADMIN | One numeric profile's availability and workload |
+| GET, PUT | `/api/couriers/me` | COURIER | Read/edit own profile |
+| GET, PATCH | `/api/couriers/me/availability` | COURIER | Read/edit own availability |
+| POST | `/api/couriers` | ADMIN | Provision an Identity-verified Courier profile |
+| PATCH | `/api/couriers/{id}/active` | ADMIN | Activate/deactivate a Courier profile |
 
-Available query parameters: optional `area` (case-insensitive exact match), optional
-`vehicleType` (BICYCLE, MOTORCYCLE, THREE_WHEELER, CAR, VAN, TRUCK), `page` (default
-0), `size` (default 20, maximum 100). Only active AVAILABLE profiles are returned.
+The incoming Dispatch `HttpDispatchDataClient` already calls
+`GET /api/couriers/profiles?active=true&page=0&size=100` with the dispatcher's JWT.
+This contract works without changes to Dispatch. Profile responses contain
+`id`, `userId`, `name`, `phone`, `vehicleType`, `vehicleNumber`, `area`,
+`availability`, `active`, `version`, `createdAt`, `updatedAt`.
+
+`/profiles` filters: `availability`, `area`, `active` (default true), `page`
+(default 0), `size` (default 20; max 100). `/available` supports `area`,
+`vehicleType`, `page` and `size`. Vehicle types: BICYCLE, MOTORCYCLE,
+THREE_WHEELER, CAR, VAN, TRUCK. Area matching is case-insensitive and exact.
 
 ```http
 GET /api/couriers/available?area=Colombo&vehicleType=VAN&page=0&size=20
@@ -50,89 +44,75 @@ GET /api/couriers/available?area=Colombo&vehicleType=VAN&page=0&size=20
   "content": [{
     "id": 10,
     "courierReference": "10000000-0000-4000-8000-000000000010",
-    "name": "Courier Name",
-    "vehicleType": "VAN",
-    "area": "Colombo",
-    "availability": "AVAILABLE",
-    "active": true,
-    "activeDeliveryCount": 2
+    "name": "Courier Name", "vehicleType": "VAN", "area": "Colombo",
+    "availability": "AVAILABLE", "active": true, "activeDeliveryCount": 2
   }],
   "page": 0, "size": 20, "totalElements": 1, "totalPages": 1
 }
 ```
 
-The existing root UUID directory remains for compatibility; new Merchant
-integration should use `/available` and its numeric `id`. Availability is separate
-from delivery progress: a courier can carry multiple parcels while AVAILABLE.
-The service does not invent a capacity limit or automatically mark every courier
-BUSY after one assignment. An unchanged availability PATCH is idempotent and
-does not create another change event.
+Set availability with `PATCH /api/couriers/me/availability`:
 
 ```json
 {"availability":"AVAILABLE"}
 ```
 
-## Merchant assignments
+Availability is AVAILABLE, BUSY or OFFLINE; it is separate from parcel activity.
+A courier may carry multiple parcels. Identical availability updates do not
+produce duplicate change events. Only ADMIN changes the activation flag.
 
-Before assignment, the parcel must exist in `courier_delivery_parcels` with its
-verified `merchant_user_id`. That value must equal the caller's JWT subject.
-The API never claims an unknown parcel for whoever asks first.
+The root UUID directory and `GET /api/couriers/{uuid}` are retained for legacy
+callers, with DISPATCHER/ADMIN access. New integrations use numeric `/profiles`.
 
-Ownership can arrive through a trusted `parcel.delivery-snapshot.v1` message's
-explicit `merchantUserId`, or the existing Parcel status event's numeric
-`merchantId` (Parcel's creation contract uses the Identity user ID). A conflicting
-incoming owner is rejected. Alternatively, the responsible developer/operator
-can import verified data with SQL in **Courier's own database**. See
-[`demo/manual_merchant_example.sql`](demo/manual_merchant_example.sql).
+## Assignment handoff through RabbitMQ
 
-| Method | Path | Purpose |
-| --- | --- | --- |
-| POST | `/api/couriers/assignments` | Assign, reassign before pickup, or start a new attempt after FAILED |
-| POST | `/api/couriers/assignments/{parcelId}/cancel` | Cancel a locally managed assignment before pickup |
-| GET | `/api/couriers/merchant/deliveries` | Own assigned deliveries; optional exact `status`, page, size |
-| GET | `/api/couriers/merchant/deliveries/{parcelId}` | Own delivery and parcel details |
-| GET | `/api/couriers/merchant/deliveries/{parcelId}/status` | Own current activity |
-| GET | `/api/couriers/merchant/deliveries/{parcelId}/history` | Own canonical Courier history |
+Use the assignment APIs documented in Dispatch Service. Courier does not expose
+`POST /api/couriers/assignments`, cancellation writes or `/merchant/deliveries`.
+Those APIs belonged to the superseded Merchant workflow and have been removed.
+No browser-provided owner ID can create a Courier assignment.
 
-All these endpoints require MERCHANT. There is no owner ID filter that can be
-used to read another merchant's deliveries.
+Courier subscribes to `swiftdrop.events` / `parcel.assigned`. The current producer
+contract (`contracts/events/parcel.assigned.v1.schema.json`) is:
 
-```http
-POST /api/couriers/assignments
-```
 ```json
 {
-  "submissionId":"81000000-0000-4000-8000-000000000001",
+  "eventId":"81000000-0000-4000-8000-000000000001",
+  "eventType":"ParcelAssigned",
+  "occurredAt":"2026-11-17T08:00:00Z",
   "parcelId":"82000000-0000-4000-8000-000000000001",
-  "courierId":10,
-  "deliveryDate":"2026-11-16"
+  "trackingNumber":"SD10480015",
+  "courierId":"10", "courierUserId":"42",
+  "previousCourierId":null, "previousCourierUserId":null,
+  "assignedBy":"7"
 }
 ```
 
-`deliveryDate` is optional; provided dates are planned schedule data. Assignment
-returns HTTP 200 with the real local assignment ID, numeric courier ID, UUID
-reference, owner, attempt, version, active flag, date and assigned time. Repeating
-the same submission ID and identical request returns the same operation receipt,
-even if the delivery later progressed. Read `/status` for current state. Changed
-content with the same ID returns 409; another merchant's ID returns 403.
+Both numeric IDs must match the same Courier profile. Unknown/mismatched profiles
+are rejected transactionally; provision/import the correct profile first, then
+redrive the failed message from Courier's dead-letter queue. UUID-only assignment
+events remain readable for older fixtures. New events must send numeric IDs.
 
-The selected profile must be active and AVAILABLE. Before pickup, reassignment
-revokes the former courier's delivery access and increments assignment version.
-After FAILED, a new Merchant assignment increments the attempt and resets the
-Courier delivery to CREATED while retaining prior proof/history. DELIVERED and
-CANCELLED deliveries cannot be reassigned. Submission/parcel locks prevent
-duplicate assignments during concurrent identical requests.
+Duplicate event IDs do not create a second assignment. Older assignments cannot
+restore a previous courier. A newer assignment revokes the previous courier's
+access and increments the local version. When a new assignment follows FAILED,
+the local attempt increases and earlier proof records are preserved. Optional
+explicit assignment/attempt/version fields remain supported for trusted legacy
+fixtures; the current Dispatch producer does not supply them.
 
-```http
-POST /api/couriers/assignments/82000000-0000-4000-8000-000000000001/cancel
-```
-```json
-{"submissionId":"81000000-0000-4000-8000-000000000002","note":"Cancelled before pickup"}
-```
+## Data available from the merged services
 
-An imported legacy assignment must first be explicitly adopted through the
-Merchant assignment API with verified ownership. The new APIs do not silently
-take authority over an unrelated external assignment.
+The new Dispatch event contains assignment identity/tracking, **not** recipient,
+addresses, parcel dimensions, scheduled date or assignment cancellation. Existing
+Parcel status events contain status/tracking and ownership metadata, but not the
+full delivery details. Courier never invents those fields or queries another
+service's database. Supply display data through the supported optional
+`parcel.delivery-snapshot.v1` RabbitMQ handoff or an operator's verified import
+into Courier's own tables. Missing optional values remain unavailable in the UI.
+
+`demo/manual_merchant_example.sql` is a historical, Courier-only parcel import
+example. Its merchant ID is source metadata; it no longer authorizes assignment.
+Use a verified source parcel UUID/tracking number when importing a real parcel.
+Do not use the older demo seed scripts against the new Dispatch APIs unchanged.
 
 ## Courier activity and evidence
 
@@ -156,7 +136,7 @@ CREATED -> PICKED_UP -> IN_TRANSIT -> OUT_FOR_DELIVERY -> DELIVERED
                                                      -> FAILED
 ```
 
-A status cannot be skipped or moved backwards. Merchant cancellation is separate
+A status cannot be skipped or moved backwards. Dispatch cancellation is separate
 from courier status submission. JSON uses `IN_TRANSIT` and `DELIVERED` (not the
 display spellings "transit" or "dilivered").
 
@@ -176,69 +156,49 @@ FAILED needs `failureReason` (RECIPIENT_ABSENT, WRONG_ADDRESS, REFUSED,
 INACCESSIBLE_LOCATION, DAMAGED_PARCEL, OTHER); OTHER also needs a note. Existing
 5 MB JPEG/PNG, GPS-pair/range and evidence privacy checks still apply.
 
-For Merchant-created assignments, HTTP 200/CONFIRMED means Courier committed its
+For Dispatch-assigned deliveries, HTTP 200/CONFIRMED means Courier committed its
 own status, history, evidence confirmation and outgoing event atomically. It
 does **not** mean that another service's parcel table was changed. A rejected
 transition returns 409/REJECTED without changing the delivery status. Concurrent
 reassignment/version mismatches are rejected, and duplicate submissions do not
 duplicate history, proofs or outgoing events.
 
-## RabbitMQ events
+## Outgoing RabbitMQ events
 
-Courier saves each business change and an outbox entry in the same database
-transaction. A scheduled publisher sends persistent JSON to `swiftdrop.events`:
+Courier commits activity/history/evidence confirmation and the outbox entry in
+one transaction. It publishes persistent JSON on `swiftdrop.events`:
 
-| Routing key | Event type | Main data |
+| Routing key | Event type | Data |
 | --- | --- | --- |
-| `courier.delivery-assigned.v1` | CourierDeliveryAssigned | Owner, parcel/tracking, assignment/version, numeric courier ID, UUID reference, attempt, schedule, prior courier |
-| `courier.delivery-assignment-cancelled.v1` | CourierDeliveryAssignmentCancelled | Owner/assignment identifiers, inactive state, cancellation note |
-| `courier.delivery-status-changed.v1` | CourierDeliveryStatusChanged | Owner, courier user/profile, parcel/tracking, assignment/version, attempt, submission ID, old/new status and changed time |
-| `courier.availability-changed.v1` | CourierAvailabilityChanged | Courier user/profile, availability, activation and profile version |
+| `courier.delivery-status-changed.v1` | CourierDeliveryStatusChanged | Submission, parcel/tracking, numeric courier profile/user IDs, assignment/version, attempt, old/new status and timestamp; source merchant metadata when known |
+| `courier.availability-changed.v1` | CourierAvailabilityChanged | Courier profile/user IDs, availability, active and profile version |
 
-The envelope has UUID `eventId`, `eventType`, `schemaVersion: 1` and UTC
-`occurredAt`. Tokens, passwords, private photo paths and precise GPS are not
-published. Consumers must create their own durable queue/bindings and deduplicate
-by event ID. If a consumer has not bound a queue yet, mandatory returns keep the
-event pending; it is **not** falsely marked delivered. Failed/unrouted sends retry
-with backoff. Broker confirms provide at-least-once publication, not exactly-once
-delivery.
+Envelope: UUID `eventId`, `eventType`, `schemaVersion:1`, UTC `occurredAt`.
+No credentials, precise GPS or private photo paths are published. Durable
+subscribers deduplicate event IDs. Publisher confirms and mandatory routing keep
+failed/unrouted events pending for retry; delivery is at least once.
 
-Once an assignment is locally managed, delayed legacy assignment/status messages
-cannot override its owner or current activity. Trusted parcel snapshots can still
-refresh parcel display fields but cannot replace merchant ownership or add
-conflicting external activity history to a locally managed delivery.
+**Integration limits in develop:** Dispatch consumes `parcel.status-changed`,
+not Courier's status event, and does not publish cancellation events. Therefore
+Courier status changes do not automatically update Parcel/Dispatch databases,
+and Dispatch-only cancellations cannot immediately revoke Courier projections.
+The responsible service owners need a supported consumer/command contract and
+cancellation handoff. This change does not impersonate Parcel's event producer,
+add direct database writes, or modify those services. The opt-in legacy `http`
+mode is not the default RabbitMQ workflow.
 
-Other teams may consume these Courier-owned events to update their databases;
-this work does not add consumers or change code in Merchant, Parcel or Dispatch.
+## Storage, migrations and errors
 
-## Database preparation and errors
+Courier reads/writes only `courier_db`. Existing Flyway V1-V5 are preserved,
+including the previously applied V5 migration; unused Merchant receipt columns
+and tables are retained for upgrade compatibility, with no public write API.
+No existing DB records are reassigned by this code change.
 
-Run Courier normally to apply Flyway V5; do not manually change Flyway history.
-You can inspect the directory using:
+401: missing/invalid token. 403: wrong role, inactive Courier, or another
+courier's parcel. 404: missing numeric profile or projection. 400: invalid
+input/pagination/evidence. 409: skipped status, reused submission payload or
+changed assignment. Broker failure leaves the outbox pending; a local confirmed
+submission still means Courier committed its own data.
 
-```sql
-SELECT id, user_id, name, area, vehicle_type, availability, active,
-       dispatch_courier_id AS courier_reference
-FROM courier_profiles
-ORDER BY id;
-
-SELECT parcel_id, tracking_number, merchant_user_id, status
-FROM courier_delivery_parcels
-ORDER BY tracking_number;
-```
-
-The historical UUID column name is retained for data compatibility; it does not
-give a DISPATCHER role authority in the new workflow. Never infer merchant
-ownership from a name/email, courier ID, or an untrusted assignment request.
-
-| HTTP | Meaning |
-| --- | --- |
-| 400 | Invalid JSON, enum, pagination, coordinates or required field |
-| 401 | Missing/invalid/expired authentication |
-| 403 | Wrong role, wrong merchant/courier owner, or inactive courier |
-| 404 | Missing profile, imported parcel or assignment |
-| 409 | Unavailable courier, invalid transition, missing verified ownership, changed/reused submission, or concurrent conflict |
-| 413 | Photo above the existing upload limit |
-
-All times are persisted as UTC instants; the existing Courier UI displays
-Asia/Colombo time. Availability and parcel activity are different fields.
+Run `./mvnw test` in this service for disposable PostgreSQL/RabbitMQ integration
+coverage. See [MERGE_NOTES.md](MERGE_NOTES.md) for merge scope and team handoff.

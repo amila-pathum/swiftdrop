@@ -7,7 +7,7 @@ import * as NotificationContextModule from '../context/NotificationContext'
 describe('NotificationsPage', () => {
   it('renders notifications and filters by Unread', () => {
     const markAsReadMock = vi.fn()
-    const refreshMock = vi.fn()
+    const markAllAsReadMock = vi.fn()
 
     const mockNotifications = [
       {
@@ -33,7 +33,7 @@ describe('NotificationsPage', () => {
       unreadCount: 1,
       isLoading: false,
       markAsRead: markAsReadMock,
-      refresh: refreshMock,
+      markAllAsRead: markAllAsReadMock,
     })
 
     render(
@@ -49,6 +49,12 @@ describe('NotificationsPage', () => {
     expect(screen.getByText('Order Created')).toBeInTheDocument()
     expect(screen.getByText('In Transit')).toBeInTheDocument()
 
+    // Track Parcel links
+    const trackLinks = screen.getAllByRole('link', { name: /Track Parcel/i })
+    expect(trackLinks.length).toBe(2)
+    expect(trackLinks[0]).toHaveAttribute('href', '/track/SD-111')
+    expect(trackLinks[1]).toHaveAttribute('href', '/track/SD-222')
+
     // Filter by 'Unread'
     const unreadTab = screen.getByRole('button', { name: /Unread/i })
     fireEvent.click(unreadTab)
@@ -61,10 +67,10 @@ describe('NotificationsPage', () => {
     fireEvent.click(markBtn)
     expect(markAsReadMock).toHaveBeenCalledWith('n-2')
 
-    // Click 'Refresh'
-    const refreshBtn = screen.getByText('Refresh')
-    fireEvent.click(refreshBtn)
-    expect(refreshMock).toHaveBeenCalled()
+    // Click 'Mark all as read'
+    const markAllBtn = screen.getByText('Mark all as read')
+    fireEvent.click(markAllBtn)
+    expect(markAllAsReadMock).toHaveBeenCalled()
   })
 
   it('renders empty state when there are no notifications', () => {

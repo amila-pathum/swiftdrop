@@ -1,30 +1,15 @@
-# Assigned deliveries: service and event audit
+# Assigned deliveries: data audit
 
-**Current authority correction:** Merchant assigns through Courier APIs; Courier
-saves its own state and publishes Courier events. See [API.md](API.md) and the V5
-Courier migration. The Dispatcher discussions and handoff proposals below are
-historical analysis of the earlier assumption, not the current role contract.
-Merchant code is unchanged. Verified merchant ownership must be imported into
-Courier rather than accepted from an untrusted assignment request.
+Current contract after the 2026-11-17 develop merge: **Dispatch owns assignment**;
+Courier consumes numeric profile/user IDs from `parcel.assigned`. Courier records
+activity and publishes its own outbox events. See [API.md](API.md) for current APIs
+and the downstream status/cancellation gaps. Other services match develop.
 
-Reviewed against the repository on 2026-11-16. The initial audit changed no other
-services; the subsequently authorized implementation changes Courier and the
-targeted Dispatch assignment compatibility/event handoff described below.
-
-Implementation update: Courier now consumes `parcel.assigned`, `parcel.status-changed`
-and optional `parcel.delivery-snapshot.v1` messages into its own database. Courier
-profiles have an explicit stable Dispatch UUID. With the user's subsequent approval,
-Dispatch's RDS numeric-assignment compatibility was fixed, and its assignment event
-now includes an optional `parcel` snapshot with addresses, recipient contacts, weight
-and size obtained from Parcel's existing authorized API. No Identity or Parcel source
-change is needed for this flow. The initial findings below describe the earlier gaps;
-the runnable RDS demo is documented in `demo/README.md`.
-
-Screenshot update: the Courier detail page now follows the supplied recipient,
-pickup/drop-off, parcel, timeline, history and bottom-action layout. Courier V4
-stores optional contacts/contents/dimensions and status history. The marked RDS
-fixtures supply these through new RabbitMQ snapshots; ordinary parcels keep
-missing fields explicitly unavailable until their owners publish those fields.
+The earlier Dispatch snapshot extension was removed in favor of develop's exact
+contract. The current assignment event does not contain addresses/contact data.
+Optional RabbitMQ snapshots or verified Courier-only imports supply those fields.
+The remaining audit is historical requirements analysis; proposed changes are
+not evidence that another service publishes every listed field today.
 
 ## Data required by the existing courier screens
 

@@ -25,6 +25,20 @@ beforeEach(() => {
 })
 
 describe('Merchant webhook settings', () => {
+  it('loads saved event selections, blocks testing while dirty and saves unchecked events', async () => {
+    merchantService.getWebhookSettings.mockResolvedValue({ ...settings, events: ['DELIVERED', 'FAILED'] })
+    merchantService.updateWebhookSettings.mockResolvedValue({ settings: { ...settings, events: ['DELIVERED'] } })
+    show(); await loaded()
+    expect(screen.getByRole('checkbox', { name: 'Created' })).not.toBeChecked()
+    expect(screen.getByRole('checkbox', { name: 'Failed' })).toBeChecked()
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Failed' }))
+    expect(screen.getByRole('button', { name: 'Send Test Event' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    await screen.findByText(/Webhook settings saved/)
+    expect(merchantService.updateWebhookSettings).toHaveBeenCalledWith(settings.url, true, ['DELIVERED'])
+    expect(screen.getByRole('checkbox', { name: 'Failed' })).not.toBeChecked()
+    expect(screen.getByRole('button', { name: 'Send Test Event' })).toBeEnabled()
+  })
   const businessDetails = {
     businessName: 'Example Store', registrationNumber: 'BR-001', contactName: 'Store Owner',
     email: 'owner@example.test', phone: '0771234567', address: '123 Example Street',
@@ -111,7 +125,7 @@ describe('Merchant webhook settings', () => {
     fireEvent.click(screen.getByRole('switch'))
     fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
     expect(await screen.findByText('whsec_new')).toBeInTheDocument()
-    expect(merchantService.updateWebhookSettings).toHaveBeenCalledWith(settings.url, false)
+    expect(merchantService.updateWebhookSettings).toHaveBeenCalledWith(settings.url, false, expect.arrayContaining(['CREATED', 'DELIVERED']))
     fireEvent.click(screen.getByRole('button', { name: 'Copy' }))
     await screen.findByRole('button', { name: 'Copied' })
     expect(navigator.clipboard.writeText).toHaveBeenCalledWith('whsec_new')

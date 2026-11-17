@@ -18,7 +18,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
+import com.swiftdrop.dispatch.client.DispatchDataClient;
 import com.swiftdrop.dispatch.repository.DispatchRepository;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 
 import java.time.Instant;
 import java.util.Base64;
@@ -29,6 +33,7 @@ import java.util.stream.IntStream;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -40,6 +45,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
     "swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
     "spring.autoconfigure.exclude=org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration,org.springframework.boot.data.jpa.autoconfigure.JpaRepositoriesAutoConfiguration"
 })
+@org.springframework.test.context.ActiveProfiles("test")
 @AutoConfigureMockMvc
 class SecurityConfigTest {
 
@@ -48,6 +54,7 @@ class SecurityConfigTest {
 
     @Autowired MockMvc mockMvc;
     @MockitoBean DispatchRepository dispatchRepository;
+    @MockitoBean DispatchDataClient dispatchDataClient;
 
     /** Test-only endpoint showing the convention for a protected, role-restricted endpoint. */
     @TestConfiguration
@@ -141,6 +148,49 @@ class SecurityConfigTest {
                 .header("Authorization", signed(identityToken("CUSTOMER"), KEY)))
             .andExpect(status().isForbidden())
             .andExpect(jsonPath("$.error").value("Access is denied"));
+    }
+
+    private static final String PARCEL = "20000000-0000-4000-8000-000000000001";
+
+    /** Every endpoint that changes assignments or shows reports. */
+    private static MockHttpServletRequestBuilder dispatchRequest(String endpoint) {
+        return switch (endpoint) {
+            case "assign" -> post("/api/dispatch/assignments").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"parcelId\":\"" + PARCEL + "\",\"courierId\":7}");
+            case "reassign" -> post("/api/dispatch/assignments/" + PARCEL + "/reassign")
+                .contentType(MediaType.APPLICATION_JSON).content("{\"courierId\":7}");
+            case "cancel" -> post("/api/dispatch/assignments/" + PARCEL + "/cancel");
+            case "summary" -> get("/api/dispatch/reports/summary?from=2026-11-01&to=2026-11-03");
+            default -> throw new IllegalArgumentException(endpoint);
+        };
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "assign,CUSTOMER", "assign,MERCHANT", "assign,COURIER",
+        "reassign,CUSTOMER", "reassign,MERCHANT", "reassign,COURIER",
+        "cancel,CUSTOMER", "cancel,MERCHANT", "cancel,COURIER",
+        "summary,CUSTOMER", "summary,MERCHANT", "summary,COURIER"
+    })
+    void onlyDispatchersAndAdminsCanAssignOrSeeReports(String endpoint, String role) throws Exception {
+        mockMvc.perform(dispatchRequest(endpoint).header("Authorization", signed(identityToken(role), KEY)))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.error").value("Access is denied"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"DISPATCHER", "ADMIN"})
+    void dispatchersAndAdminsPassTheRoleCheckOnAssign(String role) throws Exception {
+        // The (mocked) parcel lookup finds nothing, so the request gets past security to a 404.
+        mockMvc.perform(dispatchRequest("assign").header("Authorization", signed(identityToken(role), KEY)))
+            .andExpect(status().isNotFound())
+            .andExpect(jsonPath("$.error").value("Parcel not found"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"assign", "reassign", "cancel", "summary"})
+    void dispatchEndpointsNeedAToken(String endpoint) throws Exception {
+        mockMvc.perform(dispatchRequest(endpoint)).andExpect(status().isUnauthorized());
     }
 
     @Test

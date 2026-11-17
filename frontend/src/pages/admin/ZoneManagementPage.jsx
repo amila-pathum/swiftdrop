@@ -1,646 +1,237 @@
 import { useCallback, useEffect, useState } from 'react'
 import Alert from '../../components/Alert'
 import Button from '../../components/Button'
+import Checkbox from '../../components/Checkbox'
 import FormField from '../../components/FormField'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import { pricingService } from '../../services/pricingService'
+import './pricing.css'
 
-const INITIAL_FORM_VALUES = {
-  name: '',
-  city: '',
-  district: '',
+const EMPTY_FORM = { name: '', code: '', localities: '', active: true }
+
+/** "Kandy, Peradeniya,, kandy" -> ['Kandy', 'Peradeniya'] (trimmed, repeats dropped). */
+function parseLocalities(text) {
+  const seen = new Set()
+  return text.split(/[,\n]/)
+    .map((value) => value.trim().replace(/\s+/g, ' '))
+    .filter((value) => value && !seen.has(value.toLowerCase()) && seen.add(value.toLowerCase()))
+}
+
+function validate(form) {
+  const errors = {}
+  const name = form.name.trim()
+  if (!name) errors.name = 'Zone name is required.'
+  else if (name.length > 100) errors.name = 'Zone name must not exceed 100 characters.'
+
+  const code = form.code.trim()
+  if (!code) errors.code = 'Zone code is required.'
+  else if (!/^[A-Za-z0-9]{1,10}$/.test(code)) errors.code = 'Use 1 to 10 letters or digits.'
+
+  const localities = parseLocalities(form.localities)
+  if (localities.length === 0) errors.localities = 'Add at least one city this zone covers.'
+  else if (localities.some((locality) => locality.length > 100)) {
+    errors.localities = 'Each city must not exceed 100 characters.'
+  }
+  return errors
+}
+
+/** Server field names such as "localities[2]" belong to the localities box. */
+function fieldErrors(fields = {}) {
+  return Object.fromEntries(Object.entries(fields)
+    .map(([key, message]) => [key.replace(/\[\d+\]$/, ''), message]))
 }
 
 export default function ZoneManagementPage() {
   const [zones, setZones] = useState([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const [successMessage, setSuccessMessage] = useState('')
+  const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
 
-  // Add Zone Form state
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [formValues, setFormValues] = useState(INITIAL_FORM_VALUES)
+  // null = closed; { id: null } = adding; { id } = editing that zone.
+  const [editing, setEditing] = useState(null)
+  const [form, setForm] = useState(EMPTY_FORM)
   const [formErrors, setFormErrors] = useState({})
-  const [submitting, setSubmitting] = useState(false)
-  const [submitError, setSubmitError] = useState(null)
+  const [saveError, setSaveError] = useState('')
+  const [saving, setSaving] = useState(false)
 
-  // Edit Zone Form state
-  const [editingZone, setEditingZone] = useState(null)
-  const [editFormValues, setEditFormValues] = useState(INITIAL_FORM_VALUES)
-  const [editFormErrors, setEditFormErrors] = useState({})
-  const [updating, setUpdating] = useState(false)
-  const [updateError, setUpdateError] = useState(null)
-
-  // Disable Zone state
-  const [zoneToDisable, setZoneToDisable] = useState(null)
-  const [disabling, setDisabling] = useState(false)
-  const [disableError, setDisableError] = useState(null)
-
-  const loadZones = useCallback((options) => {
-    return pricingService.getZones(options)
-      .then((data) => {
-        setZones(Array.isArray(data) ? data : [])
-        setError(null)
-      })
-      .catch((err) => {
-        if (err?.name !== 'AbortError') {
-          setError(err.message || 'Unable to load delivery zones. Please try again.')
-        }
-      })
-      .finally(() => {
-        setLoading(false)
-      })
-  }, [])
+  const load = useCallback((options) => pricingService.getZones({ ...options, includeInactive: true })
+    .then((data) => {
+      setZones(Array.isArray(data) ? data : [])
+      setError('')
+    })
+    .catch((err) => {
+      if (err?.name !== 'AbortError') setError(err?.message || 'Unable to load delivery zones.')
+    })
+    .finally(() => setLoading(false)), [])
 
   useEffect(() => {
     const controller = new AbortController()
-    loadZones({ signal: controller.signal })
-    return () => {
-      controller.abort()
-    }
-  }, [loadZones])
+    load({ signal: controller.signal })
+    return () => controller.abort()
+  }, [load])
 
-  const handleRefresh = () => {
-    setLoading(true)
-    setError(null)
-    loadZones()
-  }
+  const close = useCallback(() => {
+    if (!saving) setEditing(null)
+  }, [saving])
 
-  // --- Add Zone Handlers ---
-  const resetForm = useCallback(() => {
-    setFormValues(INITIAL_FORM_VALUES)
-    setFormErrors({})
-    setSubmitError(null)
-  }, [])
-
-  const handleOpenAddModal = () => {
-    resetForm()
-    setSuccessMessage('')
-    setShowAddModal(true)
-  }
-
-  const handleCloseAddModal = () => {
-    if (!submitting) {
-      setShowAddModal(false)
-      resetForm()
-    }
-  }
-
-  const handleFieldChange = (field, value) => {
-    setFormValues((prev) => ({ ...prev, [field]: value }))
-    if (formErrors[field]) {
-      setFormErrors((prev) => ({ ...prev, [field]: undefined }))
-    }
-  }
-
-  const handleAddSubmit = async (e) => {
-    e.preventDefault()
-    if (submitting) return
-
-    const name = formValues.name.trim()
-    const city = formValues.city.trim()
-    const district = formValues.district.trim()
-
-    const errors = {}
-    if (!name) {
-      errors.name = 'Zone name is required.'
-    }
-    if (!city) {
-      errors.city = 'City is required.'
-    }
-    if (!district) {
-      errors.district = 'District is required.'
-    }
-
-    if (Object.keys(errors).length > 0) {
-      setFormErrors(errors)
-      return
-    }
-
-    setSubmitting(true)
-    setSubmitError(null)
-
-    try {
-      await pricingService.createZone({ name, city, district })
-      setSuccessMessage(`Zone "${name}" has been successfully created.`)
-      setShowAddModal(false)
-      resetForm()
-      loadZones()
-    } catch (err) {
-      setSubmitError(err.message || 'Failed to create zone. Please try again.')
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  // --- Edit Zone Handlers ---
-  const handleOpenEditModal = (zone) => {
-    setEditingZone(zone)
-    setEditFormValues({
-      name: zone.name || '',
-      city: zone.city || '',
-      district: zone.district || '',
-    })
-    setEditFormErrors({})
-    setUpdateError(null)
-    setSuccessMessage('')
-  }
-
-  const handleCloseEditModal = useCallback(() => {
-    if (!updating) {
-      setEditingZone(null)
-      setEditFormValues(INITIAL_FORM_VALUES)
-      setEditFormErrors({})
-      setUpdateError(null)
-    }
-  }, [updating])
-
-  const handleEditFieldChange = (field, value) => {
-    setEditFormValues((prev) => ({ ...prev, [field]: value }))
-    if (editFormErrors[field]) {
-      setEditFormErrors((prev) => ({ ...prev, [field]: undefined }))
-    }
-  }
-
-  const handleEditSubmit = async (e) => {
-    e.preventDefault()
-    if (updating || !editingZone) return
-
-    const name = editFormValues.name.trim()
-    const city = editFormValues.city.trim()
-    const district = editFormValues.district.trim()
-
-    const errors = {}
-    if (!name) {
-      errors.name = 'Zone name is required.'
-    }
-    if (!city) {
-      errors.city = 'City is required.'
-    }
-    if (!district) {
-      errors.district = 'District is required.'
-    }
-
-    if (Object.keys(errors).length > 0) {
-      setEditFormErrors(errors)
-      return
-    }
-
-    setUpdating(true)
-    setUpdateError(null)
-
-    try {
-      await pricingService.updateZone(editingZone.id, { name, city, district })
-      setSuccessMessage(`Zone "${name}" has been successfully updated.`)
-      setEditingZone(null)
-      loadZones()
-    } catch (err) {
-      setUpdateError(err.message || 'Failed to update zone. Please try again.')
-    } finally {
-      setUpdating(false)
-    }
-  }
-
-  // --- Disable Zone Handlers ---
-  const handleOpenDisableModal = (zone) => {
-    setZoneToDisable(zone)
-    setDisableError(null)
-    setSuccessMessage('')
-  }
-
-  const handleCloseDisableModal = useCallback(() => {
-    if (!disabling) {
-      setZoneToDisable(null)
-      setDisableError(null)
-    }
-  }, [disabling])
-
-  const handleDisableConfirm = async () => {
-    if (disabling || !zoneToDisable) return
-
-    setDisabling(true)
-    setDisableError(null)
-
-    try {
-      await pricingService.disableZone(zoneToDisable.id)
-      setSuccessMessage(`Zone "${zoneToDisable.name}" has been disabled.`)
-      setZoneToDisable(null)
-      loadZones()
-    } catch (err) {
-      setDisableError(err.message || 'Failed to disable zone. Please try again.')
-    } finally {
-      setDisabling(false)
-    }
-  }
-
-  // Escape key handler for modals
   useEffect(() => {
-    if (!showAddModal && !editingZone && !zoneToDisable) return
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        if (showAddModal && !submitting) {
-          setShowAddModal(false)
-          resetForm()
-        }
-        if (editingZone && !updating) {
-          handleCloseEditModal()
-        }
-        if (zoneToDisable && !disabling) {
-          handleCloseDisableModal()
-        }
-      }
+    if (!editing) return undefined
+    const onKey = (event) => { if (event.key === 'Escape') close() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [editing, close])
+
+  const open = (zone) => {
+    setEditing({ id: zone?.id ?? null })
+    setForm(zone
+      ? { name: zone.name, code: zone.code, localities: zone.localities.join(', '), active: zone.active }
+      : EMPTY_FORM)
+    setFormErrors({})
+    setSaveError('')
+    setNotice('')
+  }
+
+  const change = (key, value) => {
+    setForm((current) => ({ ...current, [key]: value }))
+    setFormErrors((current) => ({ ...current, [key]: undefined }))
+  }
+
+  const save = async (event) => {
+    event.preventDefault()
+    const found = validate(form)
+    setFormErrors(found)
+    if (Object.keys(found).length > 0) return
+
+    const body = {
+      name: form.name.trim(),
+      code: form.code.trim().toUpperCase(),
+      localities: parseLocalities(form.localities),
+      active: form.active,
     }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [
-    showAddModal,
-    submitting,
-    editingZone,
-    updating,
-    zoneToDisable,
-    disabling,
-    resetForm,
-    handleCloseEditModal,
-    handleCloseDisableModal,
-  ])
+    setSaving(true)
+    setSaveError('')
+    try {
+      if (editing.id) await pricingService.updateZone(editing.id, body)
+      else await pricingService.createZone(body)
+      setNotice(`${body.name} was ${editing.id ? 'updated' : 'added'}.`)
+      setEditing(null)
+      await load()
+    } catch (err) {
+      setFormErrors(fieldErrors(err?.fields))
+      setSaveError(err?.message || 'Unable to save this zone.')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
-    <div className="zone-management-page">
-      <nav className="page-breadcrumb" aria-label="Breadcrumb">
-        <span>Admin workspace</span>
-        <span>/</span>
-        <strong>Zone Management</strong>
-      </nav>
-
+    <div className="pricing-page">
       <header className="page-header-row">
         <div>
           <h1 className="page-title">Delivery Zones</h1>
-          <p className="page-subtitle">View and manage delivery zones and geographical coverage for SwiftDrop.</p>
+          <p className="page-subtitle">
+            Each zone covers a list of cities. Customers can book between any cities in active zones.
+          </p>
         </div>
         <div className="page-header-actions">
-          <Button
-            variant="secondary"
-            onClick={handleRefresh}
-            loading={loading && zones.length > 0}
-            loadingText="Refreshing…"
-            disabled={loading}
-          >
-            Refresh
-          </Button>
-          <Button onClick={handleOpenAddModal}>
-            + Add New Zone
-          </Button>
+          <Button onClick={() => open(null)}>+ Add zone</Button>
         </div>
       </header>
 
-      {successMessage && (
-        <div style={{ marginBottom: '20px' }}>
-          <Alert variant="success" onDismiss={() => setSuccessMessage('')}>
-            {successMessage}
-          </Alert>
-        </div>
-      )}
+      {notice && <Alert variant="success" onDismiss={() => setNotice('')}>{notice}</Alert>}
+      {error && zones.length > 0 && <Alert variant="error" onDismiss={() => setError('')}>{error}</Alert>}
 
-      {error && (
-        <div style={{ marginBottom: '20px' }}>
-          <Alert variant="error" title="Unable to load zones" onDismiss={() => setError(null)}>
-            {error}
-          </Alert>
-        </div>
-      )}
-
-      {loading && zones.length === 0 ? (
-        <div className="card status-card status-card-loading" style={{ margin: '30px auto', textAlign: 'center', padding: '40px 20px' }}>
+      {loading ? (
+        <div className="pricing-status" role="status">
           <LoadingSpinner size="lg" label="Loading delivery zones…" />
-          <p role="status" style={{ marginTop: '12px', color: 'var(--color-text-secondary)' }}>
-            Loading delivery zones…
-          </p>
+          <p>Loading delivery zones…</p>
         </div>
       ) : error && zones.length === 0 ? (
-        <div className="card status-card" role="alert" style={{ margin: '30px auto', textAlign: 'center', padding: '40px 20px' }}>
-          <h2 className="card-title" style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px' }}>
-            Unable to load delivery zones
-          </h2>
-          <p className="card-subtitle" style={{ color: 'var(--color-text-secondary)', marginBottom: '16px' }}>
-            {error}
-          </p>
-          <Button onClick={handleRefresh}>Try again</Button>
+        <div className="pricing-status" role="alert">
+          <p><strong>Unable to load delivery zones</strong></p>
+          <p>{error}</p>
+          <Button onClick={() => { setLoading(true); load() }}>Try again</Button>
         </div>
       ) : (
-        <section className="card-table" aria-label="Delivery zones list">
-          <div className="card-table-header">
-            <div className="card-table-title">
-              All Delivery Zones
-              <span className="card-table-subtitle">
-                {zones.length} {zones.length === 1 ? 'zone' : 'zones'}
-              </span>
-            </div>
-          </div>
-
+        <section className="pricing-card" aria-label="Delivery zones">
           <div className="table-wrapper">
-            <table className="data-table">
+            <table className="data-table pricing-zone-table">
               <thead>
                 <tr>
-                  <th scope="col">Zone Name</th>
-                  <th scope="col">City</th>
-                  <th scope="col">District</th>
-                  <th scope="col">Active Status</th>
-                  <th scope="col">Actions</th>
+                  <th scope="col">Zone name</th>
+                  <th scope="col">Code</th>
+                  <th scope="col">Covered localities</th>
+                  <th scope="col">State</th>
+                  <th scope="col"><span className="visually-hidden">Actions</span></th>
                 </tr>
               </thead>
               <tbody>
                 {zones.length === 0 ? (
                   <tr>
                     <td colSpan="5" className="table-empty-state">
-                      <p className="table-empty-title">No zones available</p>
-                      <p>There are no delivery zones configured yet.</p>
+                      <p className="table-empty-title">No zones yet</p>
+                      <p>Add a zone and the cities it covers to start taking bookings.</p>
                     </td>
                   </tr>
-                ) : (
-                  zones.map((zone) => (
-                    <tr key={zone.id || `${zone.name}-${zone.city}`}>
-                      <td style={{ fontWeight: 600 }}>{zone.name || '—'}</td>
-                      <td>{zone.city || '—'}</td>
-                      <td>{zone.district || '—'}</td>
-                      <td>
-                        {zone.active ? (
-                          <span className="badge badge-success">Active</span>
-                        ) : (
-                          <span className="badge badge-muted">Inactive</span>
-                        )}
-                      </td>
-                      <td>
-                        <div className="actions-group">
-                          <button
-                            type="button"
-                            className="action-link action-link-primary"
-                            onClick={() => handleOpenEditModal(zone)}
-                          >
-                            Edit
-                          </button>
-                          {zone.active && (
-                            <button
-                              type="button"
-                              className="action-link action-link-danger"
-                              onClick={() => handleOpenDisableModal(zone)}
-                            >
-                              Disable
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
+                ) : zones.map((zone) => (
+                  <tr key={zone.id}>
+                    <td className="pricing-zone-name">{zone.name}</td>
+                    <td><code className="pricing-code">{zone.code}</code></td>
+                    <td>{zone.localities.join(', ')}</td>
+                    <td>
+                      <span className={`badge ${zone.active ? 'badge-success' : 'badge-muted'}`}>
+                        {zone.active ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="pricing-row-action">
+                      <Button variant="outline" size="sm" onClick={() => open(zone)}
+                        aria-label={`Edit ${zone.name}`}>
+                        Edit
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
-
-          {zones.length > 0 && (
-            <div className="card-table-footer">
-              <span>
-                Showing {zones.length} {zones.length === 1 ? 'zone' : 'zones'}
-              </span>
-            </div>
-          )}
         </section>
       )}
 
-      {/* Add New Zone Modal */}
-      {showAddModal && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="add-zone-modal-title">
+      {editing && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="zone-dialog-title">
           <div className="modal-dialog">
-            <form onSubmit={handleAddSubmit} noValidate>
+            <form onSubmit={save} noValidate>
               <div className="modal-header">
-                <div>
-                  <h2 id="add-zone-modal-title" className="modal-title">Add New Delivery Zone</h2>
-                  <p className="modal-subtitle">Define a new coverage area for delivery services</p>
-                </div>
-                <button
-                  type="button"
-                  className="modal-close-btn"
-                  onClick={handleCloseAddModal}
-                  aria-label="Close dialog"
-                  disabled={submitting}
-                >
-                  ✕
-                </button>
+                <h2 id="zone-dialog-title" className="modal-title">{editing.id ? 'Edit zone' : 'Add zone'}</h2>
+                <button type="button" className="modal-close-btn" onClick={close}
+                  aria-label="Close dialog" disabled={saving}>✕</button>
               </div>
 
               <div className="modal-body">
-                {submitError && (
-                  <Alert variant="error" onDismiss={() => setSubmitError(null)}>
-                    {submitError}
-                  </Alert>
-                )}
-
-                <FormField
-                  id="zone-name"
-                  label="Zone Name"
-                  placeholder="e.g. Colombo Central"
-                  value={formValues.name}
-                  onChange={(e) => handleFieldChange('name', e.target.value)}
-                  error={formErrors.name}
-                  required
-                  autoFocus
-                  disabled={submitting}
-                />
-
-                <FormField
-                  id="zone-city"
-                  label="City"
-                  placeholder="e.g. Colombo"
-                  value={formValues.city}
-                  onChange={(e) => handleFieldChange('city', e.target.value)}
-                  error={formErrors.city}
-                  required
-                  disabled={submitting}
-                />
-
-                <FormField
-                  id="zone-district"
-                  label="District"
-                  placeholder="e.g. Colombo"
-                  value={formValues.district}
-                  onChange={(e) => handleFieldChange('district', e.target.value)}
-                  error={formErrors.district}
-                  required
-                  disabled={submitting}
-                />
-              </div>
-
-              <div className="modal-footer">
-                <Button
-                  variant="secondary"
-                  type="button"
-                  onClick={handleCloseAddModal}
-                  disabled={submitting}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  loading={submitting}
-                  loadingText="Creating Zone…"
-                  disabled={submitting}
-                >
-                  Create Zone
-                </Button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Zone Modal */}
-      {editingZone && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="edit-zone-modal-title">
-          <div className="modal-dialog">
-            <form onSubmit={handleEditSubmit} noValidate>
-              <div className="modal-header">
-                <div>
-                  <h2 id="edit-zone-modal-title" className="modal-title">Edit Delivery Zone</h2>
-                  <p className="modal-subtitle">Update geographical coverage information for this zone</p>
+                {saveError && <Alert variant="error" onDismiss={() => setSaveError('')}>{saveError}</Alert>}
+                <div className="pricing-zone-form-row">
+                  <FormField id="zone-name" label="Zone name" value={form.name} maxLength={100}
+                    onChange={(e) => change('name', e.target.value)} error={formErrors.name}
+                    required autoFocus disabled={saving} />
+                  <FormField id="zone-code" label="Zone code" value={form.code} maxLength={10}
+                    className="pricing-zone-code-field"
+                    onChange={(e) => change('code', e.target.value.toUpperCase())}
+                    error={formErrors.code} required disabled={saving} />
                 </div>
-                <button
-                  type="button"
-                  className="modal-close-btn"
-                  onClick={handleCloseEditModal}
-                  aria-label="Close dialog"
-                  disabled={updating}
-                >
-                  ✕
-                </button>
-              </div>
-
-              <div className="modal-body">
-                {updateError && (
-                  <Alert variant="error" onDismiss={() => setUpdateError(null)}>
-                    {updateError}
-                  </Alert>
-                )}
-
-                <FormField
-                  id="edit-zone-name"
-                  label="Zone Name"
-                  placeholder="e.g. Colombo Central"
-                  value={editFormValues.name}
-                  onChange={(e) => handleEditFieldChange('name', e.target.value)}
-                  error={editFormErrors.name}
-                  required
-                  autoFocus
-                  disabled={updating}
-                />
-
-                <FormField
-                  id="edit-zone-city"
-                  label="City"
-                  placeholder="e.g. Colombo"
-                  value={editFormValues.city}
-                  onChange={(e) => handleEditFieldChange('city', e.target.value)}
-                  error={editFormErrors.city}
-                  required
-                  disabled={updating}
-                />
-
-                <FormField
-                  id="edit-zone-district"
-                  label="District"
-                  placeholder="e.g. Colombo"
-                  value={editFormValues.district}
-                  onChange={(e) => handleEditFieldChange('district', e.target.value)}
-                  error={editFormErrors.district}
-                  required
-                  disabled={updating}
-                />
+                <FormField id="zone-localities" as="textarea" label="Covered localities"
+                  placeholder="Comma-separated, e.g. Kandy, Peradeniya" value={form.localities}
+                  onChange={(e) => change('localities', e.target.value)} error={formErrors.localities}
+                  hint="Customers choose these cities when booking. A city can belong to only one zone."
+                  required disabled={saving} />
+                <Checkbox id="zone-active" label="Zone is active for bookings" checked={form.active}
+                  onChange={(e) => change('active', e.target.checked)} disabled={saving} />
               </div>
 
               <div className="modal-footer">
-                <Button
-                  variant="secondary"
-                  type="button"
-                  onClick={handleCloseEditModal}
-                  disabled={updating}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  loading={updating}
-                  loadingText="Saving Changes…"
-                  disabled={updating}
-                >
-                  Save Changes
-                </Button>
+                <Button variant="outline" onClick={close} disabled={saving}>Cancel</Button>
+                <Button type="submit" loading={saving} loadingText="Saving…">Save zone</Button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Disable Zone Confirmation Modal */}
-      {zoneToDisable && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="disable-zone-modal-title">
-          <div className="modal-dialog">
-            <div className="modal-header">
-              <div>
-                <h2 id="disable-zone-modal-title" className="modal-title">Disable Delivery Zone</h2>
-                <p className="modal-subtitle">Deactivate delivery coverage for this zone</p>
-              </div>
-              <button
-                type="button"
-                className="modal-close-btn"
-                onClick={handleCloseDisableModal}
-                aria-label="Close dialog"
-                disabled={disabling}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="modal-body">
-              {disableError && (
-                <Alert variant="error" onDismiss={() => setDisableError(null)}>
-                  {disableError}
-                </Alert>
-              )}
-
-              <p style={{ margin: 0 }}>
-                Are you sure you want to disable <strong>{zoneToDisable.name}</strong> ({zoneToDisable.city}, {zoneToDisable.district})?
-              </p>
-
-              <div
-                className="modal-notice-box"
-                style={{
-                  backgroundColor: '#fffbeb',
-                  borderColor: '#fde68a',
-                  color: '#92400e',
-                }}
-              >
-                Disabling this zone will make it inactive for deliveries and quote calculations. This does not permanently delete the zone or its history.
-              </div>
-            </div>
-
-            <div className="modal-footer">
-              <Button
-                variant="secondary"
-                type="button"
-                onClick={handleCloseDisableModal}
-                disabled={disabling}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="button"
-                loading={disabling}
-                loadingText="Disabling Zone…"
-                disabled={disabling}
-                onClick={handleDisableConfirm}
-                style={{ backgroundColor: '#dc2626', borderColor: '#dc2626' }}
-              >
-                Disable Zone
-              </Button>
-            </div>
           </div>
         </div>
       )}
