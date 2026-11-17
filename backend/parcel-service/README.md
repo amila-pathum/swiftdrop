@@ -174,14 +174,27 @@ integrations must use `courierUserId` for the numeric Identity contract.
 Creation and every successful transition insert `ParcelStatusChanged` into
 `parcel_event_outbox` in the same transaction as parcel and history changes. A
 scheduled publisher sends pending records to durable topic exchange
-`swiftdrop.events` with routing key `parcel.status-changed`; failed sends remain
-pending and retry.
+`swiftdrop.events` with routing key `parcel.status-changed`. Messages are persistent
+JSON and carry the event ID as their AMQP message ID. Correlated publisher confirms,
+publisher returns, and mandatory routing are enabled. A record is marked published
+only after a positive broker acknowledgement and no unroutable-message return.
+Connection failures, negative acknowledgements, returns, and confirmation timeouts
+leave the record pending, record the error, and schedule another attempt after 30 seconds.
+
+Delivery is at least once: a broker acknowledgement followed by a database rollback,
+or a late acknowledgement after a timeout, can cause redelivery. Retries preserve
+the original event ID and payload. Dispatch deduplicates by event ID; webhook delivery
+deduplicates by event ID and merchant. Notifications skip previously recorded event
+IDs, but external email/SMS effects can still repeat if processing fails before its
+transaction commits; those effects are not an exactly-once guarantee.
 
 Events contain identifiers and status metadata only, never phone numbers or
 addresses.
 
 - `swiftdrop.events.publisher-enabled=false` disables the publisher.
 - `swiftdrop.events.publish-delay-ms` changes polling delay (default 1000 ms).
+- `swiftdrop.events.confirm-timeout-ms` bounds the acknowledgement wait per event
+  (default 5000 ms; must be positive).
 
 ## Errors
 

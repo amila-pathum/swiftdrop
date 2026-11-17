@@ -183,10 +183,17 @@ class ParcelCreationApiTest {
         customerPost(BODY).andExpect(status().isCreated());
         var parcel = parcels.findByTrackingNumber(number).orElseThrow();
 
-        new ParcelOutboxPublisher(jdbc, rabbit).publishPending();
+        doAnswer(inv -> {
+            org.springframework.amqp.rabbit.connection.CorrelationData correlation = inv.getArgument(3);
+            correlation.getFuture().complete(new org.springframework.amqp.rabbit.connection.CorrelationData.Confirm(true, null));
+            return null;
+        }).when(rabbit).send(anyString(), anyString(), any(org.springframework.amqp.core.Message.class),
+            any(org.springframework.amqp.rabbit.connection.CorrelationData.class));
+        new ParcelOutboxPublisher(jdbc, rabbit, 100).publishPending();
 
-        verify(rabbit, atLeastOnce()).convertAndSend(
-            eq("swiftdrop.events"), eq("parcel.status-changed"), any(byte[].class));
+        verify(rabbit, atLeastOnce()).send(
+            eq("swiftdrop.events"), eq("parcel.status-changed"), any(org.springframework.amqp.core.Message.class),
+            any(org.springframework.amqp.rabbit.connection.CorrelationData.class));
         assertThat(jdbc.queryForObject(
             "SELECT published_at IS NOT NULL FROM parcel_event_outbox WHERE parcel_id = ?",
             Boolean.class, parcel.getId())).isTrue();
