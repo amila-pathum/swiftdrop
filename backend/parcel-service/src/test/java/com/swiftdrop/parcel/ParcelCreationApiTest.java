@@ -285,15 +285,15 @@ class ParcelCreationApiTest {
     }
 
     @Test
-    void duplicateTrackingNumberFailsWithoutAdditionalRecords() throws Exception {
+    void exhaustedTrackingNumberRetriesFailWithoutAdditionalRecords() throws Exception {
         String number = "SD" + UUID.randomUUID().toString().replace("-", "");
         when(pricing.quote(any(), anyString())).thenReturn(new BigDecimal("450.00"));
         when(tracking.generate()).thenReturn(number);
         customerPost(BODY).andExpect(status().isCreated());
         long before = parcels.count();
         long historyBefore = history.count();
-        customerPost(BODY).andExpect(status().isConflict())
-            .andExpect(jsonPath("error").value("Parcel could not be created due to a data conflict"));
+        customerPost(BODY).andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("error").value("Unable to allocate a tracking number. Please try again."));
         assertThat(parcels.count()).isEqualTo(before);
         assertThat(history.count()).isEqualTo(historyBefore);
         assertThat(parcels.findByTrackingNumber(number)).isPresent();

@@ -122,6 +122,12 @@ Success returns `201 Created`:
 
 The parcel, initial `null -> CREATED` history, and outbox event commit together.
 
+Tracking numbers use `SD` followed by eight digits. Creation tries up to ten
+candidates, using PostgreSQL `ON CONFLICT (tracking_number) DO NOTHING` to handle
+collisions safely, including concurrent bookings. Pricing is requested once per
+creation. Exhausting all candidates returns `503` and rolls back the whole booking,
+including any merchant order reservation; no history or outbox event is left behind.
+
 ### Pricing dependency
 
 Creation calls `POST /api/pricing/quote` with pickup city, delivery city, weight,
