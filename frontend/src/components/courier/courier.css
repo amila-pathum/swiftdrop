@@ -1,0 +1,72 @@
+.courier-page{max-width:1100px;margin:0 auto;display:grid;gap:24px}
+.courier-page h2{font-size:18px;margin:0 0 12px}
+.courier-page h3{font-size:14px;margin:0}
+.courier-delivery-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.courier-delivery-card,.courier-panel,.courier-summary-card,.courier-assignment-notice{background:var(--color-surface,#fff);border:1px solid #dce5f1;border-radius:8px}
+.courier-delivery-card{padding:20px;display:flex;flex-direction:column;gap:12px;min-width:0}
+.courier-card-heading,.courier-card-footer,.courier-panel-heading,.courier-actions{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.courier-card-heading{align-items:flex-start}
+.courier-card-heading h3{font-family:monospace;overflow-wrap:anywhere}
+.courier-card-meta,.courier-help,.courier-card-footer p{color:#62738d;font-size:12px;margin:0}
+.courier-card-meta{margin-top:-6px}
+.courier-address{display:flex;gap:10px;margin:2px 0}
+.courier-address svg{width:18px;height:18px;flex-shrink:0;color:#62738d}
+.courier-address span{font-size:12px;color:#62738d}
+.courier-address p{margin:2px 0;overflow-wrap:anywhere}
+.courier-card-footer{margin-top:auto}
+.courier-card-footer .button{white-space:nowrap}
+.courier-status-badge{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border:1px solid #dce5f1;border-radius:20px;font-size:12px;white-space:nowrap}
+.courier-status-badge svg{width:13px;height:13px}
+.courier-status-success{color:#07843d;background:#f0fcf4;border-color:#a8ebc0}
+.courier-status-warning{color:#ae5200;background:#fffbeb;border-color:#f6d889}
+.courier-status-info{color:#00649b;background:#f0f9ff;border-color:#b9e3ff}
+.courier-status-error{color:#b42318;background:#fff2f0;border-color:#f5b6af}
+.courier-status-neutral{color:#62738d;background:#f8fafc}
+.courier-summary-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.courier-summary-card{padding:16px;display:grid;gap:6px}
+.courier-summary-card span{color:#62738d;font-size:13px}
+.courier-summary-card strong{font-size:26px}
+.courier-text-success{color:#008740}
+.courier-text-error{color:#b42318}
+.courier-assignment-notice{padding:14px 16px;margin:0 0 12px}
+.courier-tabs{display:flex;border-bottom:1px solid #dce5f1;gap:4px}
+.courier-tabs button{border:0;border-bottom:2px solid transparent;background:transparent;color:#62738d;padding:12px;cursor:pointer;font:inherit}
+.courier-tabs button[aria-selected=true]{color:#1c5dfb;border-bottom-color:#1c5dfb}
+.courier-tabs span{font-size:12px;background:#eef3f9;border-radius:12px;padding:2px 6px;margin-left:6px}
+.courier-loading{display:flex;align-items:center;gap:12px;padding:24px}
+.courier-panel-heading{padding:16px 20px;border-bottom:1px solid #dce5f1}
+.courier-panel-heading h2{margin:0}
+.courier-panel-body{padding:20px}
+.courier-profile-details{display:grid;grid-template-columns:120px 1fr;gap:12px;margin:0}
+.courier-profile-details dt{color:#62738d}
+.courier-profile-details dd{margin:0;overflow-wrap:anywhere}
+.courier-form{display:grid;gap:18px}
+.courier-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.courier-availability{display:grid;gap:8px;max-width:260px}
+.courier-availability select{width:100%}
+.courier-actions{justify-content:flex-start;flex-wrap:wrap}
+.courier-photo{max-width:100%;max-height:280px;border-radius:6px;object-fit:contain}
+.courier-timeline{display:grid;gap:16px;padding-left:20px}
+.courier-timeline li{padding-left:6px}
+.courier-timeline p{margin:4px 0}
+.courier-progress{display:flex;flex-wrap:wrap;gap:8px;padding:0;list-style:none}
+.courier-progress li{padding:6px 10px;border-radius:6px;background:#eef3f9;color:#62738d;font-size:12px}
+.courier-progress li[aria-current=step]{background:#e9f0ff;color:#1c5dfb;font-weight:600}
+.courier-detail-addresses{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.courier-detail-addresses p{margin:8px 0}
+.courier-proof{border-top:1px solid #dce5f1;padding:16px 0}
+.courier-page :focus-visible{outline:2px solid #1c5dfb;outline-offset:3px}
+@media(max-width:700px){.courier-delivery-grid,.courier-form-grid,.courier-detail-addresses{grid-template-columns:1fr}
+.courier-card-footer{flex-wrap:wrap}
+.courier-page{gap:20px}
+.courier-profile-details{grid-template-columns:95px 1fr}
+.courier-summary-card{padding:12px}
+.courier-card-heading{flex-wrap:wrap}
+}
+
+
+.courier-profile-details>div{display:contents}
+.courier-proof-image{max-width:100%;max-height:280px;object-fit:contain}
+
+
+.courier-form-grid{border:0;padding:0;margin:0}.courier-form-actions{display:flex;gap:12px;margin-top:20px}

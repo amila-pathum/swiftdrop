@@ -149,7 +149,7 @@ describe('GoogleCallbackPage', () => {
 
       await renderCallback('#code=one-time-code')
 
-      expect(heading('Courier dashboard')).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /Hello,/ })).toBeInTheDocument()
     })
   })
 

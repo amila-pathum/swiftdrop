@@ -19,7 +19,8 @@ import java.util.*;
 @PreAuthorize("hasRole('COURIER')")
 public class CourierDeliveryController {
     private final CourierDeliveryService deliveries;
-    public CourierDeliveryController(CourierDeliveryService deliveries){this.deliveries=deliveries;}
+    private final com.swiftdrop.courier.service.CourierWorkflowService workflow;
+    public CourierDeliveryController(CourierDeliveryService deliveries,com.swiftdrop.courier.service.CourierWorkflowService workflow){this.deliveries=deliveries;this.workflow=workflow;}
     @GetMapping("/deliveries")
     public PageResult<CourierDeliveryService.Delivery> list(@AuthenticationPrincipal Jwt jwt,
         @RequestParam(defaultValue="active") String filter,@RequestParam(defaultValue="0") @Min(0) int page,
@@ -28,7 +29,7 @@ public class CourierDeliveryController {
     }
     @GetMapping("/deliveries/{parcelId}")
     public CourierDeliveryService.Delivery detail(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID parcelId){return deliveries.detail(CourierController.userId(jwt),parcelId,jwt.getTokenValue());}
-    @PostMapping(value="/deliveries/{parcelId}/status",consumes=MediaType.APPLICATION_JSON_VALUE)
+    @RequestMapping(value="/deliveries/{parcelId}/status",method={RequestMethod.POST,RequestMethod.PATCH},consumes=MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> status(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID parcelId,@Valid @RequestBody DeliveryInput input) {
         return result(deliveries.submit(CourierController.userId(jwt),parcelId,input,null,jwt.getTokenValue()));
     }
@@ -47,6 +48,14 @@ public class CourierDeliveryController {
     public List<Checkpoint> tracking(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID parcelId){return deliveries.tracking(CourierController.userId(jwt),parcelId,jwt.getTokenValue());}
     @GetMapping("/deliveries/{parcelId}/proofs")
     public List<Proof> proofs(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID parcelId){return deliveries.proofs(CourierController.userId(jwt),parcelId,jwt.getTokenValue());}
+    @GetMapping("/deliveries/{parcelId}/status")
+    public com.swiftdrop.courier.dto.CourierWorkflowDtos.Activity activity(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID parcelId) {
+        return workflow.courierActivity(CourierController.userId(jwt),parcelId);
+    }
+    @GetMapping("/deliveries/{parcelId}/history")
+    public List<com.swiftdrop.courier.client.CourierIntegrations.ParcelHistory> history(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID parcelId) {
+        return deliveries.detail(CourierController.userId(jwt),parcelId,jwt.getTokenValue()).parcel().history();
+    }
     @GetMapping("/deliveries/{parcelId}/proofs/{proofId}/photo")
     public ResponseEntity<Resource> photo(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID parcelId,@PathVariable UUID proofId) {
         Resource resource=deliveries.photo(CourierController.userId(jwt),parcelId,proofId,jwt.getTokenValue());

@@ -24,6 +24,7 @@ class CourierControllerTest {
     @MockitoBean CourierProfileService profiles;
     @MockitoBean CourierService legacy;
     @MockitoBean CourierDeliveryService deliveries;
+    @MockitoBean CourierWorkflowService workflow;
     @Test void unauthenticatedGets401AndCustomerCannotUseCourierEndpoints() throws Exception {
         mvc.perform(get("/api/couriers/me")).andExpect(status().isUnauthorized());
         mvc.perform(get("/api/couriers/me").with(jwt().authorities(new SimpleGrantedAuthority("ROLE_CUSTOMER")))).andExpect(status().isForbidden());

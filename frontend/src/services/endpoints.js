@@ -300,3 +300,16 @@ export function buildPath(path, params = {}) {
     return encodeURIComponent(String(params[name]))
   })
 }
+
+// Courier-owned authenticated APIs; availability describes the route, not upstream health.
+export const COURIER_ENDPOINTS = Object.freeze({
+  courierProfile: { method: 'GET', path: '/api/couriers/me', available: true, auth: true },
+  courierAvailability: { method: 'PATCH', path: '/api/couriers/me/availability', available: true, auth: true },
+  courierDeliveries: { method: 'GET', path: '/api/couriers/me/deliveries', available: true, auth: true },
+  courierDelivery: { method: 'GET', path: '/api/couriers/me/deliveries/:parcelId', available: true, auth: true },
+  courierTracking: { method: 'GET', path: '/api/couriers/me/deliveries/:parcelId/tracking', available: true, auth: true },
+  courierProofs: { method: 'GET', path: '/api/couriers/me/deliveries/:parcelId/proofs', available: true, auth: true },
+  courierStatus: { method: 'POST', path: '/api/couriers/me/deliveries/:parcelId/status', available: true, auth: true },
+  courierSubmission: { method: 'GET', path: '/api/couriers/me/delivery-submissions/:id', available: true, auth: true },
+  courierPhoto: { method: 'GET', path: '/api/couriers/me/deliveries/:parcelId/proofs/:proofId/photo', available: true, auth: true },
+})

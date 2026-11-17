@@ -37,6 +37,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Service signs them (jjwt). Runs without a database or Docker.
  */
 @SpringBootTest(properties = {
+    "spring.rabbitmq.listener.simple.auto-startup=false",
+    "management.health.rabbit.enabled=false",
+    "swiftdrop.events.publisher-enabled=false",
     "swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
     "spring.autoconfigure.exclude=org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration,org.springframework.boot.data.jpa.autoconfigure.JpaRepositoriesAutoConfiguration"
 })
@@ -47,12 +50,15 @@ class SecurityConfigTest {
     com.swiftdrop.courier.service.CourierProfileService courierProfiles;
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     com.swiftdrop.courier.service.CourierDeliveryService courierDeliveries;
+    @MockitoBean com.swiftdrop.courier.service.CourierWorkflowService workflow;
 
     private static final byte[] KEY = bytes(32);
     private static final byte[] OTHER_KEY = bytes(32, 100);
 
     @Autowired MockMvc mockMvc;
     @MockitoBean CourierRepository courierRepository;
+    @MockitoBean com.swiftdrop.courier.repository.CourierProfileRepository courierProfileRepository;
+    @MockitoBean org.springframework.jdbc.core.JdbcTemplate jdbc;
 
     /** Test-only endpoint showing the convention for a protected, role-restricted endpoint. */
     @TestConfiguration

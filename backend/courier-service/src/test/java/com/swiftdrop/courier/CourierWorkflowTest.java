@@ -18,7 +18,7 @@ import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
 import static org.mockito.ArgumentMatchers.*;
 
-@SpringBootTest(properties={"COURIER_DB_PASSWORD=unused","swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="})
+@SpringBootTest(properties={"spring.rabbitmq.listener.simple.auto-startup=false","management.health.rabbit.enabled=false","COURIER_DB_PASSWORD=unused","swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="})
 @Testcontainers(disabledWithoutDocker=true)
 class CourierWorkflowTest {
     @Container @ServiceConnection static final PostgreSQLContainer postgres=new PostgreSQLContainer("postgres:18");

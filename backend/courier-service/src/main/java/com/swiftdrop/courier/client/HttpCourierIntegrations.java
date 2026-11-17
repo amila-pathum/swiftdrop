@@ -33,12 +33,16 @@ public class HttpCourierIntegrations {
         return (userId,token)->call("Identity service",()->http.get().uri("/api/admin/users/{id}",userId)
             .headers(h->h.setBearerAuth(token)).retrieve().body(IdentityAccount.class));
     }
-    @Bean DispatchClient dispatchClient(@Value("${swiftdrop.clients.dispatch-url:http://localhost:8085}") String url) {
+    @Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name="swiftdrop.deliveries.source",havingValue="http")
+    DispatchClient dispatchClient(@Value("${swiftdrop.clients.dispatch-url:http://localhost:8085}") String url) {
         var http=client(url);
         return (courierId,token)->call("Dispatch service",()->http.get().uri("/api/dispatch/couriers/{id}/assignments",courierId)
             .headers(h->h.setBearerAuth(token)).retrieve().body(new ParameterizedTypeReference<List<Assignment>>(){}));
     }
-    @Bean ParcelClient parcelClient(@Value("${swiftdrop.clients.parcel-url:http://localhost:8082}") String url) {
+    @Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name="swiftdrop.deliveries.source",havingValue="http")
+    ParcelClient parcelClient(@Value("${swiftdrop.clients.parcel-url:http://localhost:8082}") String url) {
         var http=client(url);
         return new ParcelClient() {
             public ParcelDetails parcel(UUID id,String token) {
