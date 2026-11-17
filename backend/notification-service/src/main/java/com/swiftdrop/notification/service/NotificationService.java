@@ -79,5 +79,29 @@ public class NotificationService {
         Notification updated = notificationRepository.save(notification);
         return NotificationResponse.from(updated);
     }
+
+    @Transactional
+    public void markAllAsRead(String userId) {
+        markAllAsRead(userId, null);
+    }
+
+    @Transactional
+    public void markAllAsRead(String userId, String email) {
+        List<String> identifiers = Stream.of(userId, email)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        if (identifiers.isEmpty()) {
+            return;
+        }
+        List<Notification> unread = notificationRepository.findByUserIdInOrderByCreatedAtDesc(identifiers)
+                .stream()
+                .filter(n -> !n.isRead())
+                .peek(n -> n.setRead(true))
+                .toList();
+        if (!unread.isEmpty()) {
+            notificationRepository.saveAll(unread);
+        }
+    }
 }
 

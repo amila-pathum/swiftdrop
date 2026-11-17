@@ -84,6 +84,13 @@ class NotificationControllerTest {
     }
 
     @Test
+    void markAllAsReadDelegatesToService() {
+        Jwt jwt = createMockJwt("user-42");
+        controller.markAllAsRead(jwt);
+        verify(notificationService).markAllAsRead("user-42", "user-42@example.com");
+    }
+
+    @Test
     void streamUserNotificationsReturnsEmitter() {
         Jwt jwt = createMockJwt("user-42");
         SseEmitter emitter = new SseEmitter();

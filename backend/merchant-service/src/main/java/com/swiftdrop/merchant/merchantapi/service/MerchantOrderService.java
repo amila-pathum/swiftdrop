@@ -36,16 +36,22 @@ public class MerchantOrderService {
         } catch (java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
         // Returning a completed duplicate does not require an available downstream client.
         var existing = store.findReservation(merchantId, request.merchantOrderReference());
-        if (existing.isPresent()) return existingResult(existing.get(), hash);
+        if (existing.isPresent()) {
+            var saved = completedResult(existing.get(), hash);
+            if (saved != null) return saved;
+        }
         ParcelOrderClient client = parcelClients.getIfAvailable();
         if (client == null) {
             throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
                     "Parcel order creation is unavailable");
         }
-        if (!store.reserve(merchantId, request.merchantOrderReference(), hash)) {
-            return existingResult(store.reservation(merchantId, request.merchantOrderReference()), hash);
+        if (existing.isEmpty() && !store.reserve(merchantId, request.merchantOrderReference(), hash)) {
+            var saved = completedResult(store.reservation(merchantId, request.merchantOrderReference()), hash);
+            if (saved != null) return saved;
+            if (!client.idempotentCreation()) throw pending();
         }
-        // Reservation is committed before HTTP. Never replay an ambiguous remote operation.
+        if (existing.isPresent() && !client.idempotentCreation()) throw pending();
+        // The downstream transaction now deduplicates this exact reference and body, even after a timeout.
         var result = client.createOrder(merchantId, request);
         if (result == null || !request.merchantOrderReference().equals(result.merchantOrderReference())
                 || result.trackingNumber() == null || result.trackingNumber().isBlank()
@@ -56,12 +62,15 @@ public class MerchantOrderService {
         return result;
     }
 
-    private MerchantOrderResponse existingResult(MerchantOrderStore.Reservation existing, String hash) {
+    private MerchantOrderResponse completedResult(MerchantOrderStore.Reservation existing, String hash) {
         if (!hash.equals(existing.hash())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Order reference already used with different details");
         }
-        if (existing.result() != null) return existing.result();
-        throw new ResponseStatusException(HttpStatus.CONFLICT,
+        return existing.result();
+    }
+
+    private ResponseStatusException pending() {
+        return new ResponseStatusException(HttpStatus.CONFLICT,
                 "Order creation is pending reconciliation; do not submit a new reference");
     }
 
@@ -69,10 +78,20 @@ public class MerchantOrderService {
         if (page < 0 || page > 1000000 || size < 1 || size > 100) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid pagination");
         }
+        var client = parcelClients.getIfAvailable();
+        if (client != null && client.idempotentCreation()) {
+            return client.list(merchant, page, size).orElseThrow(() ->
+                    new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Parcel orders are unavailable"));
+        }
         return store.list(merchant,page,size);
     }
     public MerchantOrderResponse detail(String merchant, String tracking) {
-        return store.detail(merchant,tracking).orElseThrow(() ->
+        var saved = store.detail(merchant,tracking).orElseThrow(() ->
                 new ResponseStatusException(HttpStatus.NOT_FOUND,"Order not found"));
+        var client = parcelClients.getIfAvailable();
+        if (client != null && client.idempotentCreation()) return client.current(merchant, saved.merchantOrderReference())
+                .filter(current -> tracking.equals(current.trackingNumber()))
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
+        return saved;
     }
 }

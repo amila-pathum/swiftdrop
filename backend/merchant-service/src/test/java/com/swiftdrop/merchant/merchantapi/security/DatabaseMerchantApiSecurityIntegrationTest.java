@@ -18,7 +18,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(properties = {
-        "swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
+        "swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
+        "webhook.encryption-key=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })
 @AutoConfigureMockMvc
 @Testcontainers(disabledWithoutDocker = true)
@@ -35,6 +36,32 @@ class DatabaseMerchantApiSecurityIntegrationTest {
     @Autowired MockMvc mockMvc;
     @Autowired JdbcTemplate jdbc;
     @Autowired MerchantApiKeyService keyService;
+    @Autowired com.swiftdrop.merchant.service.MerchantWebhookService webhooks;
+
+    @Test void webhookSubscriptionsPersistAndOlderClientsPreserveThem() {
+        var selected = java.util.Set.of("DELIVERED", "FAILED");
+        webhooks.configure(userId, new com.swiftdrop.merchant.dto.request.UpdateMerchantWebhookRequest(
+                "https://shop.example/hook", true, selected));
+        org.junit.jupiter.api.Assertions.assertEquals(selected, webhooks.get(userId).events());
+        Long merchantId = jdbc.queryForObject("SELECT id FROM merchants WHERE user_id = ?", Long.class, userId);
+        org.junit.jupiter.api.Assertions.assertEquals(selected, webhooks.getInternalSettings(merchantId).events());
+        webhooks.configure(userId, new com.swiftdrop.merchant.dto.request.UpdateMerchantWebhookRequest("https://shop.example/new", true));
+        org.junit.jupiter.api.Assertions.assertEquals(selected, webhooks.get(userId).events());
+        webhooks.rotateSecret(userId);
+        org.junit.jupiter.api.Assertions.assertEquals(selected, webhooks.get(userId).events());
+        webhooks.configure(userId, new com.swiftdrop.merchant.dto.request.UpdateMerchantWebhookRequest("https://shop.example/new", true, java.util.Set.of()));
+        org.junit.jupiter.api.Assertions.assertTrue(webhooks.get(userId).events().isEmpty());
+        org.junit.jupiter.api.Assertions.assertThrows(org.springframework.web.server.ResponseStatusException.class, () ->
+                webhooks.configure(userId, new com.swiftdrop.merchant.dto.request.UpdateMerchantWebhookRequest("https://shop.example/new", true, java.util.Set.of("UNKNOWN"))));
+    }
+    @Autowired org.springframework.context.ApplicationContext context;
+
+    @Test
+    void keyServiceIsTheOnlyRegisteredLookup() {
+        var lookups = context.getBeansOfType(MerchantApiKeyLookup.class);
+        org.junit.jupiter.api.Assertions.assertEquals(1, lookups.size());
+        org.junit.jupiter.api.Assertions.assertSame(keyService, lookups.values().iterator().next());
+    }
 
     private Long userId;
 

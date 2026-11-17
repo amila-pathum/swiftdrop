@@ -1,18 +1,20 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Parcel Assigned",
-  "description": "Published after a dispatcher assigns or reassigns a courier in the Dispatch projection.",
+  "description": "Published by dispatch-service on routing key parcel.assigned after an assignment or reassignment commits. courierId is the courier-service profile id; courierUserId is the courier's identity user id (the value parcel-service stores). Ids are sent as strings.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["eventId", "eventType", "occurredAt", "parcelId", "trackingNumber", "courierId", "assignedBy"],
+  "required": ["eventId", "eventType", "occurredAt", "parcelId", "trackingNumber", "courierId", "courierUserId", "assignedBy"],
   "properties": {
     "eventId": { "type": "string", "format": "uuid" },
     "eventType": { "const": "ParcelAssigned" },
     "occurredAt": { "type": "string", "format": "date-time" },
     "parcelId": { "type": "string", "format": "uuid" },
     "trackingNumber": { "type": "string" },
-    "courierId": { "type": "string", "format": "uuid" },
-    "previousCourierId": { "type": ["string", "null"], "format": "uuid" },
+    "courierId": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+    "courierUserId": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+    "previousCourierId": { "type": ["string", "null"], "pattern": "^[1-9][0-9]*$" },
+    "previousCourierUserId": { "type": ["string", "null"], "pattern": "^[1-9][0-9]*$" },
     "assignedBy": { "type": "string" }
   }
 }

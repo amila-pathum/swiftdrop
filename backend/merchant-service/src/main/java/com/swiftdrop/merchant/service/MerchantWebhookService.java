@@ -53,6 +53,9 @@ public class MerchantWebhookService {
                                                        UpdateMerchantWebhookRequest request) {
         Merchant merchant = approvedMerchant(userId);
         validateHttpsUrl(request.url());
+        if (request.events() != null && !MerchantWebhookSettings.ALL_EVENTS.containsAll(request.events())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown webhook event");
+        }
         MerchantWebhookSettings config = settings.findByMerchantId(merchant.getId()).orElse(null);
         String newSecret = null;
         if (config == null) {
@@ -63,6 +66,8 @@ public class MerchantWebhookService {
         }
         config.setWebhookUrl(request.url().trim());
         config.setEnabled(request.enabled());
+        // Older clients omit events: preserve an existing selection, default new settings to all.
+        if (request.events() != null) config.setEvents(request.events());
         config.markUpdated();
         MerchantWebhookSettings saved = settings.saveAndFlush(config);
         return new MerchantWebhookWithSecretResponse(MerchantWebhookResponse.from(saved), newSecret);
@@ -90,6 +95,12 @@ public class MerchantWebhookService {
                     "Merchant must be approved");
         }
         return merchant;
+    }
+
+    @Transactional(readOnly = true)
+    public Long profileIdForUser(Long userId) {
+        return merchants.findByUserId(userId).orElseThrow(() ->
+                new ResponseStatusException(HttpStatus.NOT_FOUND, "Merchant profile not found")).getId();
     }
 
     private void validateHttpsUrl(String url) {
@@ -146,7 +157,7 @@ public class MerchantWebhookService {
                 .map(config -> new InternalWebhookSettings(
                         config.getWebhookUrl(),
                         decrypt(config.getEncryptedSigningSecret()),
-                        true
+                        true, config.getEvents()
                 ))
                 .orElseGet(() ->
                         new InternalWebhookSettings(null, null, false));
@@ -155,8 +166,12 @@ public class MerchantWebhookService {
     public record InternalWebhookSettings(
             String url,
             String signingSecret,
-            boolean enabled
+            boolean enabled,
+            java.util.Set<String> events
     ) {
+        public InternalWebhookSettings(String url, String signingSecret, boolean enabled) {
+            this(url, signingSecret, enabled, MerchantWebhookSettings.ALL_EVENTS);
+        }
         @Override
         public String toString() {
             return "InternalWebhookSettings[enabled=" + enabled + "]";

@@ -26,23 +26,24 @@ describe('endpoint registry', () => {
       .filter(([, endpoint]) => endpoint.available)
       .map(([name]) => name)
     expect(available.sort()).toEqual([
-      'calculateQuote', 'confirmPasswordReset', 'createPricingRule', 'createStaffUser',
-      'createZone', 'currentUser', 'disablePricingRule', 'disableZone',
-      'getPricingRuleById', 'getPricingRules', 'getZoneById', 'getZones',
-      'googleExchange', 'login', 'logout', 'markNotificationAsRead',
+      'changeUserRole', 'changeUserStatus', 'confirmPasswordReset', 'createStaffUser',
+      'createZone', 'currentUser', 'disableZone',
+      'enableZone', 'getAdminUser', 'getRateCard', 'getRateVersions', 'getZoneById', 'getZones',
+      'googleExchange', 'listAdminUsers', 'login', 'logout', 'markNotificationAsRead',
       'merchantApplication', 'myMerchantApplication', 'notifications',
-      'pricingQuote', 'refresh', 'register', 'registerCourier', 'registerMerchant',
-      'trackParcel', 'unreadNotificationsCount', 'updatePricingRule', 'updateZone',
+      'pricingQuote', 'publishRates', 'refresh', 'register', 'registerCourier', 'registerMerchant',
+      'trackParcel', 'unreadNotificationsCount', 'updateZone',
     ])
     expect(available.every((name) => ENDPOINTS[name].path.startsWith('/api/auth/')
       || ENDPOINTS[name].path.startsWith('/api/notifications')
       || ENDPOINTS[name].path.startsWith('/api/merchants/')
       || ENDPOINTS[name].path === '/api/users/me'
       || ENDPOINTS[name].path === '/api/admin/users'
+      || ENDPOINTS[name].path.startsWith('/api/admin/users/')
       || ENDPOINTS[name].path === '/api/zones'
       || ENDPOINTS[name].path.startsWith('/api/zones/')
-      || ENDPOINTS[name].path === '/api/pricing/rules'
-      || ENDPOINTS[name].path.startsWith('/api/pricing/rules/')
+      || ENDPOINTS[name].path === '/api/pricing/rates'
+      || ENDPOINTS[name].path.startsWith('/api/pricing/rates/')
       || ENDPOINTS[name].path === '/api/pricing/quote'
       || ENDPOINTS[name].path === '/api/parcels/track/:trackingNumber')).toBe(true)
   })

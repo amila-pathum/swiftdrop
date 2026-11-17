@@ -86,11 +86,19 @@ export const parcelService = {
 
 // Public parcel tracking through the API Gateway.
 
-// Tracking numbers: letters, digits and dashes, 6 to 40 characters.
-export const TRACKING_NUMBER_PATTERN = /^[A-Za-z0-9-]{6,40}$/
+// Tracking numbers: letters, digits and dashes, 6 to 50 characters.
+export const TRACKING_NUMBER_PATTERN = /^[A-Za-z0-9-]{6,50}$/
 
 export function normalizeTrackingNumber(value) {
-  return String(value ?? '').trim().toUpperCase()
+  return String(value ?? '')
+    .trim()
+    // Strip common surrounding punctuation and whitespace
+    .replace(/^["'`#\s]+|["'`#\s]+$/g, '')
+    // Replace typographic dashes with ASCII dash
+    .replace(/[\u2010-\u2015\u2212]/g, '-')
+    // Strip all whitespace and invisible unicode characters (zero-width spaces etc.)
+    .replace(/[\s\u200B-\u200D\uFEFF]+/g, '')
+    .toUpperCase()
 }
 
 export function trackParcel(trackingNumber, { signal } = {}) {

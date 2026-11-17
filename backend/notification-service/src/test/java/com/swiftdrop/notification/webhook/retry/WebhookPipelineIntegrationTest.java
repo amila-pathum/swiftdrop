@@ -38,7 +38,8 @@ class WebhookPipelineIntegrationTest {
         new ResourceDatabasePopulator(new ClassPathResource("db/migration/V1__create_webhook_delivery_records.sql")).execute(ds);
         var store = new WebhookDeliveryStore(new JdbcTemplate(ds),new DataSourceTransactionManager(ds));
         var mapper = new ObjectMapper();
-        var consumer = new WebhookParcelStatusConsumer(mapper,new WebhookEventRecorder(store,mapper));
+        var consumer = new WebhookParcelStatusConsumer(mapper,new WebhookEventRecorder(store,mapper),
+                user -> { assertEquals("42", user); return Optional.of("1"); });
         var connection = new CachingConnectionFactory(rabbit.getHost(),rabbit.getMappedPort(5672));
         connection.setUsername("pipeline-test"); connection.setPassword("pipeline-test-password");
         var listener = new SimpleMessageListenerContainer(connection);
@@ -75,7 +76,7 @@ class WebhookPipelineIntegrationTest {
             UUID event = UUID.randomUUID();
             byte[] payload = mapper.writeValueAsBytes(Map.of("eventId",event.toString(),"eventType","ParcelStatusChanged",
                     "occurredAt",Instant.now().toString(),"parcelId","parcel-1","customerId","user-1",
-                    "merchantId","1","trackingNumber","SD-PIPELINE","oldStatus","CREATED","newStatus","DELIVERED"));
+                    "merchantId","42","trackingNumber","SD-PIPELINE","oldStatus","CREATED","newStatus","DELIVERED"));
             var template = new RabbitTemplate(connection);
             template.send(exchange.getName(),"parcel.status-changed",new Message(payload));
             template.send(exchange.getName(),"parcel.status-changed",new Message(payload));

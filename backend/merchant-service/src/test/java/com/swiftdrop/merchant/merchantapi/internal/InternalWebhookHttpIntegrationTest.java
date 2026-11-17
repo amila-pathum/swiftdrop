@@ -63,6 +63,15 @@ class InternalWebhookHttpIntegrationTest {
         assertTrue(response.body().contains("\"enabled\":false"));
     }
 
+    @Test void identityMappingRouteRequiresTheServiceTokenAndReturnsOnlyTheProfileId() throws Exception {
+        when(service.profileIdForUser(42L)).thenReturn(7L);
+        var uri=URI.create("http://localhost:"+port+"/internal/merchants/by-user/42/profile");
+        var client=HttpClient.newHttpClient();
+        assertEquals(401,client.send(HttpRequest.newBuilder(uri).GET().build(),HttpResponse.BodyHandlers.ofString()).statusCode());
+        var response=client.send(HttpRequest.newBuilder(uri).header("X-SwiftDrop-Internal-Token",TOKEN).GET().build(),HttpResponse.BodyHandlers.ofString());
+        assertEquals(200,response.statusCode());assertEquals("{\"merchantId\":7}",response.body());
+    }
+
     @Test void missingMerchantIsNotDisguisedAsAuthenticationFailure() throws Exception {
         when(service.getInternalSettings(1L)).thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND));
         assertEquals(404, get(TOKEN).statusCode());

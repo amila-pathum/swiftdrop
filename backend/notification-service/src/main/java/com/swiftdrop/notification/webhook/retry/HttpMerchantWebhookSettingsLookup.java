@@ -13,7 +13,7 @@ import java.util.Optional;
 
 @Component
 public class HttpMerchantWebhookSettingsLookup
-        implements MerchantWebhookSettingsLookup {
+        implements MerchantWebhookSettingsLookup, MerchantProfileLookup {
 
     private final RestClient client;
     private final String token;
@@ -39,6 +39,28 @@ public class HttpMerchantWebhookSettingsLookup
 
         this.token = token;
     }
+
+    @Override
+    public Optional<String> profileForUser(String userId) {
+        if (token.length() < 32) throw new IllegalStateException("Internal webhook token must be configured");
+        try {
+            long id = Long.parseLong(userId);
+            if (id <= 0 || !Long.toString(id).equals(userId)) throw new NumberFormatException();
+        } catch (RuntimeException exception) { throw new IllegalArgumentException("Invalid merchant user identity"); }
+        try {
+            ProfileResponse profile = client.get().uri("/internal/merchants/by-user/{id}/profile", userId)
+                    .header("X-SwiftDrop-Internal-Token", token).retrieve().body(ProfileResponse.class);
+            if (profile == null || profile.merchantId() == null || profile.merchantId() <= 0)
+                throw new IllegalStateException("Merchant identity mapping is incomplete");
+            return Optional.of(profile.merchantId().toString());
+        } catch (HttpClientErrorException.NotFound exception) {
+            ErrorResponse error = exception.getResponseBodyAs(ErrorResponse.class);
+            if (error != null && "MERCHANT_NOT_FOUND".equals(error.error())) return Optional.empty();
+            throw exception;
+        }
+    }
+
+    private record ProfileResponse(Long merchantId) { }
 
     @Override
     public Optional<Settings> findForMerchant(String merchantId) {
@@ -89,7 +111,7 @@ public class HttpMerchantWebhookSettingsLookup
         return Optional.of(new Settings(
                 URI.create(result.url()),
                 result.signingSecret(),
-                true
+                true, result.events()
         ));
     }
 
@@ -98,7 +120,8 @@ public class HttpMerchantWebhookSettingsLookup
     private record SettingsResponse(
             String url,
             String signingSecret,
-            Boolean enabled
+            Boolean enabled,
+            java.util.Set<String> events
     ) {
         @Override
         public String toString() {

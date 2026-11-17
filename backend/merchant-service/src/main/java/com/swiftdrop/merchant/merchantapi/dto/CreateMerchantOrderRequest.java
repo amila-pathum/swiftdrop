@@ -24,4 +24,5 @@ public record CreateMerchantOrderRequest(
         ParcelDetailsRequest parcel
 
 ) {
+    @Override public String toString() { return "CreateMerchantOrderRequest[merchantOrderReference=" + merchantOrderReference + "]"; }
 }

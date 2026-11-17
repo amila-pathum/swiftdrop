@@ -12,6 +12,10 @@ export default function TrackingSearch({
   initialValue = '',
   size = 'lg',
   placeholder = 'Enter tracking number, e.g. SD-2026-000123',
+  variant,
+  label,
+  buttonText = 'Track',
+  helperText,
 }) {
   const navigate = useNavigate()
   const [value, setValue] = useState(initialValue)
@@ -26,11 +30,64 @@ export default function TrackingSearch({
       return
     }
     if (!TRACKING_NUMBER_PATTERN.test(trackingNumber)) {
-      setError('Tracking numbers use 6 to 40 letters, digits or dashes.')
+      setError('Enter a valid SwiftDrop tracking number (letters, digits and dashes only).')
       return
     }
     setError(null)
     navigate(`/track/${encodeURIComponent(trackingNumber)}`)
+  }
+
+  if (variant === 'card') {
+    return (
+      <form
+        className="tracking-search-card-form"
+        onSubmit={handleSubmit}
+        noValidate
+        role="search"
+        aria-label="Track a parcel"
+      >
+        <label htmlFor={id} className="tracking-search-card-label">
+          {label || 'Tracking number'}
+        </label>
+        <div className="tracking-search-card-row">
+          <input
+            id={id}
+            className="tracking-search-card-input"
+            placeholder={placeholder}
+            value={value}
+            autoComplete="off"
+            spellCheck="false"
+            aria-invalid={Boolean(error) || undefined}
+            aria-describedby={error ? errorId : undefined}
+            onChange={(event) => setValue(event.target.value)}
+          />
+          <button type="submit" className="tracking-search-card-button">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <span>{buttonText || 'Track Parcel'}</span>
+          </button>
+        </div>
+        {error ? (
+          <p id={errorId} className="form-error" style={{ marginTop: '8px' }}>
+            {error}
+          </p>
+        ) : helperText ? (
+          <p className="tracking-search-card-helper">{helperText}</p>
+        ) : null}
+      </form>
+    )
   }
 
   return (

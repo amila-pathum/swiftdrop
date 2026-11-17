@@ -23,4 +23,11 @@ public class InternalWebhookController {
                 .cacheControl(CacheControl.noStore())
                 .body(service.getInternalSettings(merchantId));
     }
+
+    /** Parcel events carry Identity user IDs, never Merchant profile IDs. */
+    @GetMapping("/by-user/{userId}/profile")
+    public ResponseEntity<java.util.Map<String, Long>> profile(@PathVariable Long userId) {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore())
+                .body(java.util.Map.of("merchantId", service.profileIdForUser(userId)));
+    }
 }

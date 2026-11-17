@@ -12,8 +12,10 @@ import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -21,6 +23,10 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class EmailNotificationService {
+
+    public static final ZoneId SRI_LANKA_ZONE = ZoneId.of("Asia/Colombo");
+    public static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH);
+    public static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH);
 
     private final JavaMailSender mailSender;
     private final IdentityServiceClient identityServiceClient;
@@ -49,9 +55,11 @@ public class EmailNotificationService {
 
     /**
      * Resolves the target email address for a given customerId.
-     * 1. If customerId is already an email address (e.g. test events or OAuth logins), uses it directly.
+     * 1. If customerId is already an email address (e.g. test events or OAuth
+     * logins), uses it directly.
      * 2. Queries identity-service to resolve the user's registered email address.
-     * 3. Otherwise falls back to configured test recipient or MAIL_USERNAME for local development testing.
+     * 3. Otherwise falls back to configured test recipient or MAIL_USERNAME for
+     * local development testing.
      */
     public String resolveCustomerEmail(String customerId) {
         if (!StringUtils.hasText(customerId)) {
@@ -87,7 +95,8 @@ public class EmailNotificationService {
     }
 
     /**
-     * Converts raw system statuses like "IN_TRANSIT" into friendly status words like "In Transit".
+     * Converts raw system statuses like "IN_TRANSIT" into friendly status words
+     * like "In Transit".
      */
     public static String formatFriendlyStatus(String status) {
         if (status == null || status.isBlank()) {
@@ -102,32 +111,114 @@ public class EmailNotificationService {
             case "DELIVERED" -> "Delivered";
             case "CANCELLED" -> "Cancelled";
             case "RETURNED" -> "Returned";
-            case "FAILED_DELIVERY" -> "Delivery Failed";
+            case "FAILED", "FAILED_DELIVERY" -> "Delivery Failed";
             default -> Arrays.stream(status.split("_"))
-                    .map(word -> word.isEmpty() ? "" : Character.toUpperCase(word.charAt(0)) + word.substring(1).toLowerCase())
+                    .map(word -> word.isEmpty() ? ""
+                            : Character.toUpperCase(word.charAt(0)) + word.substring(1).toLowerCase())
                     .collect(Collectors.joining(" "));
         };
     }
 
     /**
-     * Sends an email notification to the customer informing them of parcel status change.
+     * Generates a customer-friendly, professional email subject based on the new
+     * parcel status.
+     * Technical transitions and old status are never displayed.
+     */
+    public static String resolveEmailSubject(String newStatus) {
+        if (!StringUtils.hasText(newStatus)) {
+            return "SwiftDrop – Parcel Status Update";
+        }
+        return switch (newStatus.trim().toUpperCase()) {
+            case "DELIVERED" -> "SwiftDrop – Parcel Successfully Delivered";
+            case "OUT_FOR_DELIVERY" -> "SwiftDrop – Parcel Out for Delivery";
+            case "IN_TRANSIT" -> "SwiftDrop – Parcel In Transit";
+            case "PICKED_UP" -> "SwiftDrop – Parcel Picked Up";
+            case "CREATED", "PENDING" -> "SwiftDrop – Parcel Registered";
+            case "FAILED", "FAILED_DELIVERY" -> "SwiftDrop – Delivery Attempt Unsuccessful";
+            case "CANCELLED" -> "SwiftDrop – Parcel Delivery Cancelled";
+            case "RETURNED" -> "SwiftDrop – Parcel Being Returned";
+            default -> "SwiftDrop – Parcel Status Update";
+        };
+    }
+
+    /**
+     * Generates the primary status sentence for the customer email.
+     * Converts UTC instant to Sri Lanka Standard Time (Asia/Colombo).
+     */
+    public static String resolveStatusSentence(String newStatus, String trackingNumber, ZonedDateTime slTime) {
+        String tracking = StringUtils.hasText(trackingNumber) ? trackingNumber.trim() : "your parcel";
+        String deliveryDate = DATE_FORMATTER.format(slTime);
+        String deliveryTime = TIME_FORMATTER.format(slTime);
+
+        if (!StringUtils.hasText(newStatus)) {
+            return String.format("Your parcel %s status has been updated as of %s, at %s (Sri Lanka time).",
+                    tracking, deliveryDate, deliveryTime);
+        }
+
+        return switch (newStatus.trim().toUpperCase()) {
+            case "DELIVERED" ->
+                String.format("Your parcel %s has been successfully delivered on %s, at %s (Sri Lanka time).",
+                        tracking, deliveryDate, deliveryTime);
+            case "OUT_FOR_DELIVERY" ->
+                String.format(
+                        "Your parcel %s is out for delivery as of %s, at %s (Sri Lanka time) and will arrive soon.",
+                        tracking, deliveryDate, deliveryTime);
+            case "IN_TRANSIT" ->
+                String.format("Your parcel %s is on the way to the delivery location as of %s, at %s (Sri Lanka time).",
+                        tracking, deliveryDate, deliveryTime);
+            case "PICKED_UP" ->
+                String.format("Your parcel %s has been picked up by the courier on %s, at %s (Sri Lanka time).",
+                        tracking, deliveryDate, deliveryTime);
+            case "CREATED", "PENDING" ->
+                String.format(
+                        "Your parcel %s has been registered on %s, at %s (Sri Lanka time) and is being processed.",
+                        tracking, deliveryDate, deliveryTime);
+            case "FAILED", "FAILED_DELIVERY" ->
+                String.format(
+                        "A delivery attempt for your parcel %s was unsuccessful on %s, at %s (Sri Lanka time). Our team will attempt delivery again soon.",
+                        tracking, deliveryDate, deliveryTime);
+            case "CANCELLED" ->
+                String.format("Your delivery for parcel %s has been cancelled on %s, at %s (Sri Lanka time).",
+                        tracking, deliveryDate, deliveryTime);
+            case "RETURNED" ->
+                String.format("Your parcel %s is being returned to the sender as of %s, at %s (Sri Lanka time).",
+                        tracking, deliveryDate, deliveryTime);
+            default ->
+                String.format("Your parcel %s status is now %s as of %s, at %s (Sri Lanka time).",
+                        tracking, formatFriendlyStatus(newStatus), deliveryDate, deliveryTime);
+        };
+    }
+
+    /**
+     * Constructs the full email body with salutation, status description, and
+     * closing sign-off.
+     */
+    public static String resolveEmailBody(String newStatus, String trackingNumber, Instant occurredAt) {
+        Instant eventTime = occurredAt != null ? occurredAt : Instant.now();
+        ZonedDateTime slTime = eventTime.atZone(SRI_LANKA_ZONE);
+
+        String statusSentence = resolveStatusSentence(newStatus, trackingNumber, slTime);
+
+        return String.format(
+                "Dear Customer,\n\n" +
+                        "%s\n\n" +
+                        "Thank you for choosing SwiftDrop. We appreciate your trust in our service.\n\n" +
+                        "Best regards,\n" +
+                        "SwiftDrop Team",
+                statusSentence);
+    }
+
+    /**
+     * Sends an email notification to the customer informing them of parcel status
+     * change.
      */
     public void sendParcelUpdateEmail(ParcelStatusChangedEvent event) {
         Objects.requireNonNull(event, "event must not be null");
 
         String recipientEmail = resolveCustomerEmail(event.customerId());
 
-        String friendlyNewStatus = formatFriendlyStatus(event.newStatus());
-        String friendlyOldStatus = formatFriendlyStatus(event.oldStatus());
-
-        String subject = String.format("SwiftDrop Update: Parcel %s is now %s",
-                event.trackingNumber(), friendlyNewStatus);
-
-        String body = String.format(
-                "Hello,\n\nYour parcel with tracking number %s has changed status from %s to %s at %s UTC.\n" +
-                "You can view live updates on the SwiftDrop tracking portal.\n\nThank you,\nSwiftDrop Team",
-                event.trackingNumber(), friendlyOldStatus, friendlyNewStatus, event.occurredAt()
-        );
+        String subject = resolveEmailSubject(event.newStatus());
+        String body = resolveEmailBody(event.newStatus(), event.trackingNumber(), event.occurredAt());
 
         if (!StringUtils.hasText(recipientEmail)) {
             log.warn("No recipient email could be resolved for customerId={}. Skipping email dispatch.",
@@ -135,7 +226,8 @@ public class EmailNotificationService {
             return;
         }
 
-        log.info("Sending email notification: host={}:{}, from={}, to={}, customerId={}, trackingNumber={}, subject='{}'",
+        log.info(
+                "Sending email notification: host={}:{}, from={}, to={}, customerId={}, trackingNumber={}, subject='{}'",
                 mailHost, mailPort, mailFrom, recipientEmail, event.customerId(), event.trackingNumber(), subject);
 
         if (mailSender == null) {

@@ -152,7 +152,10 @@ export default function MerchantDeliveriesPage() {
         {detail.attempts.map((attempt) => <li key={attempt.attemptNumber}>
           <div className="webhook-attempt-heading"><strong>Attempt {attempt.attemptNumber}</strong><Outcome state={attempt.outcome} /></div>
           <p><Timestamp value={attempt.attemptedAt} /> · HTTP {attempt.httpStatus ?? '—'}</p>
-          {attempt.failureCode && <p>Failure: {attempt.failureCode}</p>}
+          {attempt.failureCode && <p>{attempt.failureCode === 'EVENT_NOT_SUBSCRIBED'
+            ? 'Not sent: this status is not selected in your endpoint settings.'
+            : attempt.failureCode === 'WEBHOOK_DISABLED' ? 'Not sent: the webhook endpoint is disabled.'
+              : `Failure: ${attempt.failureCode}`}</p>}
           {attempt.nextRetryAt && <p>Next retry: <Timestamp value={attempt.nextRetryAt} /></p>}
         </li>)}
       </ol>}
