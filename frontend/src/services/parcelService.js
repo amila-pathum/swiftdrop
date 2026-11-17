@@ -82,6 +82,11 @@ export const parcelService = {
       URL.revokeObjectURL(url)
     }
   },
+
+  listForDispatch: (status, signal) => {
+    const query = status ? `?status=${encodeURIComponent(status)}` : ''
+    return request(`/api/parcels/dispatch${query}`, { auth: true, signal })
+  },
 }
 
 // Public parcel tracking through the API Gateway.

@@ -6416,3 +6416,473 @@ a.button {
     width: auto;
   }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Admin Overview Dashboard (admin-overview-*)
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+.admin-overview-container {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.admin-overview-header {
+  margin-bottom: 4px;
+}
+
+.admin-overview-title {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0 0 4px;
+  letter-spacing: -0.02em;
+}
+
+.admin-overview-subtitle {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+/* ── Loading and Error States ── */
+.admin-loading-card {
+  padding: 48px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #6b7280;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+}
+
+.admin-error-card {
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-radius: 12px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+}
+
+.admin-error-text {
+  color: #991b1b;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+/* ── A. KPI Cards ── */
+.admin-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+.admin-kpi-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: none;
+}
+
+.admin-kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.admin-kpi-label {
+  font-size: 0.82rem;
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.admin-kpi-icon {
+  color: #9ca3af;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.admin-kpi-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: #111827;
+  line-height: 1.1;
+  margin: 4px 0 2px;
+}
+
+.admin-kpi-value.text-amber {
+  color: #d97706;
+}
+
+.admin-kpi-value.text-red {
+  color: #dc2626;
+}
+
+.admin-kpi-sub {
+  font-size: 0.78rem;
+  color: #9ca3af;
+}
+
+/* ── B & C. Charts & Summary Grid ── */
+.admin-charts-grid {
+  display: grid;
+  grid-template-columns: 1.65fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.admin-chart-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: none;
+}
+
+.admin-card-header {
+  border-bottom: 1px solid #f3f4f6;
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+}
+
+.admin-card-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #111827;
+  margin: 0;
+}
+
+.admin-card-desc {
+  font-size: 0.78rem;
+  color: #9ca3af;
+  margin: 3px 0 0;
+}
+
+/* ── Deliveries Per Day Stacked Bar Chart ── */
+.admin-bar-chart-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+  justify-content: space-between;
+}
+
+.admin-bar-chart-plot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  height: 200px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #e5e7eb;
+  position: relative;
+}
+
+.admin-bar-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  height: 100%;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.admin-bar-track {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 1;
+  position: relative;
+}
+
+.admin-bar-value {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #6b7280;
+  margin-bottom: 4px;
+  line-height: 1;
+}
+
+.admin-bar-stack {
+  width: 28px;
+  max-width: 80%;
+  display: flex;
+  flex-direction: column;
+  border-radius: 4px;
+  overflow: hidden;
+  background: transparent;
+  transition: height 0.3s ease;
+}
+
+.admin-bar-segment {
+  width: 100%;
+  transition: height 0.3s ease;
+}
+
+.admin-segment-failed {
+  background: #f87171;
+}
+
+.admin-segment-delivered {
+  background: #2563eb;
+}
+
+.admin-bar-empty-placeholder {
+  height: 2px;
+  width: 16px;
+  background: #f3f4f6;
+  border-radius: 1px;
+}
+
+.admin-bar-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 8px;
+  white-space: nowrap;
+}
+
+.admin-chart-legend {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  margin-top: 4px;
+}
+
+.admin-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.admin-legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.admin-dot-delivered {
+  background: #2563eb;
+}
+
+.admin-dot-failed {
+  background: #f87171;
+}
+
+.admin-chart-empty {
+  color: #9ca3af;
+  font-size: 0.875rem;
+  text-align: center;
+  padding: 36px 0;
+}
+
+/* ── Success / Failure Summary ── */
+.admin-summary-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  flex: 1;
+  gap: 20px;
+}
+
+.admin-summary-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.admin-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.88rem;
+}
+
+.admin-summary-label {
+  color: #4b5563;
+  font-weight: 500;
+}
+
+.admin-summary-val {
+  color: #111827;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.admin-progress-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.admin-progress-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  display: flex;
+  overflow: hidden;
+  background: #f3f4f6;
+}
+
+.admin-progress-delivered {
+  background: #2563eb;
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.admin-progress-failed {
+  background: #f87171;
+  height: 100%;
+  transition: width 0.3s ease;
+}
+
+.admin-progress-empty {
+  width: 100%;
+  height: 100%;
+  background: #e5e7eb;
+}
+
+.admin-progress-caption {
+  font-size: 0.72rem;
+  color: #9ca3af;
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* ── D. Pending Approvals Alert Banner ── */
+.admin-alert-banner {
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.admin-alert-body {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.admin-alert-icon {
+  color: #b45309;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.admin-alert-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.admin-alert-title {
+  font-size: 0.92rem;
+  color: #78350f;
+  font-weight: 600;
+}
+
+.admin-alert-desc {
+  font-size: 0.84rem;
+  color: #92400e;
+  margin: 0;
+  word-break: break-word;
+}
+
+.admin-alert-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  color: #374151;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 6px 18px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+  flex-shrink: 0;
+}
+
+.admin-alert-btn:hover {
+  background-color: #f9fafb;
+  border-color: #9ca3af;
+  color: #111827;
+  text-decoration: none;
+}
+
+/* ── Dispatcher Card Preservation ── */
+.admin-dispatcher-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: none;
+}
+
+/* ── Responsive Rules ── */
+@media (max-width: 960px) {
+  .admin-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .admin-charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 600px) {
+  .admin-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-overview-container {
+    padding: 16px 12px 32px;
+  }
+  .admin-bar-stack {
+    width: 20px;
+  }
+  .admin-bar-label {
+    font-size: 0.68rem;
+  }
+  .admin-alert-banner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .admin-alert-btn {
+    width: 100%;
+  }
+}
