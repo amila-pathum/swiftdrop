@@ -21,12 +21,11 @@ function formatDateTime(value) {
     : new Intl.DateTimeFormat('en-LK', { dateStyle: 'medium', timeStyle: 'short' }).format(date)
 }
 
-function formatDate(value) {
-  if (!value) return EMPTY
-  const date = new Date(value)
-  return Number.isNaN(date.getTime())
-    ? EMPTY
-    : new Intl.DateTimeFormat('en-LK', { dateStyle: 'medium' }).format(date)
+function formatCharge(value) {
+  if (value == null || value === '' || !Number.isFinite(Number(value))) return EMPTY
+  return `LKR ${Number(value).toLocaleString('en-LK', {
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  })}`
 }
 
 // ─── Status Configurations ──────────────────────────────────────────────────
@@ -230,28 +229,23 @@ export default function DeliveryDetailsPage() {
 
   // ─── Derived values ───────────────────────────────────────────────────────
 
-  // Build a map of status -> first history event for that status (for progress stepper)
+  // Keep recorded events chronological even if the response arrives out of order.
+  const historyAsc = [...history].sort((a, b) => {
+    const first = Date.parse(a.changedAt)
+    const second = Date.parse(b.changedAt)
+    if (Number.isNaN(first)) return Number.isNaN(second) ? 0 : 1
+    if (Number.isNaN(second)) return -1
+    return first - second
+  })
   const historyByStatus = {}
-  ;[...history].reverse().forEach((evt) => {
-    historyByStatus[evt.newStatus] = evt
+  historyAsc.forEach((evt) => {
+    historyByStatus[evt.newStatus] ??= evt
   })
 
-  // Determine current progress step index
-  const currentStepIndex = (() => {
-    // Find the latest PROGRESS_STEPS status that appears in history
-    let idx = -1
-    history.forEach((evt) => {
-      const i = PROGRESS_STEPS.indexOf(evt.newStatus)
-      if (i > idx) idx = i
-    })
-    return idx
-  })()
+  const currentStepIndex = PROGRESS_STEPS.indexOf(parcel.status)
 
   // For terminal statuses (FAILED, CANCELLED), use those for display
   const isTerminal = ['FAILED', 'CANCELLED'].includes(parcel.status)
-
-  // Sort history oldest first for display in table
-  const historyAsc = [...history].reverse()
 
   // Size label formatter
   function sizeLabel(size) {
@@ -261,11 +255,6 @@ export default function DeliveryDetailsPage() {
     if (s === 'MEDIUM') return `Medium`
     if (s === 'LARGE') return `Large`
     return humanize(size)
-  }
-
-  // Actor: CREATED = Customer, others = Courier
-  function getActor(status) {
-    return status === 'CREATED' ? 'Customer' : 'Courier'
   }
 
   // ─── Render ──────────────────────────────────────────────────────────────
@@ -285,7 +274,7 @@ export default function DeliveryDetailsPage() {
         <h1 className="ddp-tracking-title">{parcel.trackingNumber}</h1>
         <div className="ddp-title-meta">
           <StatusBadge status={parcel.status} size="md" />
-          <span className="ddp-booked-date">Booked {formatDate(parcel.createdAt)}, {new Intl.DateTimeFormat('en-LK', { timeStyle: 'short' }).format(new Date(parcel.createdAt))}</span>
+          <span className="ddp-booked-date">Booked {formatDateTime(parcel.createdAt)}</span>
         </div>
       </div>
 
@@ -330,7 +319,7 @@ export default function DeliveryDetailsPage() {
             <table className="ddp-parcel-table">
               <tbody>
                 <tr>
-                  <td className="ddp-parcel-label">Description</td>
+                  <td className="ddp-parcel-label">Service type</td>
                   <td className="ddp-parcel-value">{parcel.parcelType ? humanize(parcel.parcelType) : EMPTY}</td>
                 </tr>
                 <tr>
@@ -338,21 +327,21 @@ export default function DeliveryDetailsPage() {
                   <td className="ddp-parcel-value">{parcel.weight != null ? `${parcel.weight} kg` : EMPTY}</td>
                 </tr>
                 <tr>
-                  <td className="ddp-parcel-label">Dimensions</td>
+                  <td className="ddp-parcel-label">Size</td>
                   <td className="ddp-parcel-value">{parcel.size ? sizeLabel(parcel.size) : EMPTY}</td>
                 </tr>
-                <tr>
-                  <td className="ddp-parcel-label">Handling note</td>
-                  <td className="ddp-parcel-value">{EMPTY}</td>
-                </tr>
-                <tr>
-                  <td className="ddp-parcel-label">Courier</td>
-                  <td className="ddp-parcel-value">{EMPTY}</td>
-                </tr>
-                <tr>
-                  <td className="ddp-parcel-label">Source</td>
-                  <td className="ddp-parcel-value">Customer</td>
-                </tr>
+                {parcel.merchantId !== undefined && (
+                  <tr>
+                    <td className="ddp-parcel-label">Source</td>
+                    <td className="ddp-parcel-value">{parcel.merchantId != null ? 'Merchant' : 'Customer'}</td>
+                  </tr>
+                )}
+                {parcel.merchantOrderReference && (
+                  <tr>
+                    <td className="ddp-parcel-label">Merchant order reference</td>
+                    <td className="ddp-parcel-value">{parcel.merchantOrderReference}</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </section>
@@ -360,15 +349,14 @@ export default function DeliveryDetailsPage() {
           {/* Delivery history card */}
           <section className="ddp-card" aria-labelledby="ddp-history-title">
             <h2 className="ddp-card-title" id="ddp-history-title">Delivery history</h2>
-            <p className="ddp-history-subtitle">Every status change, including earlier attempts.</p>
+            <p className="ddp-history-subtitle">Recorded status changes, oldest first.</p>
             {historyAsc.length === 0 ? (
               <p className="ddp-history-empty">No status events have been recorded.</p>
             ) : (
               <div className="ddp-history-table-wrap">
-                <table className="ddp-history-table">
+                <table className="ddp-history-table" aria-label="Delivery status history">
                   <tbody>
                     {historyAsc.map((evt) => {
-                      const actor = getActor(evt.newStatus)
                       return (
                         <tr key={evt.id} className="ddp-history-row">
                           <td className="ddp-history-time">{formatDateTime(evt.changedAt)}</td>
@@ -376,7 +364,6 @@ export default function DeliveryDetailsPage() {
                             <StatusBadge status={evt.newStatus} size="sm" />
                           </td>
                           <td className="ddp-history-note">{evt.note || EMPTY}</td>
-                          <td className="ddp-history-actor">Attempt 1 · by {actor}</td>
                         </tr>
                       )
                     })}
@@ -411,6 +398,7 @@ export default function DeliveryDetailsPage() {
                   return (
                     <li
                       key={step}
+                      aria-current={isCurrent ? 'step' : undefined}
                       className={`ddp-step${isDone ? ' ddp-step-done' : ''}${isCurrent ? ' ddp-step-current' : ''}${isFuture ? ' ddp-step-future' : ''}`}
                     >
                       <div className="ddp-step-dot-col">
@@ -447,31 +435,15 @@ export default function DeliveryDetailsPage() {
             <table className="ddp-fee-table">
               <tbody>
                 <tr>
-                  <td className="ddp-fee-label">Base fee (1 kg)</td>
-                  <td className="ddp-fee-value">
-                    LKR {parcel.charge != null ? Number(parcel.charge).toLocaleString('en-LK') : EMPTY}
+                  <td className="ddp-fee-total-label">Booked delivery fee</td>
+                  <td className="ddp-fee-total-value">
+                    {formatCharge(parcel.charge)}
                   </td>
-                </tr>
-                <tr>
-                  <td className="ddp-fee-label">Additional weight</td>
-                  <td className="ddp-fee-value">LKR 0</td>
-                </tr>
-                <tr>
-                  <td className="ddp-fee-label">Size surcharge ({parcel.size ? sizeLabel(parcel.size) : '—'})</td>
-                  <td className="ddp-fee-value">LKR 0</td>
                 </tr>
               </tbody>
-              <tfoot>
-                <tr className="ddp-fee-total-row">
-                  <td className="ddp-fee-total-label">Estimated delivery fee</td>
-                  <td className="ddp-fee-total-value">
-                    LKR {parcel.charge != null ? Number(parcel.charge).toLocaleString('en-LK') : EMPTY}
-                  </td>
-                </tr>
-              </tfoot>
             </table>
             <p className="ddp-fee-note">
-              Illustrative demo pricing, rate version v3. Payment is outside this prototype's scope.
+              The delivery charge recorded when this parcel was booked.
             </p>
           </section>
 
