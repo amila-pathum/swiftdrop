@@ -5783,6 +5783,148 @@ a.button {
   font-size: 14px;
 }
 
+/* Create staff account dialog (User Management) */
+.aum-create-btn {
+  flex-shrink: 0;
+}
+
+.aum-create-dialog {
+  max-width: 540px;
+  max-height: calc(100vh - 32px);
+  display: flex;
+  flex-direction: column;
+}
+
+.aum-create-dialog > form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.aum-create-body {
+  overflow-y: auto;
+}
+
+.aum-create-body .form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.aum-create-body .form-field .form-hint,
+.aum-create-body .form-field .form-error {
+  margin-top: 0;
+}
+
+.aum-role-fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.aum-role-fieldset legend {
+  padding: 0;
+  margin-bottom: 8px;
+}
+
+.aum-role-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.aum-role-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.aum-role-option:hover {
+  border-color: var(--color-primary-100);
+}
+
+.aum-role-option.is-selected {
+  border-color: var(--color-primary);
+  background: var(--color-primary-50);
+}
+
+.aum-role-option:focus-within {
+  box-shadow: 0 0 0 3px var(--color-primary-focus);
+}
+
+.aum-role-option input {
+  margin: 3px 0 0;
+  accent-color: var(--color-primary);
+  flex-shrink: 0;
+}
+
+.aum-role-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.aum-role-option-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.aum-role-option-desc {
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--color-text-secondary);
+}
+
+.aum-info-notice {
+  background-color: #f8fafc;
+  border-color: var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+.aum-admin-warning {
+  background-color: #fef2f2;
+  border-color: #fecaca;
+  color: #991b1b;
+}
+
+.aum-confirm-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.aum-confirm-row input {
+  margin: 2px 0 0;
+  accent-color: #dc2626;
+  flex-shrink: 0;
+}
+
+.aum-admin-warning .form-error {
+  margin: 6px 0 0;
+}
+
+@media (max-width: 560px) {
+  .page-header-row:has(.aum-create-btn) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .aum-role-options {
+    grid-template-columns: 1fr;
+  }
+}
+
 .aum-page-info {
   font-size: 13px;
   color: var(--color-muted);
@@ -6847,13 +6989,6 @@ a.button {
 }
 
 /* ── Dispatcher Card Preservation ── */
-.admin-dispatcher-card {
-  background: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-  padding: 24px;
-  box-shadow: none;
-}
 
 /* ── Responsive Rules ── */
 @media (max-width: 960px) {

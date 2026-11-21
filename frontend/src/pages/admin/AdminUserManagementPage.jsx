@@ -4,9 +4,11 @@ import { describeError } from '../../services/errorMessages'
 import {
   changeUserRole,
   changeUserStatus,
+  createStaffAccount,
   listUsers,
 } from '../../services/adminUserService'
 import Button from '../../components/Button'
+import Input from '../../components/Input'
 import LoadingSpinner from '../../components/LoadingSpinner'
 
 // ─── constants ───────────────────────────────────────────────────────────────
@@ -43,6 +45,23 @@ const ASSIGNABLE_STATUSES = [
   { value: 'SUSPENDED', label: 'Suspended' },
   { value: 'DISABLED', label: 'Disabled' },
 ]
+
+// Couriers and merchants apply themselves and are approved on their approval
+// pages; customers register themselves. Only these roles are created here.
+const STAFF_ROLE_OPTIONS = [
+  {
+    value: 'DISPATCHER',
+    label: 'Dispatcher',
+    description: 'Assigns parcels to couriers and monitors ongoing deliveries.',
+  },
+  {
+    value: 'ADMIN',
+    label: 'Administrator',
+    description: 'Full access to users, approvals, zones, pricing and dispatch.',
+  },
+]
+
+const EMPTY_STAFF_FORM = { role: 'DISPATCHER', name: '', email: '', password: '', confirmAdmin: false }
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -85,6 +104,171 @@ function formatDate(value) {
 }
 
 // ─── modals ──────────────────────────────────────────────────────────────────
+
+function validateStaffAccount(values) {
+  const errors = {}
+  if (!values.name.trim()) errors.name = 'Enter the full name.'
+  else if (values.name.trim().length > 100) errors.name = 'Name must be 100 characters or fewer.'
+  if (!/^\S+@\S+\.\S+$/.test(values.email.trim())) errors.email = 'Enter a valid email address.'
+  if (values.password.length < 12 || values.password.length > 72) {
+    errors.password = 'Temporary password must be 12 to 72 characters.'
+  }
+  if (values.role === 'ADMIN' && !values.confirmAdmin) {
+    errors.confirmAdmin = 'Confirm that this person should have full administrator access.'
+  }
+  return errors
+}
+
+function StaffField({ id, label, error, hint, children }) {
+  const describedBy = [hint && `${id}-hint`, error && `${id}-error`].filter(Boolean).join(' ') || undefined
+  return (
+    <div className="form-field">
+      <label className="form-label" htmlFor={id}>{label}</label>
+      {children({ 'aria-invalid': error ? 'true' : undefined, 'aria-describedby': describedBy })}
+      {hint && !error && <p id={`${id}-hint`} className="form-hint">{hint}</p>}
+      {error && <p id={`${id}-error`} className="form-error">{error}</p>}
+    </div>
+  )
+}
+
+function CreateStaffModal({ onClose, onCreated }) {
+  const [values, setValues] = useState(EMPTY_STAFF_FORM)
+  const [errors, setErrors] = useState({})
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+
+  const isAdmin = values.role === 'ADMIN'
+
+  const change = ({ target }) => {
+    const value = target.type === 'checkbox' ? target.checked : target.value
+    setValues((current) => ({
+      ...current,
+      [target.name]: value,
+      // Choosing a role again must be confirmed again.
+      ...(target.name === 'role' ? { confirmAdmin: false } : {}),
+    }))
+    setErrors((current) => ({ ...current, [target.name]: undefined, confirmAdmin: undefined }))
+    setError(null)
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (saving) return
+    const found = validateStaffAccount(values)
+    setErrors(found)
+    if (Object.keys(found).length > 0) return
+    setSaving(true)
+    setError(null)
+    try {
+      const created = await createStaffAccount(values)
+      onCreated(created, `${roleLabel(created.role)} account created for ${created.name} (${created.email}).`)
+    } catch (err) {
+      setError(describeError(err, {
+        byStatus: {
+          400: 'Check the account details and temporary password.',
+          403: 'Your account is not allowed to create staff accounts.',
+          409: 'An account already uses that email address.',
+        },
+      }))
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="create-staff-title">
+      <div className="modal-dialog aum-create-dialog">
+        <div className="modal-header">
+          <div>
+            <h2 id="create-staff-title" className="modal-title">Create Staff Account</h2>
+            <p className="modal-subtitle">The account is active immediately.</p>
+          </div>
+          <button type="button" className="modal-close-btn" onClick={onClose} aria-label="Close dialog">✕</button>
+        </div>
+        <form onSubmit={handleSubmit} noValidate>
+          <div className="modal-body aum-create-body">
+            {error && <div className="alert alert-error" role="alert">{error}</div>}
+
+            <fieldset className="aum-role-fieldset">
+              <legend className="form-label">Role</legend>
+              <div className="aum-role-options">
+                {STAFF_ROLE_OPTIONS.map((option) => (
+                  <label
+                    key={option.value}
+                    className={`aum-role-option${values.role === option.value ? ' is-selected' : ''}`}
+                  >
+                    <input
+                      type="radio"
+                      name="role"
+                      value={option.value}
+                      checked={values.role === option.value}
+                      onChange={change}
+                    />
+                    <span className="aum-role-option-text">
+                      <span className="aum-role-option-title">{option.label}</span>
+                      <span className="aum-role-option-desc">{option.description}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+
+            <StaffField id="staff-name" label="Full name" error={errors.name}>
+              {(aria) => (
+                <input id="staff-name" name="name" className="input" autoComplete="off"
+                  value={values.name} onChange={change} {...aria} />
+              )}
+            </StaffField>
+
+            <StaffField id="staff-email" label="Email" error={errors.email}>
+              {(aria) => (
+                <input id="staff-email" name="email" type="email" className="input" autoComplete="off"
+                  value={values.email} onChange={change} {...aria} />
+              )}
+            </StaffField>
+
+            <StaffField id="staff-password" label="Temporary password" error={errors.password}
+              hint="12 to 72 characters. Share it through a secure channel; it is sent only to Identity Service.">
+              {(aria) => (
+                <Input id="staff-password" name="password" type="password" revealable
+                  autoComplete="new-password" value={values.password} onChange={change}
+                  invalid={Boolean(errors.password)} aria-describedby={aria['aria-describedby']} />
+              )}
+            </StaffField>
+
+            {isAdmin ? (
+              <div className="modal-notice-box aum-admin-warning">
+                <strong>Administrators have full access</strong>
+                They can manage every account, change roles, approve merchants and couriers,
+                and create more administrators.
+                <label className="aum-confirm-row" htmlFor="staff-confirm-admin">
+                  <input id="staff-confirm-admin" name="confirmAdmin" type="checkbox"
+                    checked={values.confirmAdmin} onChange={change}
+                    aria-invalid={errors.confirmAdmin ? 'true' : undefined}
+                    aria-describedby={errors.confirmAdmin ? 'staff-confirm-admin-error' : undefined} />
+                  <span>I understand this person will have full administrator access.</span>
+                </label>
+                {errors.confirmAdmin && (
+                  <p id="staff-confirm-admin-error" className="form-error">{errors.confirmAdmin}</p>
+                )}
+              </div>
+            ) : (
+              <div className="modal-notice-box aum-info-notice">
+                Couriers and merchants apply themselves and are approved on the Courier and
+                Merchant Approvals pages.
+              </div>
+            )}
+          </div>
+          <div className="modal-footer">
+            <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
+            <Button type="submit" loading={saving} loadingText="Creating…" disabled={saving}>
+              {isAdmin ? 'Create Administrator' : 'Create Dispatcher'}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
 
 function ChangeRoleModal({ user, onClose, onSuccess }) {
   const [role, setRole] = useState(user.role)
@@ -314,6 +498,7 @@ export default function AdminUserManagementPage() {
   const [detailUser, setDetailUser] = useState(null)
   const [roleModalUser, setRoleModalUser] = useState(null)
   const [statusModalUser, setStatusModalUser] = useState(null)
+  const [createOpen, setCreateOpen] = useState(false)
 
   // Search debounce
   const searchTimer = useRef(null)
@@ -407,6 +592,16 @@ export default function AdminUserManagementPage() {
     fetchStats()
   }
 
+  const handleStaffCreated = (_created, msg) => {
+    setCreateOpen(false)
+    setActionSuccess(msg)
+    setActionError(null)
+    // Newest accounts are listed first, so show the first page to reveal the new one.
+    if (page === 0) fetchUsers()
+    else setPage(0)
+    fetchStats()
+  }
+
   const pageNumbers = () => {
     const total = totalPages
     if (total <= 7) return Array.from({ length: total }, (_, i) => i)
@@ -433,7 +628,16 @@ export default function AdminUserManagementPage() {
       <header className="page-header-row">
         <div>
           <h1 className="page-title">User Accounts</h1>
+          <p className="page-subtitle">Search, review and manage every SwiftDrop account and its access.</p>
         </div>
+        <Button type="button" onClick={() => setCreateOpen(true)} className="aum-create-btn">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+            strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19" />
+            <line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
+          Create Staff Account
+        </Button>
       </header>
 
       {/* Global Notifications */}
@@ -702,6 +906,9 @@ export default function AdminUserManagementPage() {
       </section>
 
       {/* Modals */}
+      {createOpen && (
+        <CreateStaffModal onClose={() => setCreateOpen(false)} onCreated={handleStaffCreated} />
+      )}
       {detailUser && (
         <UserDetailModal
           user={detailUser}
