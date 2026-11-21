@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { describeError } from '../../services/errorMessages'
 import {
-  changeUserRole,
   changeUserStatus,
   createStaffAccount,
   listUsers,
@@ -30,14 +29,6 @@ const ALL_STATUSES = [
   { value: 'PENDING_APPROVAL', label: 'Status: Pending' },
   { value: 'SUSPENDED', label: 'Status: Suspended' },
   { value: 'DISABLED', label: 'Status: Disabled' },
-]
-
-const ASSIGNABLE_ROLES = [
-  { value: 'CUSTOMER', label: 'Customer' },
-  { value: 'MERCHANT', label: 'Merchant' },
-  { value: 'COURIER', label: 'Courier' },
-  { value: 'DISPATCHER', label: 'Dispatcher' },
-  { value: 'ADMIN', label: 'Admin' },
 ]
 
 const ASSIGNABLE_STATUSES = [
@@ -238,7 +229,7 @@ function CreateStaffModal({ onClose, onCreated }) {
             {isAdmin ? (
               <div className="modal-notice-box aum-admin-warning">
                 <strong>Administrators have full access</strong>
-                They can manage every account, change roles, approve merchants and couriers,
+                They can manage every account, approve merchants and couriers,
                 and create more administrators.
                 <label className="aum-confirm-row" htmlFor="staff-confirm-admin">
                   <input id="staff-confirm-admin" name="confirmAdmin" type="checkbox"
@@ -262,73 +253,6 @@ function CreateStaffModal({ onClose, onCreated }) {
             <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
             <Button type="submit" loading={saving} loadingText="Creating…" disabled={saving}>
               {isAdmin ? 'Create Administrator' : 'Create Dispatcher'}
-            </Button>
-          </div>
-        </form>
-      </div>
-    </div>
-  )
-}
-
-function ChangeRoleModal({ user, onClose, onSuccess }) {
-  const [role, setRole] = useState(user.role)
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState(null)
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (role === user.role) { onClose(); return }
-    setSaving(true)
-    setError(null)
-    try {
-      const updated = await changeUserRole(user.id, role)
-      onSuccess(updated, `Role updated to ${roleLabel(role)} for ${user.name}.`)
-    } catch (err) {
-      setError(describeError(err, {
-        byStatus: {
-          403: 'You cannot change your own role or you lack permission.',
-          409: 'This role change is not permitted.',
-        },
-      }))
-      setSaving(false)
-    }
-  }
-
-  return (
-    <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="change-role-title">
-      <div className="modal-dialog">
-        <div className="modal-header">
-          <div>
-            <h2 id="change-role-title" className="modal-title">Change Role</h2>
-            <p className="modal-subtitle">{user.name} · {user.email}</p>
-          </div>
-          <button type="button" className="modal-close-btn" onClick={onClose} aria-label="Close dialog">✕</button>
-        </div>
-        <form onSubmit={handleSubmit}>
-          <div className="modal-body">
-            {error && <div className="alert alert-error" role="alert" style={{ marginBottom: 12 }}>{error}</div>}
-            <div className="modal-notice-box" style={{ backgroundColor: '#eff6ff', borderColor: '#bfdbfe', color: '#1e40af', marginBottom: 16 }}>
-              Changing a user's role invalidates all their active sessions immediately.
-            </div>
-            <div className="form-field">
-              <label className="form-label" htmlFor="new-role">New Role</label>
-              <select
-                id="new-role"
-                className="filter-select"
-                style={{ width: '100%', fontSize: 14 }}
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
-              >
-                {ASSIGNABLE_ROLES.map((r) => (
-                  <option key={r.value} value={r.value}>{r.label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div className="modal-footer">
-            <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
-            <Button type="submit" loading={saving} loadingText="Saving…" disabled={role === user.role || saving}>
-              Save Role
             </Button>
           </div>
         </form>
@@ -420,7 +344,7 @@ function ChangeStatusModal({ user, onClose, onSuccess }) {
   )
 }
 
-function UserDetailModal({ user, onClose, onChangeRole, onChangeStatus }) {
+function UserDetailModal({ user, onClose, onChangeStatus }) {
   return (
     <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="user-detail-title">
       <div className="modal-dialog" style={{ maxWidth: 520 }}>
@@ -461,7 +385,6 @@ function UserDetailModal({ user, onClose, onChangeRole, onChangeStatus }) {
         </div>
         <div className="modal-footer">
           <Button variant="secondary" onClick={onClose}>Close</Button>
-          <Button variant="secondary" onClick={() => { onClose(); onChangeRole(user) }}>Change Role</Button>
           <Button onClick={() => { onClose(); onChangeStatus(user) }}>Change Status</Button>
         </div>
       </div>
@@ -496,7 +419,6 @@ export default function AdminUserManagementPage() {
 
   // Modals
   const [detailUser, setDetailUser] = useState(null)
-  const [roleModalUser, setRoleModalUser] = useState(null)
   const [statusModalUser, setStatusModalUser] = useState(null)
   const [createOpen, setCreateOpen] = useState(false)
 
@@ -587,7 +509,6 @@ export default function AdminUserManagementPage() {
     setUsers((prev) => prev.map((u) => (u.id === updatedUser.id ? updatedUser : u)))
     setActionSuccess(msg)
     setActionError(null)
-    setRoleModalUser(null)
     setStatusModalUser(null)
     fetchStats()
   }
@@ -827,15 +748,6 @@ export default function AdminUserManagementPage() {
                         </button>
                         <button
                           type="button"
-                          className="aum-action-btn"
-                          onClick={() => setRoleModalUser(u)}
-                          disabled={adminUser?.id === u.id}
-                          title={adminUser?.id === u.id ? 'Cannot change your own role' : 'Change role'}
-                        >
-                          Role
-                        </button>
-                        <button
-                          type="button"
                           className="aum-action-btn aum-action-btn-danger"
                           onClick={() => setStatusModalUser(u)}
                           disabled={adminUser?.id === u.id}
@@ -913,15 +825,7 @@ export default function AdminUserManagementPage() {
         <UserDetailModal
           user={detailUser}
           onClose={() => setDetailUser(null)}
-          onChangeRole={(u) => setRoleModalUser(u)}
           onChangeStatus={(u) => setStatusModalUser(u)}
-        />
-      )}
-      {roleModalUser && (
-        <ChangeRoleModal
-          user={roleModalUser}
-          onClose={() => setRoleModalUser(null)}
-          onSuccess={handleActionSuccess}
         />
       )}
       {statusModalUser && (

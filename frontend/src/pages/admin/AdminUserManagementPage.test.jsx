@@ -7,7 +7,6 @@ import { ApiError } from '../../services/apiClient'
 
 vi.mock('../../context/AuthContext', () => ({ useAuth: vi.fn() }))
 vi.mock('../../services/adminUserService', () => ({
-  changeUserRole: vi.fn(),
   changeUserStatus: vi.fn(),
   createStaffAccount: vi.fn(),
   listUsers: vi.fn(),

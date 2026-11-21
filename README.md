@@ -103,7 +103,7 @@ Rules:
 - **Identity Service issues JWTs** (`POST /api/auth/login`, `POST /api/auth/google/exchange`, `POST /api/auth/refresh`). It is the only service that signs tokens.
 - **Every protected service verifies JWTs itself**, with the shared `JWT_SECRET`, in `config/SecurityConfig.java`. A request reaching a service is never trusted just because it came through the Gateway.
 - **Every service enforces its own role rules** on its endpoints, with `@PreAuthorize`.
-- **The API Gateway** only routes and handles CORS today. It may also check tokens in the future, as an extra layer, never as the only one.
+- **The API Gateway checks the token first**, as an extra layer, never as the only one (see [The API Gateway](#the-api-gateway) below). Services still verify every token themselves.
 
 ### The token
 
@@ -113,10 +113,39 @@ The access token is a JWT signed with HMAC (`JWT_SECRET`, at least 32 random byt
 |---|---|
 | `sub` | User id (as a string) |
 | `email` | User's email |
-| `role` | `CUSTOMER`, `MERCHANT`, `COURIER`, `DISPATCHER` or `ADMIN` |
+| `role` | `CUSTOMER`, `MERCHANT`, `COURIER`, `DISPATCHER` or `ADMIN` (exactly one) |
+| `status` | Account status when issued: `ACTIVE`, `PENDING_APPROVAL`, ... A role grants access only while `ACTIVE` |
+| `ver` | Token version (bumped on logout, password or role change; checked by the Identity Service) |
 | `iat`, `exp` | Issued at and expiry |
 
 Each domain service accepts a token only if the signature is valid, it has not expired, and it has `sub` and `role`. The role becomes the Spring Security authority `ROLE_<role>`. All services must use the same `JWT_SECRET`; `run-service.sh` loads it from `.env`.
+
+### The API Gateway
+
+Every browser and merchant request enters through the gateway (`http://localhost:8080`). Its `JwtAuthenticationGlobalFilter` (`backend/api-gateway/.../security/`) runs before routing:
+
+1. It **removes** any `X-User-Id`, `X-User-Role` or `X-User-Status` header the client sent.
+2. On an **open path** the request passes without a token. If a valid token is present anyway, the headers below are still added. Open paths (`GatewayAccessRules`):
+   - `POST /api/auth/register`, `/register/merchant`, `/register/courier`, `/login`, `/google/exchange`, `/refresh`, `/password-reset/request`, `/password-reset/confirm`
+   - `/oauth2/authorization/google`, `/login/oauth2/code/google` (Google sign-in redirects)
+   - `GET /api/parcels/track/{trackingNumber}` (public tracking)
+   - `GET /api/notifications/parcels/{trackingNumber}/stream` (public live status)
+   - `/api/merchants/integration/**` (merchant order API: authenticated by `X-API-Key` in the Merchant Service instead)
+3. On **every other routed path** it needs a valid user access token in `Authorization: Bearer <token>`, otherwise `401`. Only `GET /api/notifications/stream` may send it as `?access_token=` instead, because the browser's `EventSource` cannot set headers.
+4. `/api/admin/**` also needs role `ADMIN` on an active account, otherwise `403`. Finer role rules stay in each service.
+5. It then forwards the request with the original `Authorization` header plus:
+
+| Header | Value |
+|---|---|
+| `X-User-Id` | the token's `sub` (numeric user id) |
+| `X-User-Role` | the token's `role` |
+| `X-User-Status` | the token's `status`, when present |
+
+**How to read the user in a service:** keep using the verified token (`@AuthenticationPrincipal Jwt jwt`, then `jwt.getSubject()` and `jwt.getClaimAsString("role")`). The `X-User-*` headers are only trustworthy on requests that came through the gateway. Services are also reachable directly (service-to-service calls and local development), so they must never authorize on these headers alone. Use them only for logging or tracing.
+
+Service-only tokens (those with an audience or a `purpose` claim, such as the 60-second merchant order integration token) are refused at the gateway. They are only valid on direct service-to-service calls. `/internal/**` endpoints have no gateway route.
+
+Long-lived Server-Sent Events streams pass through: the gateway sets no response timeout.
 
 ### Refresh tokens
 
@@ -156,7 +185,7 @@ Frontend (`frontend/src/services/apiClient.js`): the refresh token is kept next 
 5. Never sign tokens outside the Identity Service, even though other services know `JWT_SECRET`.
 6. When calling another service on behalf of a user, forward the incoming `Authorization` header unchanged.
 7. Error bodies are `{"error": "<message>"}`: `401` "Authentication is required" or "Invalid or expired access token", `403` "Access is denied". Never return stack traces or internal details.
-8. Notification Service has no Gateway route; any HTTP endpoint it adds still requires a token.
+8. A new public endpoint must be added to `permitAll` in the service **and** to `GatewayAccessRules` in the gateway, or the gateway will answer `401`.
 
 Known limitations (decided by the team before production):
 

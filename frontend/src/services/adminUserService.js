@@ -48,18 +48,6 @@ export function listUsers({ search, role, status, page = 0, size = 10 } = {}, si
 }
 
 /**
- * Changes the role of a user.
- * @param {number} userId
- * @param {string} role  e.g. 'DISPATCHER', 'CUSTOMER'
- */
-export function changeUserRole(userId, role) {
-  return callEndpoint(ENDPOINTS.changeUserRole, {
-    params: { id: userId },
-    body: { role },
-  })
-}
-
-/**
  * Changes the account status of a user (ACTIVE, SUSPENDED, DISABLED).
  * @param {number} userId
  * @param {string} status

@@ -18,22 +18,10 @@ response (values here are documentation examples, not application fallback data)
   "trackingNumber": "SD1234567890ABCDEF1234567890ABCDEF",
   "status": "PICKED_UP",
   "createdAt": "2026-11-13T03:00:00Z",
-  "estimatedDeliveryDate": null,
-  "origin": null,
-  "destination": null,
+  "deliveryCity": "Kandy",
   "trackingHistory": [
-    {
-      "status": "CREATED",
-      "description": null,
-      "location": null,
-      "timestamp": "2026-11-13T03:00:00Z"
-    },
-    {
-      "status": "PICKED_UP",
-      "description": null,
-      "location": null,
-      "timestamp": "2026-11-13T05:00:00Z"
-    }
+    { "status": "CREATED",   "timestamp": "2026-11-13T03:00:00Z" },
+    { "status": "PICKED_UP", "timestamp": "2026-11-13T05:00:00Z" }
   ]
 }
 ```
@@ -73,16 +61,27 @@ empty history returns `[]`. Distinct stored rows are preserved, even if their
 public values happen to match. Equal timestamps have no guaranteed relative order.
 Current status comes from the parcel record, not the last history entry.
 
-The public DTO is an explicit allowlist. It excludes IDs, sender/recipient names,
-phone numbers, private addresses, ownership, charges, internal notes, actor IDs,
-proofs and signatures. The current schema has no ETA or public origin,
-destination, event description or event location fields: these return `null`.
-Internal notes are deliberately not used as descriptions. No address parsing or
-fabricated ETA is performed. The frontend can display an ETA if supported later.
+The public DTO is an explicit allowlist matching the Member 1 work guide: the
+current status, the status history (status and time only) and the delivery city.
+It excludes IDs, sender/recipient names, phone numbers, street addresses,
+ownership, charges, internal notes, actor IDs, proofs and signatures.
 
-Only `GET /api/parcels/track/{trackingNumber}` was added to `permitAll`.
-The gateway already routes `/api/parcels/**` unchanged; no gateway configuration
-change was necessary. Authorization remains enforced by Parcel Service.
+`deliveryCity` comes from the stored delivery address. Parcel creation (customer
+and merchant orders alike) accepts the delivery city only from the fixed list of
+25 districts and stores the address as `"<line1>[, <line2>], <district>"`.
+`SriLankaDistricts.districtOf` reads the last segment and returns it **only if it
+is one of those districts**, so free text can never leak; otherwise the field is
+`null`. No schema change was needed.
+
+Only `GET /api/parcels/track/{trackingNumber}` is in `permitAll`. The API
+Gateway also lists it (with the public live-status stream) as open in
+`GatewayAccessRules`; every other parcel path needs a valid token at the gateway
+and again in Parcel Service.
+
+The path stays `/api/parcels/track/{trackingNumber}` rather than the work
+guide's suggested `/api/public/tracking/{trackingNumber}` (team decision,
+2026-11-21): the frontend and gateway already use it, and the guide marks paths
+as suggestions.
 
 Rate limiting was considered but is not implemented in this change. The current
 UUID-based numbers have substantial entropy, validation bounds input, and errors
@@ -91,7 +90,7 @@ before exposure to sustained enumeration or high request volume; shared limits
 must account for trusted proxies and multiple instances. No tracking-response or
 personal-information logging was added.
 
-## Files changed for this feature
+## Files changed for this feature (original change)
 
 Created:
 - `backend/parcel-service/src/main/java/com/swiftdrop/parcel/dto/response/PublicTrackingResponse.java`

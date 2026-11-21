@@ -141,6 +141,22 @@ class ParcelCustomerActionsApiTest {
                 .content("{\"courierUserId\":88}"))
             .andExpect(status().isOk());
 
+        // The courier's delivery screen is built from this snapshot.
+        String snapshot = jdbc.queryForObject("""
+            SELECT payload FROM parcel_event_outbox
+            WHERE parcel_id = ? AND routing_key = 'parcel.delivery-snapshot.v1'
+            """, String.class, parcel.getId());
+        assertThat(snapshot)
+            .contains("\"eventType\":\"ParcelDeliverySnapshot\"")
+            .contains("\"parcelId\":\"" + parcel.getId() + "\"")
+            .contains("\"trackingNumber\":\"" + parcel.getTrackingNumber() + "\"")
+            .contains("\"pickupAddress\":\"10 Main Street, Colombo\"")
+            .contains("\"deliveryAddress\":\"20 Lake Road, Kandy\"")
+            .contains("\"receiverName\":\"Nimal Perera\"")
+            .contains("\"receiverPhone\":\"0771234567\"")
+            .contains("\"weight\":2.500")
+            .contains("\"size\":\"MEDIUM\"");
+
         mvc.perform(get("/api/parcels/dispatch/{id}", parcel.getId())
                 .header(HttpHeaders.AUTHORIZATION, token(70L, "DISPATCHER")))
             .andExpect(status().isOk())
@@ -248,6 +264,32 @@ class ParcelCustomerActionsApiTest {
         parcel.setCharge(new BigDecimal("450.00"));
         parcel.setStatus(status);
         return parcels.saveAndFlush(parcel);
+    }
+
+    @Test
+    void backfillQueuesSnapshotsOnlyForAlreadyAssignedParcels() throws Exception {
+        Parcel assigned = parcel(42L, ParcelStatus.PICKED_UP);
+        assigned.setAssignedCourierId(88L);
+        parcels.saveAndFlush(assigned);
+        Parcel unassigned = parcel(42L, ParcelStatus.CREATED);
+
+        String script = new String(getClass().getResourceAsStream(
+            "/db/migration/V7__backfill_courier_delivery_snapshots.sql").readAllBytes(), StandardCharsets.UTF_8);
+        jdbc.execute(script);
+
+        String payload = jdbc.queryForObject("""
+            SELECT payload FROM parcel_event_outbox
+            WHERE parcel_id = ? AND routing_key = 'parcel.delivery-snapshot.v1'
+            """, String.class, assigned.getId());
+        var json = new tools.jackson.databind.ObjectMapper().readTree(payload);
+        assertThat(json.get("eventType").asText()).isEqualTo("ParcelDeliverySnapshot");
+        assertThat(json.get("parcelId").asText()).isEqualTo(assigned.getId().toString());
+        assertThat(json.get("eventId").asText()).isNotBlank();
+        assertThat(Instant.parse(json.get("occurredAt").asText())).isNotNull();
+        assertThat(json.get("deliveryAddress").asText()).isEqualTo("20 Lake Road, Kandy");
+        assertThat(json.get("receiverPhone").asText()).isEqualTo("0771234567");
+        assertThat(json.get("weight").decimalValue()).isEqualByComparingTo("2.5");
+        assertThat(outboxCount(unassigned.getId())).isZero();
     }
 
     private int outboxCount(UUID parcelId) {

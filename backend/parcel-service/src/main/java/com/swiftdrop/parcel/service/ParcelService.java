@@ -48,6 +48,9 @@ public class ParcelService {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot assign a closed parcel");
         }
         parcel.setAssignedCourierId(courierUserId);
+        // The Courier Service keeps its own copy of the delivery details; without
+        // this the courier sees only the tracking number and status.
+        outbox.enqueueDeliverySnapshot(parcel, Instant.now());
         return parcel;
     }
 
@@ -61,12 +64,11 @@ public class ParcelService {
             new ResponseStatusException(
                 HttpStatus.NOT_FOUND, "Parcel not found"));
         var entries = history.findByParcelIdOrderByChangedAtAsc(parcel.getId()).stream()
-            .map(entry -> new TrackingEntry(
-                entry.getNewStatus(), null, null, entry.getChangedAt()))
+            .map(entry -> new TrackingEntry(entry.getNewStatus(), entry.getChangedAt()))
             .toList();
         return new PublicTrackingResponse(
             parcel.getTrackingNumber(), parcel.getStatus(), parcel.getCreatedAt(),
-            null, null, null, entries);
+            SriLankaDistricts.districtOf(parcel.getDeliveryAddress()).orElse(null), entries);
     }
 
     /** Saves a new order and its initial history together. */

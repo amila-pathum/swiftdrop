@@ -115,14 +115,6 @@ export const ENDPOINTS = Object.freeze({
     auth: true,
     // ADMIN only. -> UserResponse
   },
-  changeUserRole: {
-    method: 'PATCH',
-    path: '/api/admin/users/:id/role',
-    available: true,
-    auth: true,
-    // ADMIN only. Body: { role: "CUSTOMER"|"MERCHANT"|"COURIER"|"DISPATCHER"|"ADMIN" }
-    // -> Updated UserResponse. Admin cannot change their own role (403).
-  },
   changeUserStatus: {
     method: 'PATCH',
     path: '/api/admin/users/:id/status',
@@ -187,9 +179,9 @@ export const ENDPOINTS = Object.freeze({
     method: 'GET',
     path: '/api/parcels/track/:trackingNumber',
     available: true,
-    // Public, no token. -> { trackingNumber, status, createdAt, estimatedDeliveryDate,
-    //   origin, destination, trackingHistory: [{ status, description, location, timestamp }] }.
-    // Unsupported ETA/location/description fields are null; invalid or unknown -> 404.
+    // Public, no token. -> { trackingNumber, status, createdAt, deliveryCity,
+    //   trackingHistory: [{ status, timestamp }] }. deliveryCity is a district name or null.
+    // Invalid or unknown -> 404.
   },
 
   // ------------------------------------------------------------ Notification

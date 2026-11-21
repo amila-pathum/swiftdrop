@@ -13,6 +13,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class ParcelServiceTest {
@@ -83,6 +85,31 @@ class ParcelServiceTest {
         parcel.setId(UUID.randomUUID());
         assertThatIllegalArgumentException().isThrownBy(() -> service.createParcel(parcel));
         verifyNoInteractions(parcels, history, outbox);
+    }
+
+    @Test
+    void assigningCourierSendsDeliverySnapshotToCourierService() {
+        UUID id = UUID.randomUUID();
+        Parcel parcel = new Parcel();
+        parcel.setStatus(ParcelStatus.CREATED);
+        when(parcels.findForStatusUpdateById(id)).thenReturn(Optional.of(parcel));
+
+        service.assignCourier(id, 88L);
+
+        assertThat(parcel.getAssignedCourierId()).isEqualTo(88L);
+        verify(outbox).enqueueDeliverySnapshot(eq(parcel), any());
+    }
+
+    @Test
+    void closedParcelIsNotAssignedAndSendsNoSnapshot() {
+        UUID id = UUID.randomUUID();
+        Parcel parcel = new Parcel();
+        parcel.setStatus(ParcelStatus.DELIVERED);
+        when(parcels.findForStatusUpdateById(id)).thenReturn(Optional.of(parcel));
+
+        assertThatThrownBy(() -> service.assignCourier(id, 88L))
+            .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+        verifyNoInteractions(outbox);
     }
 
     private ParcelStatusHistory recordedHistory() {

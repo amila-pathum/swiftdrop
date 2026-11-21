@@ -471,24 +471,23 @@ components:
         changedAt: {type: string, format: date-time}
     PublicTrackingResponse:
       type: object
-      required: [trackingNumber, status, createdAt, estimatedDeliveryDate, origin, destination, trackingHistory]
+      required: [trackingNumber, status, createdAt, deliveryCity, trackingHistory]
       properties:
         trackingNumber: {type: string}
         status: {$ref: '#/components/schemas/ParcelStatus'}
         createdAt: {type: string, format: date-time}
-        estimatedDeliveryDate: {type: [string, 'null'], format: date}
-        origin: {type: [string, 'null']}
-        destination: {type: [string, 'null']}
+        deliveryCity:
+          type: [string, 'null']
+          description: Delivery district (one of the 25 supported districts). Never a street address. Null for legacy parcels whose address does not end in a known district.
+          example: Kandy
         trackingHistory:
           type: array
           items: {$ref: '#/components/schemas/PublicTrackingEntry'}
     PublicTrackingEntry:
       type: object
-      required: [status, description, location, timestamp]
+      required: [status, timestamp]
       properties:
         status: {$ref: '#/components/schemas/ParcelStatus'}
-        description: {type: [string, 'null']}
-        location: {type: [string, 'null']}
         timestamp: {type: string, format: date-time}
     DispatchParcelResponse:
       type: object
