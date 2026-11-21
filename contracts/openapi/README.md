@@ -6,6 +6,7 @@ Available contracts:
 
 - [`identity-service.yaml`](identity-service.yaml) – profile and account administration
 - [`parcel-service.yaml`](parcel-service.yaml)
+- [`courier-service.yaml`](courier-service.yaml) – courier applications and approvals
 - [`dispatch-service.yaml`](dispatch-service.yaml)
 
 Conventions:
