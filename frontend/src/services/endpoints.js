@@ -96,7 +96,7 @@ export const ENDPOINTS = Object.freeze({
     path: '/api/admin/users',
     available: true,
     auth: true,
-    // ADMIN only. Body: { name, email, password, role: "DISPATCHER" }
+    // ADMIN only. Body: { name, email, password, role: "DISPATCHER" | "ADMIN" }
     // -> 201 { id, name, email, role, status, createdAt }.
   },
   listAdminUsers: {

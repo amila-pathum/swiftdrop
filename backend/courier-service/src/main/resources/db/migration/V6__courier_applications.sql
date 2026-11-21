@@ -1,3 +1,4 @@
+-- V6: Member 6 owns V3-V5 (applied on the shared RDS database); this follows them.
 -- A courier's application to deliver for SwiftDrop. The courier submits it after
 -- registering; an administrator approves or rejects it. Approval activates the
 -- identity account and creates the courier profile from these details.
