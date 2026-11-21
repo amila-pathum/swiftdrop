@@ -248,12 +248,12 @@ describe('App routing', () => {
       expect(screen.queryByText('Customer dashboard')).not.toBeInTheDocument()
     })
 
-    it('shows a not-available page for COURIER', () => {
+    it('shows the Today page for COURIER', () => {
       authenticatedAs('COURIER')
       renderAt('/dashboard')
 
-      expect(heading('Courier dashboard')).toBeInTheDocument()
-      expect(screen.getByText(/future development phase/)).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /Hello,/ })).toBeInTheDocument()
+      expect(screen.queryByText(/future development phase/)).not.toBeInTheDocument()
       expect(screen.queryByText('Customer dashboard')).not.toBeInTheDocument()
     })
 

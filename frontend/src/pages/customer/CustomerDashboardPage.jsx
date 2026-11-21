@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import Button, { ButtonLink } from '../../components/Button'
-import CopyTrackingNumberButton from '../../components/CopyTrackingNumberButton'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import TrackingSearch from '../../components/TrackingSearch'
 import { useAuth } from '../../context/AuthContext'
@@ -65,9 +64,10 @@ const STATUS_CONFIG = {
     label: 'Assigned',
     badgeClass: 'delivery-badge delivery-badge-assigned',
     icon: (
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <line x1="5" y1="12" x2="19" y2="12" />
-        <polyline points="12 5 19 12 12 19" />
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+        <circle cx="8.5" cy="7" r="4" />
+        <polyline points="17 11 19 13 23 9" />
       </svg>
     ),
   },
@@ -76,7 +76,10 @@ const STATUS_CONFIG = {
     badgeClass: 'delivery-badge delivery-badge-picked-up',
     icon: (
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <polyline points="18 15 12 9 6 15" />
+        <path d="M16.5 9.4 7.55 4.24a1.78 1.78 0 0 0-1.8 0l-3.3 1.9A1.8 1.8 0 0 0 1.5 7.7v8.6a1.8 1.8 0 0 0 .95 1.57l3.3 1.9c.55.32 1.25.32 1.8 0l8.95-5.16" />
+        <polyline points="3.29 7 12 12 20.71 7" />
+        <line x1="12" y1="22" x2="12" y2="12" />
+        <polyline points="16 16 18 18 22 14" />
       </svg>
     ),
   },
@@ -104,6 +107,27 @@ function formatDate(value) {
 }
 
 const RECENT_COUNT = 5
+
+function formatSubtitle(parcel) {
+  const receiver = parcel.receiverName ? parcel.receiverName.trim() : ''
+  const destination = parcel.deliveryAddress ? parcel.deliveryAddress.trim() : ''
+  const parts = []
+  if (receiver) parts.push(receiver)
+  if (destination) parts.push(destination)
+  const recipient = parts.join(', ')
+  const dateStr = formatDate(parcel.createdAt)
+
+  if (recipient && dateStr !== '—') {
+    return `To ${recipient} · ${dateStr}`
+  }
+  if (recipient) {
+    return `To ${recipient}`
+  }
+  if (dateStr !== '—') {
+    return dateStr
+  }
+  return '—'
+}
 
 export default function CustomerDashboardPage() {
   const { user } = useAuth()
@@ -243,33 +267,16 @@ export default function CustomerDashboardPage() {
       ) : summary.total === 0 ? (
         /* Empty State */
         <>
-          {/* Quick Parcel Tracking Search Card */}
-          <section className="customer-track-card" aria-label="Quick parcel tracking">
-            <div className="customer-track-content">
-              <div className="customer-track-info">
-                <span className="customer-track-icon" aria-hidden="true">
-                  <svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <circle cx="11" cy="11" r="8" />
-                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </svg>
-                </span>
-                <span className="customer-track-label">
-                  <strong>Track a package:</strong> Enter tracking number for live status
-                </span>
-              </div>
-              <div className="customer-track-input-wrap">
-                <TrackingSearch id="dashboard-empty-tracking-search" size="sm" placeholder="Enter Tracking Number" />
-              </div>
-            </div>
+          {/* Tracking Search Card */}
+          <section className="customer-track-card" aria-label="Tracking search">
+            <TrackingSearch
+              id="dashboard-empty-tracking-search"
+              variant="card"
+              label="Tracking number"
+              placeholder="SD10480014"
+              buttonText="Track Parcel"
+              helperText="Format: SD followed by 8 digits, e.g. SD10480014. Find it in your booking confirmation."
+            />
           </section>
 
           {/* Welcoming Empty State Card */}
@@ -333,166 +340,93 @@ export default function CustomerDashboardPage() {
             </div>
           </section>
 
-          {/* Quick Parcel Tracking Search Card */}
-          <section className="customer-track-card" aria-label="Quick parcel tracking">
-            <div className="customer-track-content">
-              <div className="customer-track-info">
-                <h2 className="customer-track-title">
-                  <svg
-                    width="18"
-                    height="18"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    aria-hidden="true"
-                    style={{ color: 'var(--color-primary)' }}
-                  >
-                    <circle cx="11" cy="11" r="8" />
-                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                  </svg>
-                  <span>Quick Parcel Tracking</span>
-                </h2>
-                <p className="customer-track-desc">
-                  Have a tracking number? Enter it below to check instant live delivery status.
-                </p>
-              </div>
-              <div className="customer-track-input-wrap">
-                <TrackingSearch id="dashboard-tracking-search" size="md" />
-              </div>
-            </div>
+          {/* Tracking Search Card */}
+          <section className="customer-track-card" aria-label="Tracking search">
+            <TrackingSearch
+              id="dashboard-tracking-search"
+              variant="card"
+              label="Tracking number"
+              placeholder="SD10480014"
+              buttonText="Track Parcel"
+              helperText="Format: SD followed by 8 digits, e.g. SD10480014. Find it in your booking confirmation."
+            />
           </section>
 
-          {/* Recent Deliveries Table Card */}
-          <section className="delivery-table-card" aria-label="Recent deliveries">
-            <div
-              className="card-table-header"
-              style={{
-                padding: '16px 20px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                flexWrap: 'wrap',
-                gap: '12px',
-              }}
-            >
-              <div>
-                <h2 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: '#0f172a' }}>
-                  Recent Deliveries
-                </h2>
-                <p style={{ fontSize: '13px', color: '#64748b', margin: '2px 0 0' }}>
-                  Your latest {recentParcels.length} shipments and their current delivery progress
-                </p>
-              </div>
-              <Link
-                to="/customer/deliveries"
-                style={{
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  color: 'var(--color-primary)',
-                  textDecoration: 'none',
-                }}
-              >
-                View all deliveries →
+          {/* Recent Deliveries Section */}
+          <section className="recent-deliveries-section" aria-label="Recent Deliveries">
+            <div className="recent-deliveries-header">
+              <h2 className="recent-deliveries-title">Recent Deliveries</h2>
+              <Link to="/customer/deliveries" className="recent-deliveries-view-all" style={{ textDecoration: 'none' }}>
+                View All
               </Link>
             </div>
 
-            <div className="delivery-table-wrapper">
-              <table className="delivery-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Tracking no.</th>
-                    <th scope="col">Destination</th>
-                    <th scope="col">Created</th>
-                    <th scope="col">Fee</th>
-                    <th scope="col">Status</th>
-                    <th scope="col" aria-label="Actions"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentParcels.map((parcel) => {
-                    const cfg = STATUS_CONFIG[parcel.status] ?? {
-                      label: parcel.status ?? '—',
-                      badgeClass: 'delivery-badge delivery-badge-cancelled',
-                      icon: null,
-                    }
-                    return (
-                      <tr key={parcel.id}>
-                        {/* Tracking number */}
-                        <td>
-                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                            {parcel.trackingNumber ? (
-                              <Link
-                                to={`/track/${encodeURIComponent(parcel.trackingNumber)}`}
-                                className="delivery-tracking-num"
-                                style={{ textDecoration: 'underline', color: 'inherit' }}
-                                title="Click to track parcel"
-                              >
-                                {parcel.trackingNumber}
-                              </Link>
-                            ) : (
-                              <span className="delivery-tracking-num">—</span>
-                            )}
-                            {parcel.trackingNumber && (
-                              <CopyTrackingNumberButton trackingNumber={parcel.trackingNumber} />
-                            )}
-                          </div>
-                        </td>
+            <div className="recent-deliveries-card">
+              {recentParcels.length === 0 ? (
+                <div className="recent-deliveries-empty">
+                  <p>No recent deliveries found.</p>
+                </div>
+              ) : (
+                recentParcels.map((parcel) => {
+                const cfg = STATUS_CONFIG[parcel.status] ?? {
+                  label: parcel.status ?? '—',
+                  badgeClass: 'delivery-badge delivery-badge-cancelled',
+                  icon: null,
+                }
+                const targetUrl = parcel.id
+                  ? `/customer/deliveries/${parcel.id}`
+                  : parcel.trackingNumber
+                    ? `/track/${encodeURIComponent(parcel.trackingNumber)}`
+                    : '/customer/deliveries'
 
-                        {/* Destination & Recipient */}
-                        <td>
-                          <div className="delivery-destination-name">
-                            {parcel.deliveryAddress ?? '—'}
-                          </div>
-                          {parcel.receiverName && (
-                            <div className="delivery-destination-sub">
-                              {parcel.receiverName}
-                            </div>
-                          )}
-                        </td>
+                return (
+                  <Link
+                    key={parcel.id || parcel.trackingNumber}
+                    to={targetUrl}
+                    className="recent-delivery-row"
+                    style={{ textDecoration: 'none' }}
+                  >
+                    <div className="recent-delivery-main">
+                      <span className="recent-delivery-tracking">
+                        {parcel.trackingNumber || '—'}
+                      </span>
+                      <span className="recent-delivery-meta">
+                        {formatSubtitle(parcel)}
+                      </span>
+                    </div>
 
-                        {/* Created Date */}
-                        <td className="delivery-date">
-                          {formatDate(parcel.createdAt)}
-                        </td>
+                    <div className="recent-delivery-extra">
+                      <span className="recent-delivery-fee">
+                        {parcel.charge != null
+                          ? `LKR ${Number(parcel.charge).toLocaleString()}`
+                          : '—'}
+                      </span>
 
-                        {/* Fee */}
-                        <td className="delivery-fee">
-                          {parcel.charge != null
-                            ? `LKR ${Number(parcel.charge).toLocaleString()}`
-                            : '—'}
-                        </td>
+                      <div className="recent-delivery-badge-wrap">
+                        <span className={cfg.badgeClass}>
+                          {cfg.icon}
+                          <span>{cfg.label}</span>
+                        </span>
+                      </div>
 
-                        {/* Status Badge */}
-                        <td>
-                          <span className={cfg.badgeClass}>
-                            {cfg.icon}
-                            <span>{cfg.label}</span>
-                          </span>
-                        </td>
-
-                        {/* View Details Action */}
-                        <td>
-                          <div className="delivery-actions-cell">
-                            <Link
-                              to={
-                                parcel.trackingNumber
-                                  ? `/track/${encodeURIComponent(parcel.trackingNumber)}`
-                                  : '/customer/deliveries'
-                              }
-                              className="delivery-btn-view-details"
-                            >
-                              View Details
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                      <svg
+                        className="recent-delivery-arrow"
+                        width="16"
+                        height="16"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden="true"
+                      >
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </div>
+                  </Link>
+                )
+              }))}
             </div>
           </section>
         </>

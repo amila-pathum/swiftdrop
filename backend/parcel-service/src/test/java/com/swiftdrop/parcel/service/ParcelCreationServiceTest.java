@@ -25,7 +25,11 @@ class ParcelCreationServiceTest {
         ParcelEventOutbox outbox = mock(ParcelEventOutbox.class);
         when(pricing.quote(any(), anyString())).thenReturn(new BigDecimal("450.00"));
         when(tracking.generate()).thenReturn("SDTEST001");
-        when(parcels.saveAndFlush(any(Parcel.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(parcels.insertIfTrackingNumberAvailable(any(Parcel.class))).thenAnswer(inv -> {
+            Parcel parcel = inv.getArgument(0);
+            when(parcels.findById(parcel.getId())).thenReturn(java.util.Optional.of(parcel));
+            return 1;
+        });
 
         Long userId = 42L;
         CreateParcelRequest request = new CreateParcelRequest("Nimal", "0771234567",
@@ -38,7 +42,7 @@ class ParcelCreationServiceTest {
         verify(pricing).quote(request, "customer-jwt");
 
         ArgumentCaptor<Parcel> parcelCapture = ArgumentCaptor.forClass(Parcel.class);
-        verify(parcels).saveAndFlush(parcelCapture.capture());
+        verify(parcels).insertIfTrackingNumberAvailable(parcelCapture.capture());
         Parcel saved = parcelCapture.getValue();
         assertEquals(userId, saved.getSenderId());
         assertEquals(userId, saved.getCreatedBy());

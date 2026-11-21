@@ -36,10 +36,12 @@ public class CourierDeliveryService {
         if(!Set.of("today","active","history").contains(filter))throw CourierException.invalid("Filter must be today, active or history.");
         LocalDate today=LocalDate.now(ZoneId.of("Asia/Colombo"));
         var selected=new ArrayList<Delivery>();
-        // Bound remote fan-out until Dispatch provides a paginated/bulk contract.
-        if(assignments.size()>200)throw CourierException.conflict("Too many assignments; use the agreed paginated Dispatch contract.");
+        // Assignment and parcel reads use Courier's RabbitMQ projection.
         for(var assignment:assignments) {
-            if(filter.equals("today")&&!today.equals(assignment.deliveryDate()))continue;
+            // Include unscheduled work assigned today without inventing a schedule.
+            LocalDate workDate=assignment.deliveryDate()!=null?assignment.deliveryDate():
+                assignment.assignedAt()==null?null:assignment.assignedAt().atZone(ZoneId.of("Asia/Colombo")).toLocalDate();
+            if(filter.equals("today")&&!today.equals(workDate))continue;
             var parcel=parcel(assignment.parcelId(),token);
             boolean terminal=Set.of("DELIVERED","FAILED","CANCELLED").contains(parcel.status());
             if(filter.equals("active")&&(!assignment.active()||terminal))continue;
@@ -56,7 +58,7 @@ public class CourierDeliveryService {
     private List<Assignment> assigned(Long courierId,String token) {
         var result=dispatch.assignments(courierId,token);
         if(result==null || result.stream().anyMatch(a->a==null||a.id()==null||a.parcelId()==null||!courierId.equals(a.courierId())||a.attemptNo()<1||a.version()<0))
-            throw new RemoteFailure("Dispatch service",false);
+            throw new RemoteFailure("Assignment data",false);
         return result;
     }
     private Assignment assignment(Long courierId,UUID parcelId,boolean active,String token) {
@@ -151,7 +153,7 @@ public class CourierDeliveryService {
     }
     private static String clean(String value){return value==null||value.isBlank()?null:value.trim();}
     private Submission response(DeliveryCheckpoint c) {
-        String message=switch(c.syncStatus){case CONFIRMED->"Parcel update and evidence confirmed.";case REJECTED->"Parcel service rejected this update. Refresh before creating a new submission.";case UNKNOWN->"Evidence saved; parcel confirmation is unknown. Retry the identical submission after 30 seconds.";case PENDING->"Submission is processing. Poll its status before retrying.";};
+        String message=switch(c.syncStatus){case CONFIRMED->"Delivery update and evidence saved.";case REJECTED->"Delivery update rejected. Check the current status and assignment before creating a new submission.";case UNKNOWN->"Evidence saved; confirmation is unknown. Retry the identical submission after 30 seconds.";case PENDING->"Submission is processing. Poll its status before retrying.";};
         return new Submission(c.id,c.parcelId,c.syncStatus,message);
     }
     @Transactional(readOnly=true)

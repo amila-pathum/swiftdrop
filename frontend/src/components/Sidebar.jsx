@@ -168,7 +168,7 @@ export default function Sidebar({ open = false, onNavigate }) {
       <ul>
         {links.map(({ to, label }) => (
           <li key={to}>
-            <NavLink to={to} end={to === '/dashboard' || to === '/dispatch'}
+            <NavLink to={to} end={to === '/dashboard' || to === '/dispatch' || to === '/courier/dashboard'}
               onClick={onNavigate}>
               {label}
             </NavLink>

@@ -183,10 +183,17 @@ class ParcelCreationApiTest {
         customerPost(BODY).andExpect(status().isCreated());
         var parcel = parcels.findByTrackingNumber(number).orElseThrow();
 
-        new ParcelOutboxPublisher(jdbc, rabbit).publishPending();
+        doAnswer(inv -> {
+            org.springframework.amqp.rabbit.connection.CorrelationData correlation = inv.getArgument(3);
+            correlation.getFuture().complete(new org.springframework.amqp.rabbit.connection.CorrelationData.Confirm(true, null));
+            return null;
+        }).when(rabbit).send(anyString(), anyString(), any(org.springframework.amqp.core.Message.class),
+            any(org.springframework.amqp.rabbit.connection.CorrelationData.class));
+        new ParcelOutboxPublisher(jdbc, rabbit, 100).publishPending();
 
-        verify(rabbit, atLeastOnce()).convertAndSend(
-            eq("swiftdrop.events"), eq("parcel.status-changed"), any(byte[].class));
+        verify(rabbit, atLeastOnce()).send(
+            eq("swiftdrop.events"), eq("parcel.status-changed"), any(org.springframework.amqp.core.Message.class),
+            any(org.springframework.amqp.rabbit.connection.CorrelationData.class));
         assertThat(jdbc.queryForObject(
             "SELECT published_at IS NOT NULL FROM parcel_event_outbox WHERE parcel_id = ?",
             Boolean.class, parcel.getId())).isTrue();
@@ -285,15 +292,15 @@ class ParcelCreationApiTest {
     }
 
     @Test
-    void duplicateTrackingNumberFailsWithoutAdditionalRecords() throws Exception {
+    void exhaustedTrackingNumberRetriesFailWithoutAdditionalRecords() throws Exception {
         String number = "SD" + UUID.randomUUID().toString().replace("-", "");
         when(pricing.quote(any(), anyString())).thenReturn(new BigDecimal("450.00"));
         when(tracking.generate()).thenReturn(number);
         customerPost(BODY).andExpect(status().isCreated());
         long before = parcels.count();
         long historyBefore = history.count();
-        customerPost(BODY).andExpect(status().isConflict())
-            .andExpect(jsonPath("error").value("Parcel could not be created due to a data conflict"));
+        customerPost(BODY).andExpect(status().isServiceUnavailable())
+            .andExpect(jsonPath("error").value("Unable to allocate a tracking number. Please try again."));
         assertThat(parcels.count()).isEqualTo(before);
         assertThat(history.count()).isEqualTo(historyBefore);
         assertThat(parcels.findByTrackingNumber(number)).isPresent();

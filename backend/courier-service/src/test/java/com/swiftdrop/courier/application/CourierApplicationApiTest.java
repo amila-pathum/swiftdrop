@@ -46,6 +46,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /** Courier applications through the real HTTP API and PostgreSQL; only Identity is stubbed. */
 @SpringBootTest(properties = {
+    // Same as the other courier integration tests: no RabbitMQ listener is needed here.
+    "spring.rabbitmq.listener.simple.auto-startup=false",
+    "management.health.rabbit.enabled=false",
     "COURIER_DB_PASSWORD=unused",
     "swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8="
 })

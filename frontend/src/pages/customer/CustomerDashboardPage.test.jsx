@@ -53,8 +53,10 @@ describe('CustomerDashboardPage', () => {
 
     const hrefs = [...container.querySelectorAll('a')].map((a) => a.getAttribute('href'))
     expect(hrefs).toContain('/customer/create-delivery')
-    expect(hrefs).toContain('/track/SDLINKS001')
     expect(hrefs).toContain('/customer/deliveries')
+    // Each recent parcel opens its details page; tracking is reached through the search box.
+    expect(hrefs).toContain('/customer/deliveries/parcel-9')
+    expect(container.querySelector('#dashboard-tracking-search')).not.toBeNull()
   })
 
   it('shows an error instead of zero counts when loading fails', async () => {

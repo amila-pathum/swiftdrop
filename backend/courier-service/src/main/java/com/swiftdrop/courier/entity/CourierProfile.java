@@ -10,6 +10,8 @@ public class CourierProfile {
     public Long id;
     @Column(name = "user_id", nullable = false, unique = true, updatable = false)
     public Long userId;
+    @Column(name = "dispatch_courier_id", nullable = false, unique = true)
+    public java.util.UUID dispatchCourierId = java.util.UUID.randomUUID();
     @Column(nullable = false, length = 100) public String name;
     @Column(nullable = false, length = 30) public String phone;
     @Enumerated(EnumType.STRING) @Column(name = "vehicle_type", nullable = false, length = 30)

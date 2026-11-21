@@ -81,6 +81,11 @@ const ROLE_LINKS = {
  */
 export function navigationFor(user) {
   if (!user) return []
+  if (user.role === Roles.COURIER && isActive(user)) return [
+    { to: '/courier/dashboard', label: 'Today' },
+    { to: '/courier/deliveries', label: 'Deliveries' },
+    { to: '/courier/profile', label: 'Profile' },
+  ]
   const home = homePathFor(user)
   const homeLink = home === null ? [] : [{
     to: home,

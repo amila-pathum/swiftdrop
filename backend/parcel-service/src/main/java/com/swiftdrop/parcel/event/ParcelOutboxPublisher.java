@@ -5,6 +5,14 @@ import java.time.Instant;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeoutException;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageProperties;
+import org.springframework.amqp.core.MessageDeliveryMode;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -18,10 +26,14 @@ import org.springframework.transaction.annotation.Transactional;
 public class ParcelOutboxPublisher {
     private final JdbcTemplate jdbc;
     private final RabbitTemplate rabbit;
+    private final long confirmTimeoutMs;
 
-    public ParcelOutboxPublisher(JdbcTemplate jdbc, RabbitTemplate rabbit) {
+    public ParcelOutboxPublisher(JdbcTemplate jdbc, RabbitTemplate rabbit,
+            @Value("${swiftdrop.events.confirm-timeout-ms:5000}") long confirmTimeoutMs) {
+        if (confirmTimeoutMs <= 0) throw new IllegalArgumentException("Confirm timeout must be positive");
         this.jdbc = jdbc;
         this.rabbit = rabbit;
+        this.confirmTimeoutMs = confirmTimeoutMs;
     }
 
     @Scheduled(fixedDelayString = "${swiftdrop.events.publish-delay-ms:1000}",
@@ -42,25 +54,53 @@ public class ParcelOutboxPublisher {
 
         for (PendingEvent event : events) {
             try {
-                rabbit.convertAndSend(ParcelRabbitConfig.EXCHANGE,
-                    event.routingKey(), event.payload().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-                jdbc.update("""
-                    UPDATE parcel_event_outbox
-                       SET published_at = ?, attempts = attempts + 1, last_error = NULL
-                     WHERE event_id = ?
-                    """, Timestamp.from(Instant.now()), event.eventId());
-            } catch (RuntimeException exception) {
+                publishAndConfirm(event);
+            } catch (InterruptedException exception) {
+                recordFailure(event, "Interrupted while waiting for RabbitMQ confirmation");
+                Thread.currentThread().interrupt();
+                return;
+            } catch (RuntimeException | ExecutionException | TimeoutException exception) {
                 String message = exception.getMessage() == null
                     ? exception.getClass().getSimpleName() : exception.getMessage();
-                jdbc.update("""
+                recordFailure(event, message);
+                continue;
+            }
+            jdbc.update("""
+                UPDATE parcel_event_outbox
+                   SET published_at = ?, attempts = attempts + 1, last_error = NULL
+                 WHERE event_id = ?
+                """, Timestamp.from(Instant.now()), event.eventId());
+        }
+    }
+
+    private void publishAndConfirm(PendingEvent event)
+            throws InterruptedException, ExecutionException, TimeoutException {
+        var properties = new MessageProperties();
+        properties.setContentType(MessageProperties.CONTENT_TYPE_JSON);
+        properties.setDeliveryMode(MessageDeliveryMode.PERSISTENT);
+        properties.setMessageId(event.eventId().toString());
+        var correlation = new CorrelationData(event.eventId().toString());
+        rabbit.send(ParcelRabbitConfig.EXCHANGE, event.routingKey(),
+            new Message(event.payload().getBytes(java.nio.charset.StandardCharsets.UTF_8), properties), correlation);
+        var confirm = correlation.getFuture().get(confirmTimeoutMs, TimeUnit.MILLISECONDS);
+        if (!confirm.ack()) {
+            throw new IllegalStateException("RabbitMQ rejected event: " + confirm.reason());
+        }
+        // Spring AMQP populates the correlated return before completing the confirm future.
+        if (correlation.getReturned() != null) {
+            throw new IllegalStateException("RabbitMQ returned unroutable event: "
+                + correlation.getReturned().getReplyText());
+        }
+    }
+
+    private void recordFailure(PendingEvent event, String message) {
+        jdbc.update("""
                     UPDATE parcel_event_outbox
                        SET attempts = attempts + 1,
                            next_attempt_at = now() + interval '30 seconds',
                            last_error = ?
                      WHERE event_id = ?
                     """, message.substring(0, Math.min(message.length(), 1000)), event.eventId());
-            }
-        }
     }
 
     private record PendingEvent(UUID eventId, String routingKey, String payload) { }
