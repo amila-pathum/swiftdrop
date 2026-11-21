@@ -1,5 +1,6 @@
 package com.swiftdrop.notification.consumer;
 
+import com.swiftdrop.notification.client.IdentityServiceClient;
 import com.swiftdrop.notification.dto.response.NotificationResponse;
 import com.swiftdrop.notification.entity.Notification;
 import com.swiftdrop.notification.entity.ProcessedEvent;
@@ -15,6 +16,7 @@ import tools.jackson.databind.ObjectMapper;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,6 +32,7 @@ class ParcelStatusConsumerTest {
     private final EmailNotificationService emailNotificationService = mock(EmailNotificationService.class);
     private final SmsNotificationService smsNotificationService = mock(SmsNotificationService.class);
     private final NotificationStreamService notificationStreamService = mock(NotificationStreamService.class);
+    private final IdentityServiceClient identityServiceClient = mock(IdentityServiceClient.class);
 
     private ParcelStatusConsumer consumer;
 
@@ -41,7 +44,8 @@ class ParcelStatusConsumerTest {
                 processedEventRepository,
                 emailNotificationService,
                 smsNotificationService,
-                notificationStreamService
+                notificationStreamService,
+                identityServiceClient
         );
     }
 
@@ -182,5 +186,59 @@ class ParcelStatusConsumerTest {
         assertThat(ParcelStatusConsumer.resolveNotificationTitle("FAILED"))
                 .isEqualTo("Delivery Attempt Failed");
     }
-}
 
+    private static final String CREATED_EVENT_JSON = """
+            {
+              "eventId": "33333333-3333-4333-8333-333333333333",
+              "eventType": "ParcelStatusChanged",
+              "occurredAt": "2026-11-21T10:00:00Z",
+              "trackingNumber": "SD53007878",
+              "parcelId": "parcel-1",
+              "customerId": "42",
+              "oldStatus": null,
+              "newStatus": "CREATED"
+            }
+            """;
+
+    @Test
+    void createdParcelNotifiesEveryActiveDispatcher() throws Exception {
+        when(notificationRepository.save(any(Notification.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(identityServiceClient.findActiveUserIdsByRole("DISPATCHER")).thenReturn(List.of("7", "8"));
+
+        consumer.consume(CREATED_EVENT_JSON.getBytes(StandardCharsets.UTF_8));
+
+        for (String dispatcher : List.of("7", "8")) {
+            verify(notificationRepository).save(argThat(n -> n.getUserId().equals(dispatcher)
+                    && n.getTitle().equals(ParcelStatusConsumer.DISPATCHER_NEW_PARCEL_TITLE)
+                    && n.getMessage().equals("Parcel SD53007878 has been created and is waiting for a courier.")
+                    && n.getTrackingNumber().equals("SD53007878")
+                    && !n.isRead()));
+            verify(notificationStreamService).broadcastToUser(eq(dispatcher), any(NotificationResponse.class));
+        }
+        // The customer is still notified, and dispatchers get no email or SMS.
+        verify(notificationRepository).save(argThat(n -> n.getUserId().equals("42")));
+        verify(emailNotificationService, times(1)).sendParcelUpdateEmail(any());
+        verify(smsNotificationService, times(1)).sendParcelUpdateSms(any());
+    }
+
+    @Test
+    void laterStatusesDoNotNotifyDispatchers() throws Exception {
+        when(notificationRepository.save(any(Notification.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        consumer.consume(EVENT_JSON.getBytes(StandardCharsets.UTF_8));
+
+        verifyNoInteractions(identityServiceClient);
+    }
+
+    @Test
+    void noReachableDispatchersStillNotifiesCustomer() throws Exception {
+        when(notificationRepository.save(any(Notification.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(identityServiceClient.findActiveUserIdsByRole("DISPATCHER")).thenReturn(List.of());
+
+        consumer.consume(CREATED_EVENT_JSON.getBytes(StandardCharsets.UTF_8));
+
+        verify(notificationRepository, times(1)).save(any(Notification.class));
+        verify(notificationRepository).save(argThat(n -> n.getUserId().equals("42")));
+        verify(processedEventRepository).save(any(ProcessedEvent.class));
+    }
+}

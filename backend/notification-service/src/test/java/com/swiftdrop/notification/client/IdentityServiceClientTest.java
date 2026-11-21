@@ -59,4 +59,35 @@ class IdentityServiceClientTest {
         Optional<String> email = client.findEmailByCustomerId("42");
         assertThat(email).contains("john.doe@example.com");
     }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void findActiveUserIdsByRole_followsPagesAndAsksForActiveUsersOnly() throws Exception {
+        HttpResponse<String> first = mock(HttpResponse.class);
+        when(first.statusCode()).thenReturn(200);
+        when(first.body()).thenReturn("{\"content\":[{\"id\":7},{\"id\":8}],\"last\":false}");
+        HttpResponse<String> second = mock(HttpResponse.class);
+        when(second.statusCode()).thenReturn(200);
+        when(second.body()).thenReturn("{\"content\":[{\"id\":9}],\"last\":true}");
+        java.util.List<java.net.URI> asked = new java.util.ArrayList<>();
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class))).thenAnswer(invocation -> {
+            HttpRequest request = invocation.getArgument(0);
+            asked.add(request.uri());
+            return asked.size() == 1 ? first : second;
+        });
+
+        assertThat(client.findActiveUserIdsByRole("DISPATCHER")).containsExactly("7", "8", "9");
+        assertThat(asked).hasSize(2);
+        assertThat(asked.get(0).getQuery()).contains("role=DISPATCHER").contains("status=ACTIVE").contains("page=0");
+        assertThat(asked.get(1).getQuery()).contains("page=1");
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void findActiveUserIdsByRole_whenIdentityDown_returnsEmpty() throws Exception {
+        when(httpClient.send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class)))
+                .thenThrow(new java.io.IOException("connection refused"));
+
+        assertThat(client.findActiveUserIdsByRole("DISPATCHER")).isEmpty();
+    }
 }

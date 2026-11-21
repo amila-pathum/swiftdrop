@@ -25,7 +25,16 @@ public class ParcelEventOutbox {
 
     public UUID enqueueStatusChanged(Parcel parcel, ParcelStatus oldStatus,
                                      ParcelStatus newStatus, Instant occurredAt) {
-        UUID eventId = UUID.randomUUID();
+        return enqueueStatusChanged(UUID.randomUUID(), parcel, oldStatus, newStatus, occurredAt);
+    }
+
+    /**
+     * Same as above with a caller-chosen event id. A courier update reuses its
+     * submission id, so the Courier Service recognises the event as its own
+     * update and does not list it twice.
+     */
+    public UUID enqueueStatusChanged(UUID eventId, Parcel parcel, ParcelStatus oldStatus,
+                                     ParcelStatus newStatus, Instant occurredAt) {
         ParcelStatusChangedEvent event = new ParcelStatusChangedEvent(
             eventId,
             "ParcelStatusChanged",

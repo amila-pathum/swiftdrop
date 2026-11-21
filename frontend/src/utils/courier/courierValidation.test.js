@@ -3,14 +3,16 @@ import { photoError, validateDelivery } from './courierValidation'
 import { activeDelivery, dateLabel } from './deliveryStatus'
 const empty = { recipientName: '', failureReason: '', note: '', locationDescription: '' }
 describe('courier input rules', () => {
-  it('requires recipient or photo and an actual collection/delivery location', () => {
-    expect(validateDelivery(empty, 'DELIVERED', null, null)).toMatchObject({ recipientName: expect.any(String), locationDescription: expect.any(String) })
-    expect(validateDelivery({ ...empty, recipientName: 'Kasun', locationDescription: 'Front desk' }, 'DELIVERED', null, null)).toEqual({})
-    expect(validateDelivery(empty, 'PICKED_UP', null, { latitude: 6, longitude: 79 })).toEqual({})
+  it('requires recipient or photo, and leaves the location optional', () => {
+    expect(validateDelivery(empty, 'DELIVERED', null)).toEqual({ recipientName: expect.any(String) })
+    expect(validateDelivery({ ...empty, recipientName: 'Kasun', locationDescription: 'Front desk' }, 'DELIVERED', null)).toEqual({})
+    expect(validateDelivery(empty, 'PICKED_UP', null)).toEqual({})
+    expect(validateDelivery(empty, 'IN_TRANSIT', null)).toEqual({})
+    expect(validateDelivery({ ...empty, locationDescription: 'Sender shop' }, 'PICKED_UP', null)).toEqual({})
   })
   it('requires a reason for failure and notes for other', () => {
-    expect(validateDelivery({ ...empty, failureReason: 'OTHER' }, 'FAILED', null, {})).toHaveProperty('note')
-    expect(validateDelivery({ ...empty, failureReason: 'RECIPIENT_ABSENT' }, 'FAILED', null, {})).toEqual({})
+    expect(validateDelivery({ ...empty, failureReason: 'OTHER', locationDescription: 'Gate' }, 'FAILED', null)).toHaveProperty('note')
+    expect(validateDelivery({ ...empty, failureReason: 'RECIPIENT_ABSENT', locationDescription: 'Gate' }, 'FAILED', null)).toEqual({})
   })
   it('rejects unsupported or oversized photos', () => {
     expect(photoError({ name: 'proof.gif', type: 'image/gif', size: 5 })).toBeTruthy()

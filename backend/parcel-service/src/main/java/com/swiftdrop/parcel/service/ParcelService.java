@@ -160,9 +160,33 @@ public class ParcelService {
         return new ParcelReceipt(filename, pdfContent);
     }
 
+    /**
+     * Applies a status the assigned courier confirmed in the Courier Service
+     * (event courier.delivery-status-changed.v1). Returns false, changing nothing,
+     * when the parcel is unknown, assigned to someone else, already has this
+     * status (a redelivered event) or cannot move to it.
+     */
+    @Transactional
+    public boolean applyCourierStatus(UUID parcelId, Long courierUserId, ParcelStatus newStatus, UUID submissionId) {
+        Objects.requireNonNull(newStatus, "newStatus is required");
+        Parcel parcel = parcels.findForStatusUpdateById(parcelId).orElse(null);
+        if (parcel == null || courierUserId == null || !courierUserId.equals(parcel.getAssignedCourierId())) {
+            return false;
+        }
+        if (parcel.getStatus() == newStatus || !transitions.isAllowed(parcel.getStatus(), newStatus)) {
+            return false;
+        }
+        changeStatus(parcelId, newStatus, courierUserId, "Updated by courier", submissionId);
+        return true;
+    }
+
     /** Records the old and new status in the same transaction as the update. */
     @Transactional
     public Parcel changeStatus(UUID parcelId, ParcelStatus newStatus, Long changedBy, String note) {
+        return changeStatus(parcelId, newStatus, changedBy, note, null);
+    }
+
+    private Parcel changeStatus(UUID parcelId, ParcelStatus newStatus, Long changedBy, String note, UUID eventId) {
         Objects.requireNonNull(changedBy, "changedBy is required");
         Parcel parcel = parcels.findForStatusUpdateById(parcelId)
                 .orElseThrow(() -> new IllegalArgumentException("Parcel not found: " + parcelId));
@@ -172,7 +196,11 @@ public class ParcelService {
         ParcelStatusHistory entry = new ParcelStatusHistory(
             parcel, previousStatus, newStatus, changedBy, note);
         history.save(entry);
-        outbox.enqueueStatusChanged(parcel, previousStatus, newStatus, entry.getChangedAt());
+        if (eventId == null) {
+            outbox.enqueueStatusChanged(parcel, previousStatus, newStatus, entry.getChangedAt());
+        } else {
+            outbox.enqueueStatusChanged(eventId, parcel, previousStatus, newStatus, entry.getChangedAt());
+        }
         return parcel;
     }
 }

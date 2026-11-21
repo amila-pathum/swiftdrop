@@ -3,6 +3,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import DeliveryDetailsPage from './DeliveryDetailsPage'
 import { parcelService } from '../../services/parcelService'
+import { useParcelLiveStatus } from '../../hooks/useParcelLiveStatus'
 
 vi.mock('../../services/parcelService', () => ({
   parcelService: {
@@ -10,6 +11,8 @@ vi.mock('../../services/parcelService', () => ({
     getParcelHistory: vi.fn(),
   },
 }))
+
+vi.mock('../../hooks/useParcelLiveStatus', () => ({ useParcelLiveStatus: vi.fn() }))
 
 function renderPage() {
   render(
@@ -34,6 +37,29 @@ describe('DeliveryDetailsPage', () => {
     vi.resetAllMocks()
     parcelService.getParcelById.mockResolvedValue(parcel)
     parcelService.getParcelHistory.mockResolvedValue([])
+    useParcelLiveStatus.mockReturnValue({ lastEvent: null })
+  })
+
+  it('reloads quietly when the live stream reports the courier picked the parcel up', async () => {
+    parcelService.getParcelById
+      .mockResolvedValueOnce(parcel)
+      .mockResolvedValueOnce({ ...parcel, status: 'PICKED_UP' })
+    parcelService.getParcelHistory
+      .mockResolvedValueOnce([{ id: 'e1', newStatus: 'CREATED', changedAt: '2026-11-14T08:00:00Z', note: 'Parcel created' }])
+      .mockResolvedValueOnce([
+        { id: 'e1', newStatus: 'CREATED', changedAt: '2026-11-14T08:00:00Z', note: 'Parcel created' },
+        { id: 'e2', newStatus: 'PICKED_UP', changedAt: '2026-11-14T09:00:00Z', note: 'Updated by courier' },
+      ])
+    useParcelLiveStatus.mockImplementation((trackingNumber) => ({
+      lastEvent: trackingNumber ? { status: 'PICKED_UP', occurredAt: '2026-11-14T09:00:00Z' } : null,
+    }))
+
+    renderPage()
+
+    const history = within(await screen.findByRole('table', { name: 'Delivery status history' }))
+    expect(await history.findByText('Updated by courier')).toBeInTheDocument()
+    expect(useParcelLiveStatus).toHaveBeenCalledWith('SD100001')
+    expect(parcelService.getParcelById).toHaveBeenCalledTimes(2)
   })
 
   it('loads the owned parcel and its authenticated history', async () => {

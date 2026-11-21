@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import { parcelService } from '../../services/parcelService'
+import { useParcelLiveStatus } from '../../hooks/useParcelLiveStatus'
 
 const EMPTY = '—'
 
@@ -204,6 +205,31 @@ export default function DeliveryDetailsPage() {
   }, [id])
 
   useEffect(() => loadDetails(), [loadDetails])
+
+  // Live updates: when the parcel's public stream reports a status this page has
+  // not shown yet (for example the courier marking it picked up), reload the
+  // details and history quietly, without the loading screen.
+  const { lastEvent } = useParcelLiveStatus(parcel?.trackingNumber ?? null)
+  const liveStatus = lastEvent?.status ?? null
+  const currentStatus = parcel?.status ?? null
+  const seenStatus = history.some((evt) => evt.newStatus === liveStatus)
+  useEffect(() => {
+    if (!liveStatus || !currentStatus || liveStatus === currentStatus || seenStatus) return undefined
+    const controller = new AbortController()
+    Promise.all([
+      parcelService.getParcelById(id, controller.signal),
+      parcelService.getParcelHistory(id, controller.signal),
+    ])
+      .then(([details, events]) => {
+        if (controller.signal.aborted) return
+        setParcel(details)
+        setHistory(Array.isArray(events) ? events : [])
+      })
+      .catch(() => {
+        // Keep showing the current details; the next live event or a reload retries.
+      })
+    return () => controller.abort()
+  }, [id, liveStatus, currentStatus, seenStatus])
 
   // ── Loading ──
   if (loading) {
