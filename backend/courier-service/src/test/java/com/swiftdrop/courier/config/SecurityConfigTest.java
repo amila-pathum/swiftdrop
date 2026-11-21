@@ -53,6 +53,8 @@ class SecurityConfigTest {
 
     @Autowired MockMvc mockMvc;
     @MockitoBean CourierRepository courierRepository;
+    // The application flow needs JPA, which this security-only context leaves out.
+    @MockitoBean com.swiftdrop.courier.application.CourierApplicationService courierApplications;
 
     /** Test-only endpoint showing the convention for a protected, role-restricted endpoint. */
     @TestConfiguration

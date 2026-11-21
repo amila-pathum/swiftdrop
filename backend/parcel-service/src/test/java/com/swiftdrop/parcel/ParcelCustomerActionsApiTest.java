@@ -14,6 +14,11 @@ import java.util.Base64;
 import java.util.Date;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.EnumSource;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
@@ -30,6 +35,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -43,6 +49,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 @Testcontainers
 @Transactional
+@ExtendWith(OutputCaptureExtension.class)
 class ParcelCustomerActionsApiTest {
     @Container @ServiceConnection
     static final PostgreSQLContainer postgres = new PostgreSQLContainer("postgres:18");
@@ -75,7 +82,7 @@ class ParcelCustomerActionsApiTest {
 
         mvc.perform(patch("/api/parcels/{id}/cancel", parcel.getId())
                 .header(HttpHeaders.AUTHORIZATION, token(42L, "CUSTOMER")))
-            .andExpect(status().isBadRequest());
+            .andExpect(status().isConflict());
         assertThat(histories.count()).isEqualTo(historyBefore + 1);
         assertThat(outboxCount(parcel.getId())).isEqualTo(outboxBefore + 1);
     }
@@ -148,6 +155,82 @@ class ParcelCustomerActionsApiTest {
         mvc.perform(get("/api/parcels/dispatch/{id}", UUID.randomUUID())
                 .header(HttpHeaders.AUTHORIZATION, token(70L, "DISPATCHER")))
             .andExpect(status().isNotFound());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = ParcelStatus.class, names = "CREATED", mode = EnumSource.Mode.EXCLUDE)
+    void cancellationIsRefusedForEveryStatusExceptCreated(ParcelStatus current) throws Exception {
+        Parcel parcel = parcel(42L, current);
+
+        mvc.perform(patch("/api/parcels/{id}/cancel", parcel.getId())
+                .header(HttpHeaders.AUTHORIZATION, token(42L, "CUSTOMER")))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.error").value("Only parcels with CREATED status can be cancelled"));
+
+        assertThat(parcels.findById(parcel.getId()).orElseThrow().getStatus()).isEqualTo(current);
+        assertThat(histories.findByParcelIdOrderByChangedAtAsc(parcel.getId())).isEmpty();
+        assertThat(outboxCount(parcel.getId())).isZero();
+    }
+
+    @Test
+    void cancellationAlsoAcceptsPostAndRejectsOtherRoles() throws Exception {
+        Parcel parcel = parcel(42L, ParcelStatus.CREATED);
+
+        for (String role : new String[] {"MERCHANT", "COURIER", "DISPATCHER", "ADMIN"}) {
+            mvc.perform(post("/api/parcels/{id}/cancel", parcel.getId())
+                    .header(HttpHeaders.AUTHORIZATION, token(42L, role)))
+                .andExpect(status().isForbidden());
+        }
+        mvc.perform(post("/api/parcels/{id}/cancel", parcel.getId()))
+            .andExpect(status().isUnauthorized());
+        assertThat(parcels.findById(parcel.getId()).orElseThrow().getStatus())
+            .isEqualTo(ParcelStatus.CREATED);
+
+        mvc.perform(post("/api/parcels/{id}/cancel", parcel.getId())
+                .header(HttpHeaders.AUTHORIZATION, token(42L, "CUSTOMER")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("CANCELLED"));
+    }
+
+    @Test
+    void logsAndErrorMessagesContainNoAddressesOrPhoneNumbers(CapturedOutput output) throws Exception {
+        Parcel created = parcel(42L, ParcelStatus.CREATED);
+        Parcel inTransit = parcel(42L, ParcelStatus.IN_TRANSIT);
+        Parcel delivered = parcel(42L, ParcelStatus.DELIVERED);
+        String owner = token(42L, "CUSTOMER");
+        String stranger = token(77L, "CUSTOMER");
+        var bodies = new java.util.ArrayList<String>();
+
+        // Every refusal a customer can trigger on the cancel and receipt flows.
+        bodies.add(mvc.perform(patch("/api/parcels/{id}/cancel", created.getId())
+                .header(HttpHeaders.AUTHORIZATION, stranger))
+            .andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString());
+        bodies.add(mvc.perform(patch("/api/parcels/{id}/cancel", inTransit.getId())
+                .header(HttpHeaders.AUTHORIZATION, owner))
+            .andExpect(status().isConflict()).andReturn().getResponse().getContentAsString());
+        bodies.add(mvc.perform(get("/api/parcels/{id}/receipt", delivered.getId())
+                .header(HttpHeaders.AUTHORIZATION, stranger))
+            .andExpect(status().isForbidden()).andReturn().getResponse().getContentAsString());
+        bodies.add(mvc.perform(get("/api/parcels/{id}/receipt", inTransit.getId())
+                .header(HttpHeaders.AUTHORIZATION, owner))
+            .andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString());
+        bodies.add(mvc.perform(get("/api/parcels/{id}", created.getId())
+                .header(HttpHeaders.AUTHORIZATION, stranger))
+            .andExpect(status().is4xxClientError()).andReturn().getResponse().getContentAsString());
+        // And the successful ones, which must not log what they return.
+        mvc.perform(patch("/api/parcels/{id}/cancel", created.getId())
+                .header(HttpHeaders.AUTHORIZATION, owner))
+            .andExpect(status().isOk());
+        mvc.perform(get("/api/parcels/{id}/receipt", delivered.getId())
+                .header(HttpHeaders.AUTHORIZATION, owner))
+            .andExpect(status().isOk());
+        mvc.perform(get("/api/parcels/my").header(HttpHeaders.AUTHORIZATION, owner))
+            .andExpect(status().isOk());
+
+        for (String pii : new String[] {"0771234567", "10 Main Street", "20 Lake Road", "Nimal Perera"}) {
+            assertThat(bodies).noneMatch(body -> body.contains(pii));
+            assertThat(output.getAll()).doesNotContain(pii);
+        }
     }
 
     private Parcel parcel(long senderId, ParcelStatus status) {

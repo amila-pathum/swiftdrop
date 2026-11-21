@@ -4,6 +4,7 @@ One OpenAPI 3.1 document per service, named after the service directory, for exa
 
 Available contracts:
 
+- [`identity-service.yaml`](identity-service.yaml) – profile and account administration
 - [`parcel-service.yaml`](parcel-service.yaml)
 - [`dispatch-service.yaml`](dispatch-service.yaml)
 
@@ -13,7 +14,7 @@ Conventions:
 
   | Service | Prefix |
   |---|---|
-  | Identity | `/api/auth`, `/api/users` |
+  | Identity | `/api/auth`, `/api/users`, `/api/admin/users` |
   | Parcel | `/api/parcels` |
   | Merchant | `/api/merchants` |
   | Courier | `/api/couriers` |

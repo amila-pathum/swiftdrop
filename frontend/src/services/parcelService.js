@@ -17,11 +17,19 @@ export const parcelService = {
       signal,
     }),
 
-  getMyParcels: (page = 0, size = 100, signal) =>
-    request(`/api/parcels/my?page=${encodeURIComponent(page)}&size=${encodeURIComponent(size)}`, {
-      auth: true,
-      signal,
-    }),
+  /**
+   * One page of the signed-in customer's own parcels, newest first.
+   * `status` (optional) asks the server for parcels in that status only.
+   */
+  getMyParcels: (page = 0, size = 100, signal, status) => {
+    const query = new URLSearchParams({ page: String(page), size: String(size) })
+    if (status) query.set('status', status)
+    return request(`/api/parcels/my?${query.toString()}`, { auth: true, signal })
+  },
+
+  /** Counts of the customer's own parcels: { total, byStatus: { CREATED: n, ... } }. */
+  getMyParcelSummary: (signal) =>
+    request('/api/parcels/my/summary', { auth: true, signal }),
 
   getMerchantParcels: (page = 0, size = 10, signal) =>
     request(`/api/parcels/merchant?page=${encodeURIComponent(page)}&size=${encodeURIComponent(size)}`, {

@@ -156,23 +156,20 @@ export const ENDPOINTS = Object.freeze({
   courierApplication: {
     method: 'POST',
     path: '/api/couriers/applications',
-    available: false,
+    available: true,
     auth: true,
-    // PLANNED (Courier Service). Called with the new courier's own token.
-    // Body: { vehicleType, vehicleRegistrationNumber, preferredArea }
-    // -> 201 { id, status: "PENDING", submittedAt }. 409 if already applied.
-    //
-    // Permission contract: the caller has authority APPLICANT_COURIER (pending)
-    // or ROLE_COURIER (active). Use:
-    //   @PreAuthorize("hasAnyAuthority('APPLICANT_COURIER','ROLE_COURIER')")
-    // Never read the raw JWT "role" claim to authorize this endpoint.
+    // Courier Service. Called with the new courier's own token (APPLICANT_COURIER
+    // while pending, ROLE_COURIER once active).
+    // Body: { name, phone, vehicleType, vehicleRegistrationNumber, preferredArea }
+    // -> 201 { id, status: "PENDING", submittedAt, ... }. 409 if already applied.
+    // An administrator approves or rejects it; admins never create courier accounts.
   },
   myCourierApplication: {
     method: 'GET',
     path: '/api/couriers/me/application',
-    available: false,
+    available: true,
     auth: true,
-    // PLANNED (Courier Service). Requires APPLICANT_COURIER or ROLE_COURIER.
+    // Courier Service. Requires APPLICANT_COURIER or ROLE_COURIER.
     // -> { status, submittedAt, reviewedAt, reviewNote }. 404 if none submitted.
   },
 

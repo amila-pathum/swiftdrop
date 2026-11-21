@@ -37,9 +37,9 @@ class CourierMigrationUpgradeTest {
         upgrade.validate();
 
         assertThat(rows("SELECT courier_id::text || ':' || display_name || ':' || active::text || ':' || available::text FROM couriers ORDER BY courier_id")).containsExactlyElementsOf(legacy);
-        assertThat(rows("SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank")).containsExactly("1","2");
+        assertThat(rows("SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank")).containsExactly("1","2","3");
         assertThat(rows("SELECT checksum::text FROM flyway_schema_history WHERE version='1'")).containsExactly("1639178571");
         assertThat(rows("SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name"))
-            .containsExactly("courier_profiles","couriers","delivery_checkpoints","delivery_proofs","flyway_schema_history");
+            .containsExactly("courier_applications","courier_profiles","couriers","delivery_checkpoints","delivery_proofs","flyway_schema_history");
     }
 }

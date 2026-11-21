@@ -152,6 +152,44 @@ class ParcelQueryApiTest {
             .andExpect(jsonPath("content[1].id").value(newer.getId().toString()));
     }
 
+    @Test void statusFilterReturnsOnlyOwnedParcelsInThatStatusWithPaging() throws Exception {
+        Parcel deliveredOld = parcel(42, ParcelStatus.DELIVERED, 1);
+        parcel(42, ParcelStatus.CREATED, 2);
+        Parcel deliveredNew = parcel(42, ParcelStatus.DELIVERED, 3);
+        parcel(42, ParcelStatus.CANCELLED, 4);
+        parcel(77, ParcelStatus.DELIVERED, 5); // another customer's, never visible
+        read("/api/parcels/my?status=DELIVERED", 42, "CUSTOMER")
+            .andExpect(status().isOk()).andExpect(jsonPath("totalElements").value(2))
+            .andExpect(jsonPath("content[0].id").value(deliveredNew.getId().toString()))
+            .andExpect(jsonPath("content[1].id").value(deliveredOld.getId().toString()));
+        read("/api/parcels/my?status=DELIVERED&page=1&size=1", 42, "CUSTOMER")
+            .andExpect(status().isOk()).andExpect(jsonPath("content.length()").value(1))
+            .andExpect(jsonPath("totalPages").value(2))
+            .andExpect(jsonPath("content[0].id").value(deliveredOld.getId().toString()));
+        read("/api/parcels/my?status=FAILED", 42, "CUSTOMER")
+            .andExpect(status().isOk()).andExpect(jsonPath("totalElements").value(0));
+        read("/api/parcels/my?status=NOT_A_STATUS", 42, "CUSTOMER")
+            .andExpect(status().isBadRequest());
+    }
+
+    @Test void summaryCountsOnlyTheCallersParcelsPerStatus() throws Exception {
+        parcel(42, ParcelStatus.CREATED, 1);
+        parcel(42, ParcelStatus.DELIVERED, 2);
+        parcel(42, ParcelStatus.DELIVERED, 3);
+        parcel(77, ParcelStatus.DELIVERED, 4);
+        parcel(77, ParcelStatus.CANCELLED, 5);
+        read("/api/parcels/my/summary", 42, "CUSTOMER")
+            .andExpect(status().isOk()).andExpect(jsonPath("total").value(3))
+            .andExpect(jsonPath("byStatus.CREATED").value(1))
+            .andExpect(jsonPath("byStatus.DELIVERED").value(2))
+            .andExpect(jsonPath("byStatus.CANCELLED").value(0))
+            .andExpect(jsonPath("byStatus.length()").value(ParcelStatus.values().length));
+        read("/api/parcels/my/summary", 99, "CUSTOMER")
+            .andExpect(status().isOk()).andExpect(jsonPath("total").value(0));
+        read("/api/parcels/my/summary", 42, "MERCHANT").andExpect(status().isForbidden());
+        mvc.perform(get("/api/parcels/my/summary")).andExpect(status().isUnauthorized());
+    }
+
     @Test void paginationReturnsCorrectContentAndTotals() throws Exception {
         var ids = new ArrayList<UUID>();
         for (int i = 0; i < 5; i++) ids.add(parcel(42, ParcelStatus.CREATED, i).getId());

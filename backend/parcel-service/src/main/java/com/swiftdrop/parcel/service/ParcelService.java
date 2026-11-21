@@ -116,8 +116,10 @@ public class ParcelService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Access is denied");
         }
 
-        if (parcel.getStatus() != ParcelStatus.CREATED) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+        // The lifecycle rules decide whether a parcel can still be cancelled
+        // (today: only from CREATED); this flow does not keep its own copy.
+        if (!transitions.isAllowed(parcel.getStatus(), ParcelStatus.CANCELLED)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Only parcels with CREATED status can be cancelled");
         }
 
