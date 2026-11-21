@@ -8,6 +8,7 @@ import com.swiftdrop.parcel.dto.response.ParcelHistoryResponse;
 import com.swiftdrop.parcel.dto.response.ParcelReceipt;
 import com.swiftdrop.parcel.dto.response.ParcelResponse;
 import com.swiftdrop.parcel.dto.response.ParcelStatusUpdateResponse;
+import com.swiftdrop.parcel.dto.response.ParcelSummaryResponse;
 import com.swiftdrop.parcel.dto.response.PublicTrackingResponse;
 import com.swiftdrop.parcel.entity.ParcelStatus;
 import com.swiftdrop.parcel.service.ParcelCreationService;
@@ -106,10 +107,18 @@ public class ParcelController {
     @GetMapping("/my")
     @PreAuthorize("hasRole('CUSTOMER')")
     public Page<ParcelDetailsResponse> getMyParcels(@AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) ParcelStatus status,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        return queryService.getMyParcels(parseUserId(jwt),
+        return queryService.getMyParcels(parseUserId(jwt), status,
             createPageRequest(page, size, Sort.by("createdAt").descending()));
+    }
+
+    /** Counts of the customer's own parcels per status, for the customer dashboard. */
+    @GetMapping("/my/summary")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ParcelSummaryResponse getMyParcelSummary(@AuthenticationPrincipal Jwt jwt) {
+        return queryService.getMyParcelSummary(parseUserId(jwt));
     }
 
     @GetMapping("/{id}")
@@ -197,7 +206,7 @@ public class ParcelController {
         return PageRequest.of(page, size, sort);
     }
 
-    @PatchMapping("/{id}/cancel")
+    @RequestMapping(value = "/{id}/cancel", method = {RequestMethod.PATCH, RequestMethod.POST})
     @PreAuthorize("hasRole('CUSTOMER')")
     public ParcelResponse cancelParcel(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
         return ParcelResponse.from(parcelService.cancelParcel(id, parseUserId(jwt)));

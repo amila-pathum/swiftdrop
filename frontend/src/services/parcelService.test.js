@@ -43,4 +43,21 @@ describe('parcelService parcel queries', () => {
       signal,
     })
   })
+
+  it('filters the customer listing by status and reads the summary', async () => {
+    const signal = new AbortController().signal
+    request.mockResolvedValue({})
+
+    await parcelService.getMyParcels(2, 10, signal, 'DELIVERED')
+    await parcelService.getMyParcelSummary(signal)
+
+    expect(request).toHaveBeenNthCalledWith(1, '/api/parcels/my?page=2&size=10&status=DELIVERED', {
+      auth: true,
+      signal,
+    })
+    expect(request).toHaveBeenNthCalledWith(2, '/api/parcels/my/summary', {
+      auth: true,
+      signal,
+    })
+  })
 })

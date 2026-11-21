@@ -25,7 +25,8 @@ spring:
                 # account administration, which the Identity Service limits to ADMIN.
                 - Path=/api/users/**,/api/admin/users/**
             # One path prefix per service. A service owns everything under its prefix.
-            # Notification Service is internal (backend calls and RabbitMQ) and has no route.
+            # Every route below needs a valid access token except the paths listed in
+            # GatewayAccessRules (see JwtAuthenticationGlobalFilter).
             - id: parcel-service
               uri: ${PARCEL_SERVICE_URL:http://localhost:8082}
               predicates:
@@ -48,10 +49,18 @@ spring:
                 # Pricing owns quote/rule endpoints under /api/pricing and the
                 # existing zone-management controller under /api/zones.
                 - Path=/api/pricing/**,/api/zones/**
+            # In-app notifications and the SSE streams (user stream and public
+            # per-parcel stream). No response timeout is set on the HTTP client,
+            # so long-lived event streams are not cut off by the gateway.
             - id: notification-service
               uri: ${NOTIFICATION_SERVICE_URL:http://localhost:8087}
               predicates:
                 - Path=/api/notifications/**
+            # AI assistant (Python/FastAPI). The service verifies the JWT itself as well.
+            - id: ai-service
+              uri: ${AI_SERVICE_URL:http://localhost:8088}
+              predicates:
+                - Path=/api/ai/**
           globalcors:
             add-to-simple-url-handler-mapping: true
             cors-configurations:
@@ -59,10 +68,15 @@ spring:
                 allowed-origins:
                   - ${FRONTEND_ORIGIN:http://localhost:3000}
                 allowed-methods: [GET, POST, PUT, PATCH, DELETE, OPTIONS]
-                allowed-headers: [Authorization, Content-Type]
+                # X-API-Key: merchant order API (authenticated by API key, not JWT).
+                allowed-headers: [Authorization, Content-Type, X-API-Key]
                 max-age: 3600
           httpclient:
             connect-timeout: 3000
+swiftdrop:
+  jwt:
+    # Same Base64 secret the Identity Service signs access tokens with.
+    secret: ${JWT_SECRET:}
 server:
   port: ${GATEWAY_PORT:8080}
   error:

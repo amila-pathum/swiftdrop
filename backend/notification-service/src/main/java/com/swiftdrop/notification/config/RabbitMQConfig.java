@@ -8,6 +8,8 @@ public class RabbitMQConfig {
         public static final String EXCHANGE = "swiftdrop.events";
         public static final String ROUTING_KEY = "parcel.status-changed";
         public static final String NOTIFICATION_QUEUE = "notification.parcel-status-changed";
+        public static final String ASSIGNED_ROUTING_KEY = "parcel.assigned";
+        public static final String ASSIGNED_QUEUE = "notification.parcel-assigned";
         public static final String DEAD_LETTER_EXCHANGE = "swiftdrop.dlx";
         public static final String DEAD_LETTER_QUEUE = "notification.dlq";
         public static final String DEAD_LETTER_ROUTING_KEY = "notification.failed";

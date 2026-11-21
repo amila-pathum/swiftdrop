@@ -26,17 +26,18 @@ describe('endpoint registry', () => {
       .filter(([, endpoint]) => endpoint.available)
       .map(([name]) => name)
     expect(available.sort()).toEqual([
-      'changeUserRole', 'changeUserStatus', 'confirmPasswordReset', 'createStaffUser',
+      'changeUserStatus', 'confirmPasswordReset', 'courierApplication', 'createStaffUser',
       'createZone', 'currentUser', 'disableZone',
       'enableZone', 'getAdminUser', 'getRateCard', 'getRateVersions', 'getZoneById', 'getZones',
       'googleExchange', 'listAdminUsers', 'login', 'logout', 'markNotificationAsRead',
-      'merchantApplication', 'myMerchantApplication', 'notifications',
+      'merchantApplication', 'myCourierApplication', 'myMerchantApplication', 'notifications',
       'pricingQuote', 'publishRates', 'refresh', 'register', 'registerCourier', 'registerMerchant',
       'trackParcel', 'unreadNotificationsCount', 'updateZone',
     ])
     expect(available.every((name) => ENDPOINTS[name].path.startsWith('/api/auth/')
       || ENDPOINTS[name].path.startsWith('/api/notifications')
       || ENDPOINTS[name].path.startsWith('/api/merchants/')
+      || ENDPOINTS[name].path.startsWith('/api/couriers/')
       || ENDPOINTS[name].path === '/api/users/me'
       || ENDPOINTS[name].path === '/api/admin/users'
       || ENDPOINTS[name].path.startsWith('/api/admin/users/')

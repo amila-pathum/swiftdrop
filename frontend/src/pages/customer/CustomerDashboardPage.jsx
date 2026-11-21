@@ -106,6 +106,8 @@ function formatDate(value) {
   return `${day} ${month} ${year}`
 }
 
+const RECENT_COUNT = 5
+
 function formatSubtitle(parcel) {
   const receiver = parcel.receiverName ? parcel.receiverName.trim() : ''
   const destination = parcel.deliveryAddress ? parcel.deliveryAddress.trim() : ''
@@ -130,29 +132,37 @@ function formatSubtitle(parcel) {
 export default function CustomerDashboardPage() {
   const { user } = useAuth()
   const [parcels, setParcels] = useState([])
+  const [summary, setSummary] = useState({ total: 0, byStatus: {} })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
   const loadData = useCallback(() => {
-    let ignore = false
+    const controller = new AbortController()
     setLoading(true)
     setError(null)
 
-    parcelService
-      .getMyParcels()
-      .then((data) => {
-        if (!ignore) {
-          const list = Array.isArray(data)
-            ? data
-            : Array.isArray(data?.content)
-              ? data.content
-              : []
-          setParcels(list)
-          setLoading(false)
-        }
+    // Counts come from the server so they cover every parcel, not just the
+    // few recent ones listed below.
+    Promise.all([
+      parcelService.getMyParcelSummary(controller.signal),
+      parcelService.getMyParcels(0, RECENT_COUNT, controller.signal),
+    ])
+      .then(([counts, data]) => {
+        if (controller.signal.aborted) return
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data?.content)
+            ? data.content
+            : []
+        setSummary({
+          total: Number(counts?.total) || 0,
+          byStatus: counts?.byStatus ?? {},
+        })
+        setParcels(list)
+        setLoading(false)
       })
       .catch((err) => {
-        if (!ignore && err?.name !== 'AbortError') {
+        if (!controller.signal.aborted && err?.name !== 'AbortError') {
           setError(
             err?.message ||
             'Unable to load your deliveries. Please check your connection and try again.'
@@ -161,40 +171,25 @@ export default function CustomerDashboardPage() {
         }
       })
 
-    return () => {
-      ignore = true
-    }
+    return () => controller.abort()
   }, [])
 
   useEffect(() => {
     return loadData()
   }, [loadData])
 
-  // Aggregate statistics computed from real parcel data
   const stats = useMemo(() => {
-    const total = parcels.length
-    let active = 0
-    let delivered = 0
-    let pending = 0
-
-    for (const p of parcels) {
-      const s = p.status
-      if (s === 'DELIVERED') {
-        delivered += 1
-      } else if (['ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY'].includes(s)) {
-        active += 1
-      } else if (s === 'CREATED') {
-        pending += 1
-      }
+    const count = (status) => Number(summary.byStatus?.[status]) || 0
+    return {
+      total: summary.total,
+      active: count('PICKED_UP') + count('IN_TRANSIT') + count('OUT_FOR_DELIVERY'),
+      delivered: count('DELIVERED'),
+      pending: count('CREATED'),
     }
+  }, [summary])
 
-    return { total, active, delivered, pending }
-  }, [parcels])
-
-  // Latest 5 parcels for the Recent Deliveries section
-  const recentParcels = useMemo(() => {
-    return parcels.slice(0, 5)
-  }, [parcels])
+  // Latest parcels for the Recent Deliveries section
+  const recentParcels = parcels
 
   return (
     <div className="customer-dashboard-container">
@@ -269,7 +264,7 @@ export default function CustomerDashboardPage() {
             <Button onClick={loadData}>Try again</Button>
           </div>
         </div>
-      ) : parcels.length === 0 ? (
+      ) : summary.total === 0 ? (
         /* Empty State */
         <>
           {/* Tracking Search Card */}

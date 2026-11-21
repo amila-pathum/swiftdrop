@@ -96,7 +96,7 @@ export const ENDPOINTS = Object.freeze({
     path: '/api/admin/users',
     available: true,
     auth: true,
-    // ADMIN only. Body: { name, email, password, role: "DISPATCHER" }
+    // ADMIN only. Body: { name, email, password, role: "DISPATCHER" | "ADMIN" }
     // -> 201 { id, name, email, role, status, createdAt }.
   },
   listAdminUsers: {
@@ -114,14 +114,6 @@ export const ENDPOINTS = Object.freeze({
     available: true,
     auth: true,
     // ADMIN only. -> UserResponse
-  },
-  changeUserRole: {
-    method: 'PATCH',
-    path: '/api/admin/users/:id/role',
-    available: true,
-    auth: true,
-    // ADMIN only. Body: { role: "CUSTOMER"|"MERCHANT"|"COURIER"|"DISPATCHER"|"ADMIN" }
-    // -> Updated UserResponse. Admin cannot change their own role (403).
   },
   changeUserStatus: {
     method: 'PATCH',
@@ -156,23 +148,20 @@ export const ENDPOINTS = Object.freeze({
   courierApplication: {
     method: 'POST',
     path: '/api/couriers/applications',
-    available: false,
+    available: true,
     auth: true,
-    // PLANNED (Courier Service). Called with the new courier's own token.
-    // Body: { vehicleType, vehicleRegistrationNumber, preferredArea }
-    // -> 201 { id, status: "PENDING", submittedAt }. 409 if already applied.
-    //
-    // Permission contract: the caller has authority APPLICANT_COURIER (pending)
-    // or ROLE_COURIER (active). Use:
-    //   @PreAuthorize("hasAnyAuthority('APPLICANT_COURIER','ROLE_COURIER')")
-    // Never read the raw JWT "role" claim to authorize this endpoint.
+    // Courier Service. Called with the new courier's own token (APPLICANT_COURIER
+    // while pending, ROLE_COURIER once active).
+    // Body: { name, phone, vehicleType, vehicleRegistrationNumber, preferredArea }
+    // -> 201 { id, status: "PENDING", submittedAt, ... }. 409 if already applied.
+    // An administrator approves or rejects it; admins never create courier accounts.
   },
   myCourierApplication: {
     method: 'GET',
     path: '/api/couriers/me/application',
-    available: false,
+    available: true,
     auth: true,
-    // PLANNED (Courier Service). Requires APPLICANT_COURIER or ROLE_COURIER.
+    // Courier Service. Requires APPLICANT_COURIER or ROLE_COURIER.
     // -> { status, submittedAt, reviewedAt, reviewNote }. 404 if none submitted.
   },
 
@@ -190,9 +179,9 @@ export const ENDPOINTS = Object.freeze({
     method: 'GET',
     path: '/api/parcels/track/:trackingNumber',
     available: true,
-    // Public, no token. -> { trackingNumber, status, createdAt, estimatedDeliveryDate,
-    //   origin, destination, trackingHistory: [{ status, description, location, timestamp }] }.
-    // Unsupported ETA/location/description fields are null; invalid or unknown -> 404.
+    // Public, no token. -> { trackingNumber, status, createdAt, deliveryCity,
+    //   trackingHistory: [{ status, timestamp }] }. deliveryCity is a district name or null.
+    // Invalid or unknown -> 404.
   },
 
   // ------------------------------------------------------------ Notification

@@ -8,6 +8,7 @@ import { useAuth } from './context/AuthContext'
 import AdminDashboardPage from './pages/admin/AdminDashboardPage'
 import AdminUserManagementPage from './pages/admin/AdminUserManagementPage'
 import MerchantApprovalsPage from './pages/admin/MerchantApprovalsPage'
+import CourierApprovalsPage from './pages/admin/CourierApprovalsPage'
 import ZoneManagementPage from './pages/admin/ZoneManagementPage'
 import PricingPage from './pages/admin/PricingPage'
 import ApplicationStatusPage from './pages/application/ApplicationStatusPage'
@@ -155,6 +156,7 @@ function App() {
         <Route element={<AppLayout />}>
           <Route path="/admin/users" element={<AdminUserManagementPage />} />
           <Route path="/admin/merchant-approvals" element={<MerchantApprovalsPage />} />
+          <Route path="/admin/courier-approvals" element={<CourierApprovalsPage />} />
           <Route path="/admin/approvals" element={<Navigate to="/admin/merchant-approvals" replace />} />
           <Route path="/admin/zones" element={<ZoneManagementPage />} />
           <Route path="/admin/pricing" element={<PricingPage />} />

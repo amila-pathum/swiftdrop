@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Parcel Delivery Snapshot",
+  "description": "Published by parcel-service on routing key parcel.delivery-snapshot.v1 when a courier is assigned (PATCH /api/parcels/{id}/courier). Carries the delivery details the courier needs; courier-service stores them in its own read model (courier.delivery-events queue). Sent only for assigned parcels so receiver contact details reach courier-service only when a courier will deliver the parcel.",
+  "type": "object",
+  "required": ["eventId", "eventType", "occurredAt", "parcelId", "trackingNumber", "pickupAddress", "deliveryAddress", "receiverName", "receiverPhone", "weight", "size"],
+  "properties": {
+    "eventId": { "type": "string", "format": "uuid" },
+    "eventType": { "const": "ParcelDeliverySnapshot" },
+    "occurredAt": { "type": "string", "format": "date-time" },
+    "parcelId": { "type": "string", "format": "uuid" },
+    "trackingNumber": { "type": "string", "maxLength": 40 },
+    "pickupAddress": { "type": "string" },
+    "deliveryAddress": { "type": "string" },
+    "receiverName": { "type": "string" },
+    "receiverPhone": { "type": "string" },
+    "weight": { "type": "number", "exclusiveMinimum": 0 },
+    "size": { "type": "string" },
+    "merchantUserId": { "type": ["integer", "null"], "minimum": 1, "description": "Identity user id of the merchant that owns the parcel; null for customer parcels." }
+  }
+}

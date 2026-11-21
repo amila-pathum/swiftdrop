@@ -52,6 +52,17 @@ describe('courier delivery detail', () => {
     expect(stages[1]).toHaveAttribute('aria-current', 'step')
     expect(stages[2]).not.toHaveClass('is-reached')
   })
+  it('shortens Out for delivery to Out in the history list only', () => {
+    const data = fixture()
+    data.parcel.status = 'OUT_FOR_DELIVERY'
+    data.parcel.history.push({ id: 'h3', status: 'OUT_FOR_DELIVERY', recordedAt: '2026-11-14T09:00:00Z', attemptNo: 1, actorRole: 'COURIER' })
+    useCourierDelivery.mockReturnValue({ data, loading: false, error: null, reload: vi.fn() })
+    show()
+    const history = within(screen.getByRole('list', { name: 'Delivery history' })).getAllByRole('listitem')
+    expect(within(history[0]).getByText('Out')).toBeInTheDocument()
+    expect(within(history[0]).queryByText('Out for delivery')).not.toBeInTheDocument()
+    expect(within(screen.getByRole('list', { name: 'Delivery progress' })).getByText('Out for delivery')).toBeInTheDocument()
+  })
   it('opens the existing confirmation form from the full-width bottom action', () => {
     show()
     expect(screen.queryByText('Delivery confirmation form')).not.toBeInTheDocument()

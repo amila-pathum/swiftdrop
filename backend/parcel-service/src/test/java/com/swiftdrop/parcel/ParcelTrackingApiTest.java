@@ -32,11 +32,15 @@ class ParcelTrackingApiTest {
     @Autowired JdbcTemplate jdbc;
 
     Parcel parcel() {
+        return parcel("12 Private Lane, Flat 4, Kandy");
+    }
+
+    Parcel parcel(String deliveryAddress) {
         Parcel p = new Parcel();
         p.setTrackingNumber("SD" + UUID.randomUUID().toString().replace("-", "").toUpperCase());
         p.setSenderId(System.nanoTime()); p.setCreatedBy(p.getSenderId());
         p.setReceiverName("Private recipient"); p.setReceiverPhone("0771234567");
-        p.setPickupAddress("Private pickup address"); p.setDeliveryAddress("Private delivery address");
+        p.setPickupAddress("Private pickup address"); p.setDeliveryAddress(deliveryAddress);
         p.setWeight(BigDecimal.ONE); p.setCharge(BigDecimal.TEN);
         p.setSize("SMALL"); p.setParcelType("STANDARD"); p.setStatus(ParcelStatus.IN_TRANSIT);
         return parcels.saveAndFlush(p);
@@ -57,7 +61,7 @@ class ParcelTrackingApiTest {
             .andExpect(jsonPath("$.trackingNumber").value(p.getTrackingNumber()))
             .andExpect(jsonPath("$.status").value("IN_TRANSIT"))
             .andExpect(jsonPath("$.createdAt").isNotEmpty())
-            .andExpect(jsonPath("$.estimatedDeliveryDate").value(org.hamcrest.Matchers.nullValue()))
+            .andExpect(jsonPath("$.deliveryCity").value("Kandy"))
             .andExpect(jsonPath("$.trackingHistory.length()").value(2))
             .andExpect(jsonPath("$.trackingHistory[0].status").value("CREATED"))
             .andExpect(jsonPath("$.trackingHistory[1].status").value("PICKED_UP"))
@@ -65,10 +69,20 @@ class ParcelTrackingApiTest {
             .andReturn().getResponse().getContentAsString();
         var json = new tools.jackson.databind.ObjectMapper().readTree(body);
         assertThat(json.propertyNames()).containsExactlyInAnyOrder("trackingNumber", "status", "createdAt",
-            "estimatedDeliveryDate", "origin", "destination", "trackingHistory");
+            "deliveryCity", "trackingHistory");
         assertThat(json.get("trackingHistory").get(0).propertyNames())
-            .containsExactlyInAnyOrder("status", "description", "location", "timestamp");
-        assertThat(body).doesNotContain("Private", "0771234567", p.getId().toString(), p.getSenderId().toString());
+            .containsExactlyInAnyOrder("status", "timestamp");
+        assertThat(body).doesNotContain("Private", "Flat 4", "0771234567", p.getId().toString(),
+            p.getSenderId().toString());
+    }
+
+    @Test void addressWithoutAKnownDistrictGivesNoCity() throws Exception {
+        Parcel p = parcel("Private delivery address, Somewhere Private");
+        String body = mvc.perform(get("/api/parcels/track/" + p.getTrackingNumber()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.deliveryCity").value(org.hamcrest.Matchers.nullValue()))
+            .andReturn().getResponse().getContentAsString();
+        assertThat(body).doesNotContain("Private", "Somewhere");
     }
 
     @Test void emptyHistoryIsNotFabricated() throws Exception {

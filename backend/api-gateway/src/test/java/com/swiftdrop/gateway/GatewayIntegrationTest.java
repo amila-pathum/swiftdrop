@@ -1,7 +1,10 @@
 package com.swiftdrop.gateway;
 
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.security.Keys;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.MethodOrderer;
 import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
@@ -21,6 +24,10 @@ import reactor.core.publisher.Mono;
 import reactor.netty.DisposableServer;
 import reactor.netty.http.server.HttpServer;
 
+import javax.crypto.SecretKey;
+import java.time.Instant;
+import java.util.Base64;
+import java.util.Date;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -29,10 +36,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 @AutoConfigureWebTestClient
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class GatewayIntegrationTest {
+    private static final byte[] KEY_BYTES =
+        "swiftdrop-gateway-test-secret-0123456789abcdef".getBytes();
+    private static final String JWT_SECRET = Base64.getEncoder().encodeToString(KEY_BYTES);
+    private static final SecretKey KEY = Keys.hmacShaKeyFor(KEY_BYTES);
+    private static final SecretKey OTHER_KEY =
+        Keys.hmacShaKeyFor("a-completely-different-secret-0123456789abcdef".getBytes());
+
     private static final AtomicReference<String> path = new AtomicReference<>();
     private static final AtomicReference<String> method = new AtomicReference<>();
     private static final AtomicReference<String> authorization = new AtomicReference<>();
     private static final AtomicReference<String> cookie = new AtomicReference<>();
+    private static final AtomicReference<String> userId = new AtomicReference<>();
+    private static final AtomicReference<String> userRole = new AtomicReference<>();
+    private static final AtomicReference<String> userStatus = new AtomicReference<>();
     private static DisposableServer upstream;
 
     @Autowired
@@ -45,6 +62,9 @@ class GatewayIntegrationTest {
             method.set(request.method().name());
             authorization.set(request.requestHeaders().get(HttpHeaders.AUTHORIZATION));
             cookie.set(request.requestHeaders().get(HttpHeaders.COOKIE));
+            userId.set(request.requestHeaders().get("X-User-Id"));
+            userRole.set(request.requestHeaders().get("X-User-Role"));
+            userStatus.set(request.requestHeaders().get("X-User-Status"));
             response.header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE);
             response.header(HttpHeaders.CONNECTION, "close");
 
@@ -79,13 +99,35 @@ class GatewayIntegrationTest {
         }
     }
 
+    @BeforeEach
+    void resetCapturedRequest() {
+        path.set(null);
+        userId.set(null);
+        userRole.set(null);
+        userStatus.set(null);
+    }
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
-        registry.add("IDENTITY_SERVICE_URL", () -> "http://localhost:" + upstream.port());
-        for (String service : new String[] {"PARCEL", "MERCHANT", "COURIER", "DISPATCH", "PRICING"}) {
+        for (String service : new String[] {"IDENTITY", "PARCEL", "MERCHANT", "COURIER",
+                "DISPATCH", "PRICING", "NOTIFICATION", "AI"}) {
             registry.add(service + "_SERVICE_URL", () -> "http://localhost:" + upstream.port());
         }
         registry.add("FRONTEND_ORIGIN", () -> "http://localhost:3000");
+        registry.add("JWT_SECRET", () -> JWT_SECRET);
+    }
+
+    private static String token(long id, String role, String status) {
+        Instant now = Instant.now();
+        return Jwts.builder().subject(Long.toString(id))
+            .claim("email", "user" + id + "@example.com")
+            .claim("role", role).claim("status", status).claim("ver", 0)
+            .issuedAt(Date.from(now)).expiration(Date.from(now.plusSeconds(600)))
+            .signWith(KEY).compact();
+    }
+
+    private static String bearer(long id, String role) {
+        return "Bearer " + token(id, role, "ACTIVE");
     }
 
     @Test
@@ -120,11 +162,12 @@ class GatewayIntegrationTest {
     @Test
     @Order(4)
     void authorizationHeaderAndUnauthorizedResponseArePreserved() {
+        String header = bearer(7, "CUSTOMER");
         client.get().uri("/api/users/me")
-            .header(HttpHeaders.AUTHORIZATION, "Bearer test-token").exchange()
+            .header(HttpHeaders.AUTHORIZATION, header).exchange()
             .expectStatus().isUnauthorized()
             .expectBody().jsonPath("$.error").isEqualTo("Authentication is required");
-        assertThat(authorization.get()).isEqualTo("Bearer test-token");
+        assertThat(authorization.get()).isEqualTo(header);
     }
 
     @Test
@@ -140,10 +183,10 @@ class GatewayIntegrationTest {
     @Test
     @Order(6)
     void corsPreflightReturnsConfiguredHeaders() {
-        client.options().uri("/api/auth/login")
+        client.options().uri("/api/parcels")
             .header(HttpHeaders.ORIGIN, "http://localhost:3000")
             .header(HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD, "POST")
-            .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "authorization,content-type")
+            .header(HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS, "authorization,content-type,x-api-key")
             .exchange()
             .expectStatus().isOk()
             .expectHeader().valueEquals(HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN,
@@ -151,7 +194,7 @@ class GatewayIntegrationTest {
             .expectHeader().value(HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS,
                 value -> assertThat(value).contains("POST"))
             .expectHeader().value(HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS,
-                value -> assertThat(value.toLowerCase()).contains("authorization"));
+                value -> assertThat(value.toLowerCase()).contains("authorization", "x-api-key"));
     }
 
     @Test
@@ -191,7 +234,6 @@ class GatewayIntegrationTest {
     @Test
     @Order(10)
     void otherOAuthPathsAreNotRouted() {
-        path.set(null);
         client.get().uri("/oauth2/authorization/github").exchange()
             .expectStatus().value(status -> assertThat(status).isGreaterThanOrEqualTo(400));
         assertThat(path.get()).isNull();
@@ -200,11 +242,7 @@ class GatewayIntegrationTest {
     @ParameterizedTest
     @Order(11)
     @ValueSource(strings = {
-        "/api/auth/register/merchant",
-        "/api/auth/register/courier",
         "/api/auth/logout",
-        "/api/auth/password-reset/request",
-        "/api/auth/password-reset/confirm",
         "/api/users/me/change-password",
         "/api/admin/users",
         "/api/admin/users/42/status",
@@ -216,14 +254,38 @@ class GatewayIntegrationTest {
         "/api/dispatch/zones",
         "/api/zones",
         "/api/zones/00000000-0000-0000-0000-000000000001/disable",
-        "/api/pricing/quotes"
+        "/api/pricing/quotes",
+        "/api/notifications/read-all",
+        "/api/ai/chat"
     })
-    void serviceRoutesPreservePathAndMethod(String requestPath) {
+    void protectedServiceRoutesPreservePathMethodAndIdentity(String requestPath) {
         client.post().uri(requestPath)
+            .header(HttpHeaders.AUTHORIZATION, bearer(1, "ADMIN"))
             .contentType(MediaType.APPLICATION_JSON).bodyValue("{}").exchange()
             .expectStatus().isOk();
         assertThat(path.get()).isEqualTo(requestPath);
         assertThat(method.get()).isEqualTo("POST");
+        assertThat(userId.get()).isEqualTo("1");
+        assertThat(userRole.get()).isEqualTo("ADMIN");
+        assertThat(userStatus.get()).isEqualTo("ACTIVE");
+    }
+
+    @ParameterizedTest
+    @Order(11)
+    @ValueSource(strings = {
+        "/api/auth/register/merchant",
+        "/api/auth/register/courier",
+        "/api/auth/refresh",
+        "/api/auth/password-reset/request",
+        "/api/auth/password-reset/confirm",
+        "/api/merchants/integration/orders"
+    })
+    void publicPostRoutesPassWithoutToken(String requestPath) {
+        client.post().uri(requestPath)
+            .contentType(MediaType.APPLICATION_JSON).bodyValue("{}").exchange()
+            .expectStatus().is2xxSuccessful();
+        assertThat(path.get()).isEqualTo(requestPath);
+        assertThat(userId.get()).isNull();
     }
 
     @Test
@@ -238,10 +300,145 @@ class GatewayIntegrationTest {
 
     @Test
     @Order(12)
-    void notificationServiceIsNotExposed() {
-        path.set(null);
-        client.get().uri("/api/notifications/preferences").exchange()
-            .expectStatus().value(status -> assertThat(status).isGreaterThanOrEqualTo(400));
+    void publicParcelStreamIsForwardedWithoutAuthorization() {
+        client.get().uri("/api/notifications/parcels/SD-123456/stream").exchange()
+            .expectStatus().isOk();
+        assertThat(path.get()).isEqualTo("/api/notifications/parcels/SD-123456/stream");
+    }
+
+    @ParameterizedTest
+    @Order(12)
+    @ValueSource(strings = {"/api/parcels/my", "/api/users/me", "/api/admin/users",
+        "/api/dispatch/couriers", "/api/notifications", "/api/ai/chat"})
+    void protectedRouteWithoutTokenIsRejected(String requestPath) {
+        client.get().uri(requestPath).exchange()
+            .expectStatus().isUnauthorized()
+            .expectHeader().valueEquals(HttpHeaders.WWW_AUTHENTICATE, "Bearer")
+            .expectBody().jsonPath("$.error").isEqualTo("Authentication is required");
+        assertThat(path.get()).isNull();
+    }
+
+    @Test
+    @Order(12)
+    void tokenWithWrongSignatureIsRejected() {
+        Instant now = Instant.now();
+        String forged = Jwts.builder().subject("1").claim("role", "ADMIN").claim("status", "ACTIVE")
+            .issuedAt(Date.from(now)).expiration(Date.from(now.plusSeconds(600)))
+            .signWith(OTHER_KEY).compact();
+        client.get().uri("/api/parcels/my")
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + forged).exchange()
+            .expectStatus().isUnauthorized()
+            .expectBody().jsonPath("$.error").isEqualTo("Invalid or expired access token");
+        assertThat(path.get()).isNull();
+    }
+
+    @Test
+    @Order(12)
+    void expiredTokenIsRejected() {
+        Instant past = Instant.now().minusSeconds(3600);
+        String expired = Jwts.builder().subject("1").claim("role", "CUSTOMER").claim("status", "ACTIVE")
+            .issuedAt(Date.from(past)).expiration(Date.from(past.plusSeconds(600)))
+            .signWith(KEY).compact();
+        client.get().uri("/api/parcels/my")
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + expired).exchange()
+            .expectStatus().isUnauthorized();
+        assertThat(path.get()).isNull();
+    }
+
+    @Test
+    @Order(12)
+    void serviceTokensAreNotAcceptedAtTheGateway() {
+        Instant now = Instant.now();
+        String serviceToken = Jwts.builder().subject("5").claim("role", "MERCHANT")
+            .claim("status", "ACTIVE").claim("purpose", "MERCHANT_ORDER_INTEGRATION")
+            .audience().add("parcel-service").and()
+            .issuedAt(Date.from(now)).expiration(Date.from(now.plusSeconds(60)))
+            .signWith(KEY).compact();
+        client.post().uri("/api/parcels")
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + serviceToken)
+            .contentType(MediaType.APPLICATION_JSON).bodyValue("{}").exchange()
+            .expectStatus().isUnauthorized();
+        assertThat(path.get()).isNull();
+    }
+
+    @Test
+    @Order(12)
+    void wrongRoleOnAdminRouteIsForbidden() {
+        client.get().uri("/api/admin/users")
+            .header(HttpHeaders.AUTHORIZATION, bearer(7, "CUSTOMER")).exchange()
+            .expectStatus().isForbidden()
+            .expectBody().jsonPath("$.error").isEqualTo("Access is denied");
+        assertThat(path.get()).isNull();
+    }
+
+    @Test
+    @Order(12)
+    void inactiveAdminIsForbiddenOnAdminRoute() {
+        client.get().uri("/api/admin/users")
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + token(9, "ADMIN", "SUSPENDED")).exchange()
+            .expectStatus().isForbidden();
+        assertThat(path.get()).isNull();
+    }
+
+    @Test
+    @Order(12)
+    void forgedIdentityHeadersAreReplacedFromToken() {
+        client.get().uri("/api/parcels/my")
+            .header(HttpHeaders.AUTHORIZATION, bearer(7, "CUSTOMER"))
+            .header("X-User-Id", "1").header("X-User-Role", "ADMIN")
+            .header("X-User-Status", "ACTIVE").exchange()
+            .expectStatus().isOk();
+        assertThat(userId.get()).isEqualTo("7");
+        assertThat(userRole.get()).isEqualTo("CUSTOMER");
+    }
+
+    @Test
+    @Order(12)
+    void forgedIdentityHeadersAreRemovedOnPublicRoutes() {
+        client.get().uri("/api/parcels/track/SD-123456")
+            .header("X-User-Id", "1").header("X-User-Role", "ADMIN").exchange()
+            .expectStatus().isOk();
+        assertThat(userId.get()).isNull();
+        assertThat(userRole.get()).isNull();
+    }
+
+    @Test
+    @Order(12)
+    void pendingAccountsPassWithTheirStatus() {
+        client.get().uri("/api/couriers/me/application")
+            .header(HttpHeaders.AUTHORIZATION, "Bearer " + token(12, "COURIER", "PENDING_APPROVAL"))
+            .exchange()
+            .expectStatus().isOk();
+        assertThat(userRole.get()).isEqualTo("COURIER");
+        assertThat(userStatus.get()).isEqualTo("PENDING_APPROVAL");
+    }
+
+    @Test
+    @Order(12)
+    void notificationStreamAcceptsQueryToken() {
+        client.get().uri("/api/notifications/stream?access_token=" + token(7, "CUSTOMER", "ACTIVE"))
+            .exchange()
+            .expectStatus().isOk();
+        assertThat(path.get()).startsWith("/api/notifications/stream");
+        assertThat(userId.get()).isEqualTo("7");
+    }
+
+    @Test
+    @Order(12)
+    void queryTokenIsIgnoredOutsideTheStream() {
+        client.get().uri("/api/parcels/my?access_token=" + token(7, "CUSTOMER", "ACTIVE"))
+            .exchange()
+            .expectStatus().isUnauthorized();
+        assertThat(path.get()).isNull();
+    }
+
+    @Test
+    @Order(12)
+    void internalEndpointsAreNotRouted() {
+        client.post().uri("/internal/merchant-order-tokens")
+            .header(HttpHeaders.AUTHORIZATION, bearer(1, "ADMIN"))
+            .contentType(MediaType.APPLICATION_JSON).bodyValue("{}").exchange()
+            .expectStatus().isNotFound();
         assertThat(path.get()).isNull();
     }
 

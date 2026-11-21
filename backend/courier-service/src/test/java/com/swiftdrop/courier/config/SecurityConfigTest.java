@@ -59,6 +59,8 @@ class SecurityConfigTest {
     @MockitoBean CourierRepository courierRepository;
     @MockitoBean com.swiftdrop.courier.repository.CourierProfileRepository courierProfileRepository;
     @MockitoBean org.springframework.jdbc.core.JdbcTemplate jdbc;
+    // The application flow needs JPA, which this security-only context leaves out.
+    @MockitoBean com.swiftdrop.courier.application.CourierApplicationService courierApplications;
 
     /** Test-only endpoint showing the convention for a protected, role-restricted endpoint. */
     @TestConfiguration

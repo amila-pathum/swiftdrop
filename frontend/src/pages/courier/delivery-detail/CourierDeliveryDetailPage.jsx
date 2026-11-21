@@ -14,6 +14,8 @@ import './courierDeliveryDetail.css'
 
 const PROGRESS = ['CREATED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED']
 const ACTIONS = { CREATED: 'Mark Picked Up', PICKED_UP: 'Mark In Transit', IN_TRANSIT: 'Mark Out for Delivery', OUT_FOR_DELIVERY: 'Deliver or report failure' }
+// Shorter badge text where the History column is narrow; other places keep the full label.
+const HISTORY_LABELS = { OUT_FOR_DELIVERY: 'Out' }
 const when = (value) => value ? dateLabel(value, { dateStyle: 'medium', timeStyle: 'short' }) : 'Time not recorded'
 const number = (value) => new Intl.NumberFormat('en-GB', { maximumFractionDigits: 3 }).format(Number(value))
 const roleLabel = (role) => role ? role.charAt(0).toUpperCase() + role.slice(1).toLowerCase() : 'Role not recorded'
@@ -92,7 +94,7 @@ export default function CourierDeliveryDetailPage() {
       <Panel title="History">{history.length ? <ol className="detail-history" aria-label="Delivery history">
         {history.map((point) => <li key={point.id}>
           <time dateTime={point.recordedAt}>{when(point.recordedAt)}</time>
-          <DeliveryStatusBadge status={point.status} />
+          <DeliveryStatusBadge status={point.status} label={HISTORY_LABELS[point.status]} />
           <span className="detail-history-location">{point.locationDescription || 'Location not recorded'}</span>
           <span className="detail-history-actor">{point.attemptNo != null ? `Attempt ${point.attemptNo}` : 'Attempt not recorded'} {'\u00b7'} by {roleLabel(point.actorRole)}</span>
         </li>)}

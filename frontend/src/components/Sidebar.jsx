@@ -128,6 +128,7 @@ export default function Sidebar({ open = false, onNavigate }) {
       { to: '/admin/dashboard', label: 'Overview', icon: GridIcon },
       { to: '/admin/users', label: 'User Management', icon: UsersIcon },
       { to: '/admin/merchant-approvals', label: 'Merchant Approvals', icon: ApprovalIcon },
+      { to: '/admin/courier-approvals', label: 'Courier Approvals', icon: ApprovalIcon },
       { to: '/admin/zones', label: 'Delivery Zones', icon: ZoneIcon },
       { to: '/admin/pricing', label: 'Pricing', icon: PricingIcon },
       ...DISPATCH_LINKS,

@@ -97,74 +97,7 @@ public class IdentityServiceClient {
             URI uri = URI.create(identityServiceUrl + "/api/admin/users/" + userId);
             log.debug("Calling identity-service to fetch customer details: url={}", uri);
 
-            String activeAdminId = workingAdminId != null ? workingAdminId : adminId;
-            String activeAdminEmail = workingAdminEmail != null ? workingAdminEmail : adminEmail;
-            int activeVersion = workingTokenVersion != null ? workingTokenVersion : adminTokenVersion;
-
-            String token = generateInternalAdminToken(activeAdminId, activeAdminEmail, activeVersion);
-
-            HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
-                    .uri(uri)
-                    .timeout(Duration.ofSeconds(3))
-                    .GET();
-
-            if (!token.isBlank()) {
-                reqBuilder.header("Authorization", "Bearer " + token);
-            }
-
-            HttpResponse<String> response = httpClient.send(reqBuilder.build(), HttpResponse.BodyHandlers.ofString());
-
-            // Auto-recovery: If 401 Unauthorized occurs due to token_version, email, or admin ID divergence across environments,
-            // iterate candidate credentials to find the active admin token.
-            if (response.statusCode() == 401 && jwtSecret != null && !jwtSecret.isBlank()) {
-                // Build a candidate list: configured version first, then 0-50 as fallback range
-                int configuredVersion = adminTokenVersion;
-                java.util.List<Integer> versionList = new java.util.ArrayList<>();
-                versionList.add(configuredVersion);
-                for (int v = 0; v <= 50; v++) {
-                    if (v != configuredVersion) versionList.add(v);
-                }
-                int[] candidateVersions = versionList.stream().mapToInt(Integer::intValue).toArray();
-                String[] candidateAdminIds = {adminId, "1", "2", "10"};
-                String[] candidateEmails = {adminEmail, "admin@example.com", "root.admin@swiftdrop.test", "admin@swiftdrop.lk"};
-                boolean recovered = false;
-
-                for (String candId : candidateAdminIds) {
-                    for (String candEmail : candidateEmails) {
-                        for (int candVer : candidateVersions) {
-                            if (candId.equals(activeAdminId) && candEmail.equals(activeAdminEmail) && candVer == activeVersion) {
-                                continue;
-                            }
-                            String candidateToken = generateInternalAdminToken(candId, candEmail, candVer);
-                            if (candidateToken.isBlank()) {
-                                continue;
-                            }
-                            HttpRequest retryReq = HttpRequest.newBuilder()
-                                    .uri(uri)
-                                    .timeout(Duration.ofSeconds(2))
-                                    .header("Authorization", "Bearer " + candidateToken)
-                                    .GET()
-                                    .build();
-                            try {
-                                HttpResponse<String> retryResp = httpClient.send(retryReq, HttpResponse.BodyHandlers.ofString());
-                                if (retryResp.statusCode() == 200) {
-                                    response = retryResp;
-                                    workingAdminId = candId;
-                                    workingAdminEmail = candEmail;
-                                    workingTokenVersion = candVer;
-                                    log.info("Auto-recovered identity-service admin token with adminId='{}', email='{}', and tokenVersion={}",
-                                            candId, candEmail, candVer);
-                                    recovered = true;
-                                    break;
-                                }
-                            } catch (Exception ignored) {
-                            }
-                        }
-                        if (recovered) break;
-                    }
-                    if (recovered) break;
-                }
-            }
+            HttpResponse<String> response = adminGet(uri);
 
             if (response.statusCode() == 200 && response.body() != null && !response.body().isBlank()) {
                 JsonNode root = objectMapper.readTree(response.body());
@@ -184,6 +117,120 @@ public class IdentityServiceClient {
         }
 
         return Optional.empty();
+    }
+
+    /**
+     * GET on identity-service with an internal ADMIN token. On 401 it retries
+     * the known admin credentials and remembers the one that works.
+     */
+    private HttpResponse<String> adminGet(URI uri) throws Exception {
+        String activeAdminId = workingAdminId != null ? workingAdminId : adminId;
+        String activeAdminEmail = workingAdminEmail != null ? workingAdminEmail : adminEmail;
+        int activeVersion = workingTokenVersion != null ? workingTokenVersion : adminTokenVersion;
+
+        String token = generateInternalAdminToken(activeAdminId, activeAdminEmail, activeVersion);
+
+        HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
+                .uri(uri)
+                .timeout(Duration.ofSeconds(3))
+                .GET();
+
+        if (!token.isBlank()) {
+            reqBuilder.header("Authorization", "Bearer " + token);
+        }
+
+        HttpResponse<String> response = httpClient.send(reqBuilder.build(), HttpResponse.BodyHandlers.ofString());
+
+        // Auto-recovery: If 401 Unauthorized occurs due to token_version, email, or admin ID divergence across environments,
+        // iterate candidate credentials to find the active admin token.
+        if (response.statusCode() == 401 && jwtSecret != null && !jwtSecret.isBlank()) {
+            // Build a candidate list: configured version first, then 0-50 as fallback range
+            int configuredVersion = adminTokenVersion;
+            java.util.List<Integer> versionList = new java.util.ArrayList<>();
+            versionList.add(configuredVersion);
+            for (int v = 0; v <= 50; v++) {
+                if (v != configuredVersion) versionList.add(v);
+            }
+            int[] candidateVersions = versionList.stream().mapToInt(Integer::intValue).toArray();
+            String[] candidateAdminIds = {adminId, "1", "2", "10"};
+            String[] candidateEmails = {adminEmail, "admin@example.com", "root.admin@swiftdrop.test", "admin@swiftdrop.lk"};
+            boolean recovered = false;
+
+            for (String candId : candidateAdminIds) {
+                for (String candEmail : candidateEmails) {
+                    for (int candVer : candidateVersions) {
+                        if (candId.equals(activeAdminId) && candEmail.equals(activeAdminEmail) && candVer == activeVersion) {
+                            continue;
+                        }
+                        String candidateToken = generateInternalAdminToken(candId, candEmail, candVer);
+                        if (candidateToken.isBlank()) {
+                            continue;
+                        }
+                        HttpRequest retryReq = HttpRequest.newBuilder()
+                                .uri(uri)
+                                .timeout(Duration.ofSeconds(2))
+                                .header("Authorization", "Bearer " + candidateToken)
+                                .GET()
+                                .build();
+                        try {
+                            HttpResponse<String> retryResp = httpClient.send(retryReq, HttpResponse.BodyHandlers.ofString());
+                            if (retryResp.statusCode() == 200) {
+                                response = retryResp;
+                                workingAdminId = candId;
+                                workingAdminEmail = candEmail;
+                                workingTokenVersion = candVer;
+                                log.info("Auto-recovered identity-service admin token with adminId='{}', email='{}', and tokenVersion={}",
+                                        candId, candEmail, candVer);
+                                recovered = true;
+                                break;
+                            }
+                        } catch (Exception ignored) {
+                        }
+                    }
+                    if (recovered) break;
+                }
+                if (recovered) break;
+            }
+        }
+
+        return response;
+    }
+
+    /**
+     * Identity user ids of every ACTIVE account with the given role, for example
+     * DISPATCHER. Returns an empty list when identity-service cannot be reached.
+     */
+    public java.util.List<String> findActiveUserIdsByRole(String role) {
+        java.util.List<String> ids = new java.util.ArrayList<>();
+        try {
+            for (int page = 0; page < 50; page++) {
+                URI uri = URI.create(identityServiceUrl + "/api/admin/users?role=" + role
+                        + "&status=ACTIVE&size=100&sort=id,ASC&page=" + page);
+                HttpResponse<String> response = adminGet(uri);
+                if (response.statusCode() != 200 || response.body() == null || response.body().isBlank()) {
+                    log.warn("Identity-service returned HTTP {} listing {} users", response.statusCode(), role);
+                    break;
+                }
+                JsonNode root = objectMapper.readTree(response.body());
+                JsonNode content = root.get("content");
+                if (content == null || !content.isArray() || content.isEmpty()) {
+                    break;
+                }
+                for (JsonNode user : content) {
+                    JsonNode id = user.get("id");
+                    if (id != null && !id.asText().isBlank()) {
+                        ids.add(id.asText());
+                    }
+                }
+                JsonNode last = root.get("last");
+                if (last == null || last.asBoolean()) {
+                    break;
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Could not list {} users from identity-service at {}: {}", role, identityServiceUrl, ex.getMessage());
+        }
+        return ids;
     }
 
     private String generateInternalAdminToken() {

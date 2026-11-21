@@ -79,14 +79,37 @@ paths:
     get:
       tags: [Customer parcels]
       summary: List the authenticated customer's parcels
-      description: Requires role CUSTOMER. Returns only parcels owned by the numeric JWT subject, newest first.
+      description: |
+        Requires role CUSTOMER. Returns only parcels owned by the numeric JWT
+        subject, newest first. `status` optionally narrows the list to one status;
+        paging totals then describe the filtered list.
       security: [{bearerAuth: []}]
       parameters:
+        - name: status
+          in: query
+          required: false
+          schema: {$ref: '#/components/schemas/ParcelStatus'}
         - $ref: '#/components/parameters/page'
         - $ref: '#/components/parameters/size'
       responses:
         '200': {$ref: '#/components/responses/ParcelPage'}
         '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/parcels/my/summary:
+    get:
+      tags: [Customer parcels]
+      summary: Count the authenticated customer's parcels per status
+      description: |
+        Requires role CUSTOMER. Counts only parcels owned by the numeric JWT
+        subject. Every status is present in `byStatus`, with 0 when there are none.
+      security: [{bearerAuth: []}]
+      responses:
+        '200':
+          description: Parcel counts
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ParcelSummaryResponse'}
         '401': {$ref: '#/components/responses/Unauthorized'}
         '403': {$ref: '#/components/responses/Forbidden'}
   /api/parcels/merchant:
@@ -207,7 +230,11 @@ paths:
     patch:
       tags: [Customer parcels]
       summary: Cancel an owned parcel before pickup
-      description: Requires role CUSTOMER and parcel ownership.
+      description: |
+        Requires role CUSTOMER and parcel ownership (403 otherwise). Only a parcel
+        the lifecycle rules still allow to move to CANCELLED can be cancelled,
+        which today means status CREATED; any other status returns 409.
+        `POST` on the same path behaves identically.
       security: [{bearerAuth: []}]
       parameters:
         - $ref: '#/components/parameters/parcelId'
@@ -226,7 +253,11 @@ paths:
     get:
       tags: [Customer parcels]
       summary: Download a delivered parcel receipt
-      description: Requires role CUSTOMER and parcel ownership.
+      description: |
+        Requires role CUSTOMER and parcel ownership (403 otherwise). The PDF holds
+        the tracking number, pickup and delivery addresses, charge, and the
+        created and delivered dates. Receipts exist only for DELIVERED parcels;
+        any other status returns 400.
       security: [{bearerAuth: []}]
       parameters:
         - $ref: '#/components/parameters/parcelId'
@@ -364,6 +395,16 @@ components:
         weight: {type: number, minimum: 0.001, maximum: 9999999.999, multipleOf: 0.001}
         size: {type: string, enum: [SMALL, MEDIUM, LARGE]}
         parcelType: {type: string, enum: [STANDARD, EXPRESS]}
+    ParcelSummaryResponse:
+      type: object
+      required: [total, byStatus]
+      properties:
+        total: {type: integer, format: int64, minimum: 0}
+        byStatus:
+          type: object
+          description: One entry per ParcelStatus.
+          propertyNames: {$ref: '#/components/schemas/ParcelStatus'}
+          additionalProperties: {type: integer, format: int64, minimum: 0}
     AssignCourierRequest:
       type: object
       additionalProperties: false
@@ -430,24 +471,23 @@ components:
         changedAt: {type: string, format: date-time}
     PublicTrackingResponse:
       type: object
-      required: [trackingNumber, status, createdAt, estimatedDeliveryDate, origin, destination, trackingHistory]
+      required: [trackingNumber, status, createdAt, deliveryCity, trackingHistory]
       properties:
         trackingNumber: {type: string}
         status: {$ref: '#/components/schemas/ParcelStatus'}
         createdAt: {type: string, format: date-time}
-        estimatedDeliveryDate: {type: [string, 'null'], format: date}
-        origin: {type: [string, 'null']}
-        destination: {type: [string, 'null']}
+        deliveryCity:
+          type: [string, 'null']
+          description: Delivery district (one of the 25 supported districts). Never a street address. Null for legacy parcels whose address does not end in a known district.
+          example: Kandy
         trackingHistory:
           type: array
           items: {$ref: '#/components/schemas/PublicTrackingEntry'}
     PublicTrackingEntry:
       type: object
-      required: [status, description, location, timestamp]
+      required: [status, timestamp]
       properties:
         status: {$ref: '#/components/schemas/ParcelStatus'}
-        description: {type: [string, 'null']}
-        location: {type: [string, 'null']}
         timestamp: {type: string, format: date-time}
     DispatchParcelResponse:
       type: object

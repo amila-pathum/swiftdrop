@@ -41,6 +41,11 @@ public interface ParcelRepository extends JpaRepository<Parcel, UUID> {
     List<Parcel> findByStatusOrderByCreatedAtAsc(ParcelStatus status);
 
     Page<Parcel> findBySenderId(Long senderId, Pageable pageable);
+    Page<Parcel> findBySenderIdAndStatus(Long senderId, ParcelStatus status, Pageable pageable);
+
+    /** One row per status the sender has parcels in: [ParcelStatus, Long count]. */
+    @Query("select p.status, count(p) from Parcel p where p.senderId = :senderId group by p.status")
+    List<Object[]> countBySenderIdGroupedByStatus(@Param("senderId") Long senderId);
     Page<Parcel> findByMerchantId(Long merchantId, Pageable pageable);
     Page<Parcel> findByStatus(ParcelStatus status, Pageable pageable);
 }

@@ -1,0 +1,419 @@
+openapi: 3.1.0
+info:
+  title: SwiftDrop Identity API – profile and account administration
+  version: 1.0.0
+  description: |
+    The signed-in user's own profile (`/api/users/me`) and ADMIN-only account
+    administration (`/api/admin/users`). Sign-in, registration, token refresh and
+    password reset by email live under `/api/auth` and are not described here.
+    Paths are the public paths exposed unchanged through the API Gateway.
+
+    Error bodies are always `{"error": "<message>"}`. Messages never contain
+    addresses, phone numbers or other submitted values.
+servers:
+  - url: http://localhost:8080
+    description: API Gateway
+  - url: http://localhost:8081
+    description: Identity Service (local direct access)
+tags:
+  - name: Profile
+  - name: Account administration
+security:
+  - bearerAuth: []
+paths:
+  /api/users/me:
+    get:
+      tags: [Profile]
+      summary: Read the signed-in user's own profile
+      description: |
+        Any signed-in account, including one still PENDING_APPROVAL. The user is
+        always the JWT subject; there is no way to address another user here.
+      responses:
+        '200':
+          description: The caller's profile
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    put:
+      tags: [Profile]
+      summary: Update the signed-in user's name, phone and address
+      description: |
+        Only `name`, `phone` and `address` are read. Any other field in the body
+        (`id`, `email`, `role`, `status`, ...) is ignored, so a user cannot change
+        their own role or status.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/UpdateProfileRequest'}
+      responses:
+        '200':
+          description: The updated profile
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/users/me/change-password:
+    put:
+      tags: [Profile]
+      summary: Change the signed-in user's password
+      description: |
+        Requires the current password. The new password is hashed like every
+        other password. Every earlier access and refresh token stops working;
+        the response carries fresh tokens for this session.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ChangePasswordRequest'}
+      responses:
+        '200':
+          description: Password changed; new tokens for this session
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/LoginResponse'}
+        '400':
+          description: |
+            Invalid data, wrong current password, confirmation mismatch, or the
+            new password equals the current one.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/admin/users:
+    get:
+      tags: [Account administration]
+      summary: List users with search, filters and paging
+      description: Requires role ADMIN. Newest accounts first by default.
+      parameters:
+        - name: search
+          in: query
+          description: Free text matched against name, email and phone. `q` is accepted as an alias.
+          schema: {type: string}
+        - name: name
+          in: query
+          schema: {type: string}
+        - name: email
+          in: query
+          schema: {type: string}
+        - name: phone
+          in: query
+          schema: {type: string}
+        - name: role
+          in: query
+          schema: {$ref: '#/components/schemas/Role'}
+        - name: status
+          in: query
+          schema: {$ref: '#/components/schemas/UserStatus'}
+        - name: page
+          in: query
+          schema: {type: integer, minimum: 0, default: 0}
+        - name: size
+          in: query
+          schema: {type: integer, minimum: 1, default: 10}
+        - name: sort
+          in: query
+          description: Spring Data sort, e.g. `createdAt,DESC`.
+          schema: {type: string, default: 'createdAt,DESC'}
+      responses:
+        '200':
+          description: One page of users
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserPage'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+    post:
+      tags: [Account administration]
+      summary: Create a dispatcher or admin account
+      description: |
+        Requires role ADMIN. The account is ACTIVE immediately. CUSTOMER,
+        MERCHANT and COURIER accounts cannot be created here; they register
+        themselves. A courier's application is then approved or rejected by an
+        administrator in the Courier Service (see `courier-service.yaml`).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/CreateAccountRequest'}
+      responses:
+        '201':
+          description: The created account
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409':
+          description: An account already uses that email address
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/admin/users/{id}:
+    get:
+      tags: [Account administration]
+      summary: View one user
+      description: Requires role ADMIN.
+      parameters:
+        - $ref: '#/components/parameters/userId'
+      responses:
+        '200':
+          description: The user
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/admin/users/{id}/role:
+    patch:
+      tags: [Account administration]
+      summary: Change a user's role
+      description: |
+        Requires role ADMIN. An administrator cannot change their own role.
+        Tokens issued under the old role stop working immediately. `PUT` on the
+        same path behaves identically.
+      parameters:
+        - $ref: '#/components/parameters/userId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ChangeRoleRequest'}
+      responses:
+        '200':
+          description: The updated user
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+    put:
+      tags: [Account administration]
+      summary: Change a user's role (alias of PATCH)
+      parameters:
+        - $ref: '#/components/parameters/userId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ChangeRoleRequest'}
+      responses:
+        '200':
+          description: The updated user
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/admin/users/{id}/status:
+    patch:
+      tags: [Account administration]
+      summary: Enable, suspend or disable an account
+      description: |
+        Requires role ADMIN. An administrator cannot change their own status.
+        PENDING_APPROVAL is only valid for MERCHANT and COURIER accounts. Tokens
+        issued under the old status stop working immediately.
+      parameters:
+        - $ref: '#/components/parameters/userId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ChangeStatusRequest'}
+      responses:
+        '200':
+          description: The updated user
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/admin/users/{id}/activate:
+    post:
+      tags: [Account administration]
+      summary: Activate a PENDING_APPROVAL merchant or courier
+      description: |
+        Requires role ADMIN. Called by the Merchant or Courier Service with the
+        approving administrator's own Authorization header.
+      parameters:
+        - $ref: '#/components/parameters/userId'
+      responses:
+        '200':
+          description: The activated user
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/admin/users/{id}/reject:
+    post:
+      tags: [Account administration]
+      summary: Record that a pending merchant or courier application was rejected
+      description: Requires role ADMIN. The identity account stays PENDING_APPROVAL.
+      parameters:
+        - $ref: '#/components/parameters/userId'
+      responses:
+        '200':
+          description: The unchanged user
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/UserResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/admin/users/{id}/password-reset:
+    post:
+      tags: [Account administration]
+      summary: Issue a one-time password reset token for a user
+      description: |
+        Requires role ADMIN. Not available for ADMIN accounts. The token is
+        returned exactly once; issuing a new one invalidates the earlier one.
+      parameters:
+        - $ref: '#/components/parameters/userId'
+      responses:
+        '201':
+          description: The reset token
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/PasswordResetTokenResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Access token from `POST /api/auth/login`. The subject is the numeric user id.
+  parameters:
+    userId:
+      name: id
+      in: path
+      required: true
+      schema: {type: integer, format: int64, minimum: 1}
+  responses:
+    BadRequest:
+      description: Invalid request data or an operation that is not allowed for this account
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Unauthorized:
+      description: Missing, invalid or expired access token
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Forbidden:
+      description: The caller lacks the required role, or the account is not active
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    NotFound:
+      description: No such user
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+  schemas:
+    Role:
+      type: string
+      enum: [CUSTOMER, MERCHANT, COURIER, DISPATCHER, ADMIN]
+    UserStatus:
+      type: string
+      enum: [ACTIVE, PENDING_APPROVAL, SUSPENDED, DISABLED]
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: {type: string, description: Safe to show to users.}
+    UserResponse:
+      type: object
+      required: [id, name, email, role, status, createdAt]
+      properties:
+        id: {type: integer, format: int64}
+        name: {type: string}
+        email: {type: string, format: email}
+        phone: {type: [string, 'null']}
+        address: {type: [string, 'null']}
+        role: {$ref: '#/components/schemas/Role'}
+        status: {$ref: '#/components/schemas/UserStatus'}
+        createdAt: {type: string, format: date-time}
+    UserPage:
+      type: object
+      properties:
+        content:
+          type: array
+          items: {$ref: '#/components/schemas/UserResponse'}
+        totalElements: {type: integer, format: int64}
+        totalPages: {type: integer}
+        number: {type: integer, description: 0-based page index.}
+        size: {type: integer}
+    UpdateProfileRequest:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        phone: {type: [string, 'null'], maxLength: 30}
+        address: {type: [string, 'null'], maxLength: 500}
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword: {type: string, minLength: 1}
+        newPassword: {type: string, minLength: 8, maxLength: 72}
+        confirmPassword:
+          type: string
+          description: Must equal `newPassword`. `confirmNewPassword` is accepted as an alias.
+        rememberMe: {type: boolean, description: Lifetime of the new refresh token, as at sign-in.}
+    CreateAccountRequest:
+      type: object
+      required: [name, email, password, role]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        email: {type: string, format: email, maxLength: 255}
+        password: {type: string, minLength: 12, maxLength: 72, description: Temporary password.}
+        role:
+          type: string
+          enum: [DISPATCHER, ADMIN]
+    ChangeRoleRequest:
+      type: object
+      required: [role]
+      properties:
+        role: {$ref: '#/components/schemas/Role'}
+    ChangeStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status: {$ref: '#/components/schemas/UserStatus'}
+    LoginResponse:
+      type: object
+      properties:
+        accessToken: {type: string}
+        tokenType: {type: string}
+        expiresIn: {type: integer, format: int64}
+        refreshToken: {type: string}
+        refreshExpiresIn: {type: integer, format: int64}
+        user: {$ref: '#/components/schemas/UserResponse'}
+    PasswordResetTokenResponse:
+      type: object
+      properties:
+        token: {type: string}
+        expiresAt: {type: string, format: date-time}
+        resetUrl: {type: string}

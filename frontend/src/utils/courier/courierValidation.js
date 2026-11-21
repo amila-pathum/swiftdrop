@@ -25,7 +25,7 @@ export function photoError(photo) {
   if (photo.size > 5 * 1024 * 1024) return 'The photo must be 5 MB or smaller'
   return null
 }
-export function validateDelivery(values, status, photo, location) {
+export function validateDelivery(values, status, photo) {
   const errors = {}
   if (status === 'DELIVERED' && !values.recipientName.trim() && !photo) errors.recipientName = 'Enter the recipient name or add a photo'
   if (values.recipientName.length > 150) errors.recipientName = 'Use at most 150 characters'
@@ -33,7 +33,6 @@ export function validateDelivery(values, status, photo, location) {
   if (status === 'FAILED' && values.failureReason === 'OTHER' && !values.note.trim()) errors.note = 'Please explain the failure'
   if (values.note.length > 1000) errors.note = 'Use at most 1,000 characters'
   if (values.locationDescription.length > 500) errors.locationDescription = 'Use at most 500 characters'
-  if (['PICKED_UP', 'DELIVERED', 'FAILED'].includes(status) && !location && !values.locationDescription.trim()) errors.locationDescription = 'Capture your location or describe where this happened'
   if (photoError(photo)) errors.photo = photoError(photo)
   return errors
 }

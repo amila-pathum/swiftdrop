@@ -143,8 +143,7 @@ public class CourierDeliveryService {
     private void validate(DeliveryInput i,ProofStorageService.Photo photo) {
         if((i.latitude()==null)!=(i.longitude()==null))throw CourierException.invalid("Provide both latitude and longitude.");
         if(i.latitude()==null&&(i.accuracyMeters()!=null||i.capturedAt()!=null))throw CourierException.invalid("Coordinates are required with GPS accuracy or capture time.");
-        if((i.status()==DeliveryStatus.PICKED_UP||i.status().terminal())&&i.latitude()==null&&clean(i.locationDescription())==null)
-            throw CourierException.invalid("Record the collection/attempt location using GPS or a location description.");
+        // Location (GPS or description) is optional for every update.
         if(i.status()==DeliveryStatus.DELIVERED&&clean(i.recipientName())==null&&photo==null)throw CourierException.invalid("Delivery requires a recipient name or photo.");
         if(i.status()==DeliveryStatus.FAILED&&i.failureReason()==null)throw CourierException.invalid("Failed delivery requires a reason.");
         if(i.status()!=DeliveryStatus.FAILED&&i.failureReason()!=null)throw CourierException.invalid("Failure reason is allowed only for FAILED.");

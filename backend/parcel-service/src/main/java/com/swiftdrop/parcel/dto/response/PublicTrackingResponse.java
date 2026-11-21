@@ -2,13 +2,14 @@ package com.swiftdrop.parcel.dto.response;
 
 import com.swiftdrop.parcel.entity.ParcelStatus;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.List;
 
-/** Explicit public allowlist; never serialize entities or internal history notes. */
+/**
+ * Public, unauthenticated tracking view. An explicit allowlist: the current
+ * status, the status history (status and time only) and the delivery city
+ * (district). Never names, phone numbers, addresses, internal ids or history notes.
+ */
 public record PublicTrackingResponse(String trackingNumber, ParcelStatus status,
-        Instant createdAt, LocalDate estimatedDeliveryDate, String origin, String destination,
-        List<TrackingEntry> trackingHistory) {
-    public record TrackingEntry(ParcelStatus status, String description, String location,
-                                Instant timestamp) { }
+        Instant createdAt, String deliveryCity, List<TrackingEntry> trackingHistory) {
+    public record TrackingEntry(ParcelStatus status, Instant timestamp) { }
 }

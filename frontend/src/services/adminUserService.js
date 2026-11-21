@@ -2,11 +2,25 @@ import { callEndpoint } from './apiClient'
 import { buildPath } from './endpoints'
 import { ENDPOINTS } from './endpoints'
 
+/** Roles an administrator may create. Customers, merchants and couriers register themselves. */
+export const STAFF_ROLES = Object.freeze(['DISPATCHER', 'ADMIN'])
+
+/**
+ * Creates one ACTIVE dispatcher or administrator through the ADMIN-only
+ * Identity API. Any other role is refused here, before a request is sent.
+ */
+export function createStaffAccount({ name, email, password, role }) {
+  if (!STAFF_ROLES.includes(role)) {
+    return Promise.reject(new Error('Only dispatcher and admin accounts can be created.'))
+  }
+  return callEndpoint(ENDPOINTS.createStaffUser, {
+    body: { name: name.trim(), email: email.trim(), password, role },
+  })
+}
+
 /** Creates one ACTIVE dispatcher through the ADMIN-only Identity API. */
 export function createDispatcher({ name, email, password }) {
-  return callEndpoint(ENDPOINTS.createStaffUser, {
-    body: { name: name.trim(), email: email.trim(), password, role: 'DISPATCHER' },
-  })
+  return createStaffAccount({ name, email, password, role: 'DISPATCHER' })
 }
 
 /**
@@ -31,18 +45,6 @@ export function listUsers({ search, role, status, page = 0, size = 10 } = {}, si
 
   const path = `${buildPath(ENDPOINTS.listAdminUsers.path)}?${qp.toString()}`
   return callEndpoint({ ...ENDPOINTS.listAdminUsers, path }, { signal })
-}
-
-/**
- * Changes the role of a user.
- * @param {number} userId
- * @param {string} role  e.g. 'DISPATCHER', 'CUSTOMER'
- */
-export function changeUserRole(userId, role) {
-  return callEndpoint(ENDPOINTS.changeUserRole, {
-    params: { id: userId },
-    body: { role },
-  })
 }
 
 /**
