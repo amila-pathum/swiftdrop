@@ -7,6 +7,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClientRequestException;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
 
@@ -26,11 +27,22 @@ public class UpstreamUnavailableExceptionHandler implements ErrorWebExceptionHan
             return Mono.error(exception);
         }
         boolean unavailable = isConnectionFailure(exception);
-        response.setStatusCode(unavailable
-            ? HttpStatus.BAD_GATEWAY : HttpStatus.INTERNAL_SERVER_ERROR);
         response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
-        byte[] body = unavailable ? RESPONSE_BODY
-            : "{\"error\":\"Gateway request failed\"}".getBytes(StandardCharsets.UTF_8);
+        byte[] body;
+        if (unavailable) {
+            response.setStatusCode(HttpStatus.BAD_GATEWAY);
+            body = RESPONSE_BODY;
+        } else if (exception instanceof ResponseStatusException statusException
+                && statusException.getStatusCode().is4xxClientError()) {
+            // For example 404 for a path no route matches: keep the status, hide details.
+            response.setStatusCode(statusException.getStatusCode());
+            body = (statusException.getStatusCode().value() == 404
+                ? "{\"error\":\"Not found\"}" : "{\"error\":\"Bad request\"}")
+                .getBytes(StandardCharsets.UTF_8);
+        } else {
+            response.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);
+            body = "{\"error\":\"Gateway request failed\"}".getBytes(StandardCharsets.UTF_8);
+        }
         return response.writeWith(Mono.just(response.bufferFactory().wrap(body)));
     }
 

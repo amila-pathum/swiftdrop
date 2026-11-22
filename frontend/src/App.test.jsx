@@ -248,12 +248,12 @@ describe('App routing', () => {
       expect(screen.queryByText('Customer dashboard')).not.toBeInTheDocument()
     })
 
-    it('shows a not-available page for COURIER', () => {
+    it('shows the Today page for COURIER', () => {
       authenticatedAs('COURIER')
       renderAt('/dashboard')
 
-      expect(heading('Courier dashboard')).toBeInTheDocument()
-      expect(screen.getByText(/future development phase/)).toBeInTheDocument()
+      expect(screen.getByRole('heading', { name: /Hello,/ })).toBeInTheDocument()
+      expect(screen.queryByText(/future development phase/)).not.toBeInTheDocument()
       expect(screen.queryByText('Customer dashboard')).not.toBeInTheDocument()
     })
 
@@ -360,19 +360,46 @@ describe('App routing', () => {
       mockAuth()
       const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
         trackingNumber: 'SD-2026-000123', status: 'IN_TRANSIT',
-        createdAt: '2026-01-01T00:00:00Z', estimatedDeliveryDate: null,
-        origin: null, destination: null,
-        history: [{ status: 'CREATED', timestamp: '2026-01-01T00:00:00Z',
-          description: null, location: null }],
+        createdAt: '2026-01-01T00:00:00Z', deliveryCity: 'Kandy',
+        trackingHistory: [
+          { status: 'CREATED', timestamp: '2026-01-01T00:00:00Z' },
+          { status: 'PICKED_UP', timestamp: '2026-01-01T02:00:00Z' },
+        ],
       }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
       vi.stubGlobal('fetch', fetchMock)
       renderAt('/track/SD-2026-000123')
 
-      expect(await screen.findByText('In transit')).toBeInTheDocument()
-      expect(screen.getByText('Created')).toBeInTheDocument()
+      expect(await screen.findByText('Created')).toBeInTheDocument()
+      expect(screen.getByText('Picked up')).toBeInTheDocument()
+      expect(screen.getAllByText('In transit').length).toBeGreaterThan(0)
+      expect(screen.getByText('Kandy')).toBeInTheDocument()
       const [url, init] = fetchMock.mock.calls[0]
       expect(url).toContain('/api/parcels/track/SD-2026-000123')
       expect(init.headers.Authorization).toBeUndefined()
+    })
+
+    it('prefers the fresh server status over a stale cached one', async () => {
+      mockAuth()
+      sessionStorage.setItem('swiftdrop_track_SD-2026-000777', JSON.stringify({
+        trackingNumber: 'SD-2026-000777', status: 'IN_TRANSIT',
+        history: [{ status: 'CREATED', timestamp: '2026-01-01T00:00:00Z' }],
+      }))
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+        trackingNumber: 'SD-2026-000777', status: 'DELIVERED',
+        createdAt: '2026-01-01T00:00:00Z', deliveryCity: 'Galle',
+        trackingHistory: [
+          { status: 'CREATED', timestamp: '2026-01-01T00:00:00Z' },
+          { status: 'DELIVERED', timestamp: '2026-01-02T00:00:00Z' },
+        ],
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } })))
+      renderAt('/track/SD-2026-000777')
+
+      expect(await screen.findByText('Galle')).toBeInTheDocument()
+      expect(document.querySelector('.tracking-result .pill')).toHaveTextContent('Delivered')
+      const timeline = [...document.querySelectorAll('.timeline .timeline-status')]
+        .map((node) => node.textContent)
+      expect(timeline).toEqual(['Created', 'Delivered'])
+      sessionStorage.clear()
     })
 
     it('shows the tracking not found response', async () => {

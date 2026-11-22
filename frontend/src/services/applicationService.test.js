@@ -55,7 +55,7 @@ describe('merchant and courier sign-up', () => {
   afterEach(() => {
     vi.unstubAllGlobals()
     ENDPOINTS.merchantApplication.available = true
-    ENDPOINTS.courierApplication.available = false
+    ENDPOINTS.courierApplication.available = true
   })
 
   describe('while the application endpoints are planned', () => {
@@ -83,6 +83,7 @@ describe('merchant and courier sign-up', () => {
     })
 
     it('creates only the courier identity account, with its profile fields', async () => {
+      ENDPOINTS.courierApplication.available = false
       fetchMock.mockResolvedValue(json(201, pendingUser('COURIER', COURIER.email)))
 
       const result = await applyAsCourier(COURIER)
@@ -165,7 +166,7 @@ describe('merchant and courier sign-up', () => {
       await expect(getMyApplication('MERCHANT')).rejects.toMatchObject({ status: 404 })
     })
 
-    it('submits the courier application with vehicle details only', async () => {
+    it('submits the courier application with contact and vehicle details', async () => {
       ENDPOINTS.courierApplication.available = true
       const user = pendingUser('COURIER', COURIER.email)
       fetchMock
@@ -178,6 +179,8 @@ describe('merchant and courier sign-up', () => {
       expect(calls()[2]).toEqual({
         path: '/api/couriers/applications',
         body: {
+          name: 'Kasun Silva',
+          phone: '0715551234',
           vehicleType: 'MOTORCYCLE',
           vehicleRegistrationNumber: 'WP BAA-1234',
           preferredArea: 'Kandy',

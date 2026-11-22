@@ -31,6 +31,16 @@
             }
         },
         {
+            "name": "notification.parcel-assigned",
+            "vhost": "/",
+            "durable": true,
+            "auto_delete": false,
+            "arguments": {
+                "x-dead-letter-exchange": "swiftdrop.dlx",
+                "x-dead-letter-routing-key": "notification.failed"
+            }
+        },
+        {
             "name": "webhook.parcel-status-changed",
             "vhost": "/",
             "durable": true,
@@ -65,6 +75,14 @@
             "destination": "notification.parcel-status-changed",
             "destination_type": "queue",
             "routing_key": "parcel.status-changed",
+            "arguments": {}
+        },
+        {
+            "source": "swiftdrop.events",
+            "vhost": "/",
+            "destination": "notification.parcel-assigned",
+            "destination_type": "queue",
+            "routing_key": "parcel.assigned",
             "arguments": {}
         },
         {

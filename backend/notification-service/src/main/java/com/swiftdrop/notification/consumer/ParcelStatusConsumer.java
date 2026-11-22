@@ -1,5 +1,6 @@
 package com.swiftdrop.notification.consumer;
 
+import com.swiftdrop.notification.client.IdentityServiceClient;
 import com.swiftdrop.notification.config.RabbitMQConfig;
 import com.swiftdrop.notification.dto.response.NotificationResponse;
 import com.swiftdrop.notification.entity.Notification;
@@ -20,6 +21,7 @@ import org.springframework.util.StringUtils;
 import tools.jackson.databind.ObjectMapper;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -34,6 +36,7 @@ public class ParcelStatusConsumer {
     private final EmailNotificationService emailNotificationService;
     private final SmsNotificationService smsNotificationService;
     private final NotificationStreamService notificationStreamService;
+    private final IdentityServiceClient identityServiceClient;
 
     @Transactional
     @RabbitListener(queues = RabbitMQConfig.NOTIFICATION_QUEUE)
@@ -82,10 +85,15 @@ public class ParcelStatusConsumer {
             notificationStreamService.broadcastToUser(event.customerId(), NotificationResponse.from(saved));
         }
 
-        // 3. Broadcast real-time update to public tracking stream (Task 6)
+        // 3. Dispatcher notification : a new parcel is waiting to be assigned a courier
+        if ("CREATED".equalsIgnoreCase(event.newStatus())) {
+            notifyDispatchers(event, eventTime);
+        }
+
+        // 4. Broadcast real-time update to public tracking stream (Task 6)
         notificationStreamService.broadcastParcelStatus(event.trackingNumber(), event.newStatus(), eventTime);
 
-        // 4. Mark event ID as processed for idempotency
+        // 5. Mark event ID as processed for idempotency
         if (event.eventId() != null) {
             ProcessedEvent processedEvent = ProcessedEvent.builder()
                     .eventId(event.eventId())
@@ -95,6 +103,34 @@ public class ParcelStatusConsumer {
             processedEventRepository.save(processedEvent);
         }
     }
+
+    /**
+     * One in-app notification (and live push) per ACTIVE dispatcher. No email or
+     * SMS: dispatchers work in the app. If identity-service is unreachable the
+     * customer notification still goes out and this step is skipped.
+     */
+    private void notifyDispatchers(ParcelStatusChangedEvent event, Instant eventTime) {
+        List<String> dispatchers = identityServiceClient.findActiveUserIdsByRole("DISPATCHER");
+        if (dispatchers.isEmpty()) {
+            log.warn("No active dispatchers found for new parcel {}", event.trackingNumber());
+            return;
+        }
+        String tracking = StringUtils.hasText(event.trackingNumber()) ? event.trackingNumber() : "A new parcel";
+        for (String dispatcherId : dispatchers) {
+            Notification saved = notificationRepository.save(Notification.builder()
+                    .id(UUID.randomUUID())
+                    .userId(dispatcherId)
+                    .trackingNumber(event.trackingNumber())
+                    .title(DISPATCHER_NEW_PARCEL_TITLE)
+                    .message(String.format("Parcel %s has been created and is waiting for a courier.", tracking))
+                    .isRead(false)
+                    .createdAt(eventTime)
+                    .build());
+            notificationStreamService.broadcastToUser(dispatcherId, NotificationResponse.from(saved));
+        }
+    }
+
+    public static final String DISPATCHER_NEW_PARCEL_TITLE = "New Parcel to Assign";
 
     public static String resolveNotificationTitle(String newStatus) {
         if (!StringUtils.hasText(newStatus)) {

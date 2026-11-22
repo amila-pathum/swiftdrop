@@ -232,7 +232,7 @@ class SecurityConfigTest {
         mockMvc.perform(get("/api/parcels/my?page=2&size=5&userId=999&role=ADMIN")
             .header("Authorization", signed(identityToken("CUSTOMER"), KEY)))
             .andExpect(status().isOk());
-        org.mockito.Mockito.verify(parcelQueryService).getMyParcels(42L,
+        org.mockito.Mockito.verify(parcelQueryService).getMyParcels(42L, null,
             org.springframework.data.domain.PageRequest.of(2, 5,
                 org.springframework.data.domain.Sort.by("createdAt").descending()));
     }

@@ -3,11 +3,14 @@ package com.swiftdrop.identity_service;
 import com.jayway.jsonpath.JsonPath;
 import com.swiftdrop.identity_service.security.JwtService;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
@@ -28,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -46,6 +50,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 })
 @AutoConfigureMockMvc
 @Testcontainers(disabledWithoutDocker = true)
+@ExtendWith(OutputCaptureExtension.class)
 class AccountLifecycleApiTest {
 
     private static final String ADMIN_EMAIL = "root.admin@swiftdrop.test";
@@ -675,6 +680,113 @@ class AccountLifecycleApiTest {
     }
 
     // ------------------------------------------------------------------ helpers
+
+    // ------------------------------------------- Member 5 work-guide checks
+
+    @Test
+    void nonAdminGets403OnEveryAdminUserEndpoint() throws Exception {
+        String customerEmail = uniqueEmail("customer");
+        registerCustomer(customerEmail);
+        long targetId = registerCustomer(uniqueEmail("target"));
+        String token = token(customerEmail, PASSWORD);
+        String roleBody = "{\"role\":\"ADMIN\"}";
+        String statusBody = "{\"status\":\"DISABLED\"}";
+        String base = "/api/admin/users";
+
+        var requests = java.util.List.of(
+            get(base),
+            get(base + "?search=target&role=CUSTOMER&page=0&size=5"),
+            post(base).contentType(MediaType.APPLICATION_JSON).content("""
+                {"name":"X","email":"x@example.com","password":"staff-password-123","role":"DISPATCHER"}
+                """),
+            get(base + "/" + targetId),
+            patch(base + "/" + targetId + "/role").contentType(MediaType.APPLICATION_JSON).content(roleBody),
+            put(base + "/" + targetId + "/role").contentType(MediaType.APPLICATION_JSON).content(roleBody),
+            patch(base + "/" + targetId + "/status").contentType(MediaType.APPLICATION_JSON).content(statusBody),
+            post(base + "/" + targetId + "/activate"),
+            post(base + "/" + targetId + "/reject"),
+            post(base + "/" + targetId + "/password-reset"));
+        for (var request : requests) {
+            mockMvc.perform(request.header("Authorization", "Bearer " + token))
+                .andExpect(status().isForbidden());
+        }
+        assertThat(jdbc.queryForObject(
+            "SELECT role || ':' || status FROM users WHERE id = ?", String.class, targetId))
+            .isEqualTo("CUSTOMER:ACTIVE");
+    }
+
+    @Test
+    void customerReadsAndEditsOnlyTheirOwnProfile() throws Exception {
+        String mineEmail = uniqueEmail("mine");
+        long mine = registerCustomer(mineEmail);
+        String otherEmail = uniqueEmail("other");
+        long other = registerCustomer(otherEmail);
+        String token = token(mineEmail, PASSWORD);
+
+        mockMvc.perform(get("/api/users/me").header("Authorization", "Bearer " + token))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(mine))
+            .andExpect(jsonPath("$.email").value(mineEmail));
+
+        // There is no way to address another user's profile as a customer.
+        mockMvc.perform(get("/api/users/" + other).header("Authorization", "Bearer " + token))
+            .andExpect(status().is4xxClientError());
+        mockMvc.perform(get("/api/admin/users/" + other).header("Authorization", "Bearer " + token))
+            .andExpect(status().isForbidden());
+
+        // A client-supplied id cannot redirect the update to someone else.
+        mockMvc.perform(put("/api/users/me")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"id\":%d,\"name\":\"Changed Name\",\"role\":\"ADMIN\"}".formatted(other)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").value(mine))
+            .andExpect(jsonPath("$.role").value("CUSTOMER"));
+        assertThat(jdbc.queryForObject(
+            "SELECT name FROM users WHERE id = ?", String.class, other)).isEqualTo("Test User");
+        assertThat(jdbc.queryForObject(
+            "SELECT role FROM users WHERE id = ?", String.class, mine)).isEqualTo("CUSTOMER");
+    }
+
+    @Test
+    void logsAndErrorMessagesContainNoAddressesOrPhoneNumbers(CapturedOutput output) throws Exception {
+        String email = uniqueEmail("private");
+        registerCustomer(email);
+        String token = token(email, PASSWORD);
+        String phone = "+94771234599";
+        String address = "42 Secret Garden Lane, Kandy";
+
+        mockMvc.perform(put("/api/users/me")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"Private Person\",\"phone\":\"%s\",\"address\":\"%s\"}"
+                    .formatted(phone, address)))
+            .andExpect(status().isOk());
+
+        // A rejected update must not echo the submitted values back.
+        String rejected = mockMvc.perform(put("/api/users/me")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"name\":\"\",\"phone\":\"%s\",\"address\":\"%s\"}"
+                    .formatted(phone, address)))
+            .andExpect(status().isBadRequest())
+            .andReturn().getResponse().getContentAsString();
+        // So must a failed password change and an admin lookup of this user.
+        String wrongPassword = mockMvc.perform(put("/api/users/me/change-password")
+                .header("Authorization", "Bearer " + token)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"currentPassword\":\"not-the-password\",\"newPassword\":\"another-pass-123\","
+                    + "\"confirmPassword\":\"another-pass-123\"}"))
+            .andExpect(status().is4xxClientError())
+            .andReturn().getResponse().getContentAsString();
+        mockMvc.perform(get("/api/admin/users?search=" + phone)
+                .header("Authorization", "Bearer " + adminToken()))
+            .andExpect(status().isOk());
+
+        assertThat(rejected).doesNotContain(phone).doesNotContain(address);
+        assertThat(wrongPassword).doesNotContain(phone).doesNotContain(address);
+        assertThat(output.getAll()).doesNotContain(phone).doesNotContain(address);
+    }
 
     private static String uniqueEmail(String prefix) {
         return prefix + SEQUENCE.incrementAndGet() + "@example.com";

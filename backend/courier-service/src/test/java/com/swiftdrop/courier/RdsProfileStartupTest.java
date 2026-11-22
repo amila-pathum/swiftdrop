@@ -38,6 +38,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * sslmode, so the profile file itself is checked separately.
  */
 @SpringBootTest(properties = {
+    "spring.rabbitmq.listener.simple.auto-startup=false",
+    "management.health.rabbit.enabled=false",
     "swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=",
     "DB_HOST=rds-host.invalid",
     "DB_NAME=" + RdsProfileStartupTest.DATABASE,
@@ -84,10 +86,10 @@ class RdsProfileStartupTest {
         assertThat(jdbc.queryForList(
             "SELECT version || ':' || type FROM public.flyway_schema_history"
                 + " WHERE version IS NOT NULL ORDER BY installed_rank",
-            String.class)).containsExactly("1:SQL", "2:SQL");
+            String.class)).containsExactly("1:SQL", "2:SQL", "3:SQL", "4:SQL", "5:SQL", "6:SQL");
         assertThat(jdbc.queryForList(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name",
-            String.class)).containsExactly("courier_profiles", "couriers", "delivery_checkpoints", "delivery_proofs", "flyway_schema_history");
+            String.class)).containsExactly("courier_applications", "courier_assignment_requests", "courier_delivery_assignments", "courier_delivery_history", "courier_delivery_inbox", "courier_delivery_parcels", "courier_event_outbox", "courier_profiles", "couriers", "delivery_checkpoints", "delivery_proofs", "flyway_schema_history");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM couriers", Integer.class)).isEqualTo(3);
     }
 

@@ -36,10 +36,12 @@ public class CourierDeliveryService {
         if(!Set.of("today","active","history").contains(filter))throw CourierException.invalid("Filter must be today, active or history.");
         LocalDate today=LocalDate.now(ZoneId.of("Asia/Colombo"));
         var selected=new ArrayList<Delivery>();
-        // Bound remote fan-out until Dispatch provides a paginated/bulk contract.
-        if(assignments.size()>200)throw CourierException.conflict("Too many assignments; use the agreed paginated Dispatch contract.");
+        // Assignment and parcel reads use Courier's RabbitMQ projection.
         for(var assignment:assignments) {
-            if(filter.equals("today")&&!today.equals(assignment.deliveryDate()))continue;
+            // Include unscheduled work assigned today without inventing a schedule.
+            LocalDate workDate=assignment.deliveryDate()!=null?assignment.deliveryDate():
+                assignment.assignedAt()==null?null:assignment.assignedAt().atZone(ZoneId.of("Asia/Colombo")).toLocalDate();
+            if(filter.equals("today")&&!today.equals(workDate))continue;
             var parcel=parcel(assignment.parcelId(),token);
             boolean terminal=Set.of("DELIVERED","FAILED","CANCELLED").contains(parcel.status());
             if(filter.equals("active")&&(!assignment.active()||terminal))continue;
@@ -56,7 +58,7 @@ public class CourierDeliveryService {
     private List<Assignment> assigned(Long courierId,String token) {
         var result=dispatch.assignments(courierId,token);
         if(result==null || result.stream().anyMatch(a->a==null||a.id()==null||a.parcelId()==null||!courierId.equals(a.courierId())||a.attemptNo()<1||a.version()<0))
-            throw new RemoteFailure("Dispatch service",false);
+            throw new RemoteFailure("Assignment data",false);
         return result;
     }
     private Assignment assignment(Long courierId,UUID parcelId,boolean active,String token) {
@@ -141,8 +143,7 @@ public class CourierDeliveryService {
     private void validate(DeliveryInput i,ProofStorageService.Photo photo) {
         if((i.latitude()==null)!=(i.longitude()==null))throw CourierException.invalid("Provide both latitude and longitude.");
         if(i.latitude()==null&&(i.accuracyMeters()!=null||i.capturedAt()!=null))throw CourierException.invalid("Coordinates are required with GPS accuracy or capture time.");
-        if((i.status()==DeliveryStatus.PICKED_UP||i.status().terminal())&&i.latitude()==null&&clean(i.locationDescription())==null)
-            throw CourierException.invalid("Record the collection/attempt location using GPS or a location description.");
+        // Location (GPS or description) is optional for every update.
         if(i.status()==DeliveryStatus.DELIVERED&&clean(i.recipientName())==null&&photo==null)throw CourierException.invalid("Delivery requires a recipient name or photo.");
         if(i.status()==DeliveryStatus.FAILED&&i.failureReason()==null)throw CourierException.invalid("Failed delivery requires a reason.");
         if(i.status()!=DeliveryStatus.FAILED&&i.failureReason()!=null)throw CourierException.invalid("Failure reason is allowed only for FAILED.");
@@ -151,7 +152,7 @@ public class CourierDeliveryService {
     }
     private static String clean(String value){return value==null||value.isBlank()?null:value.trim();}
     private Submission response(DeliveryCheckpoint c) {
-        String message=switch(c.syncStatus){case CONFIRMED->"Parcel update and evidence confirmed.";case REJECTED->"Parcel service rejected this update. Refresh before creating a new submission.";case UNKNOWN->"Evidence saved; parcel confirmation is unknown. Retry the identical submission after 30 seconds.";case PENDING->"Submission is processing. Poll its status before retrying.";};
+        String message=switch(c.syncStatus){case CONFIRMED->"Delivery update and evidence saved.";case REJECTED->"Delivery update rejected. Check the current status and assignment before creating a new submission.";case UNKNOWN->"Evidence saved; confirmation is unknown. Retry the identical submission after 30 seconds.";case PENDING->"Submission is processing. Poll its status before retrying.";};
         return new Submission(c.id,c.parcelId,c.syncStatus,message);
     }
     @Transactional(readOnly=true)

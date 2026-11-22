@@ -8,6 +8,7 @@ import { useAuth } from './context/AuthContext'
 import AdminDashboardPage from './pages/admin/AdminDashboardPage'
 import AdminUserManagementPage from './pages/admin/AdminUserManagementPage'
 import MerchantApprovalsPage from './pages/admin/MerchantApprovalsPage'
+import CourierApprovalsPage from './pages/admin/CourierApprovalsPage'
 import ZoneManagementPage from './pages/admin/ZoneManagementPage'
 import PricingPage from './pages/admin/PricingPage'
 import ApplicationStatusPage from './pages/application/ApplicationStatusPage'
@@ -19,7 +20,10 @@ import LoginPage from './pages/auth/LoginPage'
 import MerchantRegisterPage from './pages/auth/MerchantRegisterPage'
 import RegisterPage from './pages/auth/RegisterPage'
 import ResetPasswordPage from './pages/auth/ResetPasswordPage'
-import CourierDashboardPage from './pages/courier/CourierDashboardPage'
+import CourierDashboardPage from './pages/courier/today/CourierTodayPage'
+import CourierDeliveriesPage from './pages/courier/deliveries/CourierDeliveriesPage'
+import CourierProfilePage from './pages/courier/profile/CourierProfilePage'
+import CourierDeliveryDetailPage from './pages/courier/delivery-detail/CourierDeliveryDetailPage'
 import CustomerDashboardPage from './pages/customer/CustomerDashboardPage'
 import CreateDeliveryPage from './pages/customer/CreateDeliveryPage'
 import DeliveryHistoryPage from './pages/customer/DeliveryHistoryPage'
@@ -120,6 +124,13 @@ function App() {
         </Route>
       </Route>
 
+      <Route element={<ProtectedRoute allowedRoles={['COURIER']} />}>
+        <Route element={<AppLayout />}>
+          <Route path="/courier/deliveries" element={<CourierDeliveriesPage />} />
+          <Route path="/courier/deliveries/:parcelId" element={<CourierDeliveryDetailPage />} />
+          <Route path="/courier/profile" element={<CourierProfilePage />} />
+        </Route>
+      </Route>
       {/* Merchant protected routes */}
       <Route element={<ProtectedRoute allowedRoles={['MERCHANT']} />}>
         <Route element={<AppLayout />}>
@@ -145,6 +156,7 @@ function App() {
         <Route element={<AppLayout />}>
           <Route path="/admin/users" element={<AdminUserManagementPage />} />
           <Route path="/admin/merchant-approvals" element={<MerchantApprovalsPage />} />
+          <Route path="/admin/courier-approvals" element={<CourierApprovalsPage />} />
           <Route path="/admin/approvals" element={<Navigate to="/admin/merchant-approvals" replace />} />
           <Route path="/admin/zones" element={<ZoneManagementPage />} />
           <Route path="/admin/pricing" element={<PricingPage />} />

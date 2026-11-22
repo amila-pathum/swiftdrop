@@ -22,53 +22,53 @@ function getInitials(name) {
   return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase()
 }
 
-// Inline SVG Icon components
-function UserIcon() {
+// Inline SVG Icon components (default 16x16, small and consistent)
+function UserIcon({ size = 16 }) {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
       <circle cx="12" cy="7" r="4" />
     </svg>
   )
 }
 
-function MailIcon() {
+function MailIcon({ size = 16 }) {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
       <polyline points="22,6 12,13 2,6" />
     </svg>
   )
 }
 
-function PhoneIcon() {
+function PhoneIcon({ size = 16 }) {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" />
     </svg>
   )
 }
 
-function MapPinIcon() {
+function MapPinIcon({ size = 16 }) {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
       <circle cx="12" cy="10" r="3" />
     </svg>
   )
 }
 
-function ShieldIcon() {
+function ShieldIcon({ size = 16 }) {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
     </svg>
   )
 }
 
-function CalendarIcon() {
+function CalendarIcon({ size = 16 }) {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
       <line x1="16" y1="2" x2="16" y2="6" />
       <line x1="8" y1="2" x2="8" y2="6" />
@@ -77,38 +77,27 @@ function CalendarIcon() {
   )
 }
 
-function CheckCircleIcon() {
+function CheckCircleIcon({ size = 16 }) {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
       <polyline points="22 4 12 14.01 9 11.01" />
     </svg>
   )
 }
 
-function EditPencilIcon() {
+function EditPencilIcon({ size = 16 }) {
   return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
       <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
     </svg>
   )
 }
 
-function PackageIcon() {
+function IdBadgeIcon({ size = 16 }) {
   return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <line x1="16.5" y1="9.4" x2="7.5" y2="4.21" />
-      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-      <line x1="12" y1="22.08" x2="12" y2="12" />
-    </svg>
-  )
-}
-
-function IdBadgeIcon() {
-  return (
-    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
       <rect x="3" y="4" width="18" height="16" rx="2" />
       <line x1="7" y1="8" x2="17" y2="8" />
       <line x1="7" y1="12" x2="13" y2="12" />
@@ -155,7 +144,6 @@ function WarningCircleIcon({ size = 14 }) {
 // Sri Lankan mobile number format:
 // 1) 07XXXXXXXX (10 digits starting with 07)
 // 2) +947XXXXXXXX (12 characters starting with +947)
-// Rejects letters, spaces, and other formats.
 const LK_MOBILE_PATTERN = /^(07\d{8}|\+947\d{8})$/
 
 function validatePhoneValue(value) {
@@ -360,47 +348,42 @@ export default function ProfilePage() {
            =================================================================== */
         <>
           {/* Edit Profile Header */}
-          <section className="profile-edit-header-card" aria-label="Edit Profile Header">
-            <div className="profile-edit-header-left">
-              <div className="profile-avatar-medium" aria-hidden="true">
-                {getInitials(profile?.name)}
-              </div>
-              <div className="profile-edit-header-text">
-                <div className="profile-edit-title-row">
-                  <span className="profile-edit-icon-badge" aria-hidden="true">
-                    <EditPencilIcon />
-                  </span>
-                  <h1 className="profile-edit-title">Edit Profile</h1>
+          <section className="profile-hero" aria-label="Edit Profile Header">
+            <div className="profile-hero-body">
+              <div className="profile-hero-user">
+                <div className="profile-avatar-large" aria-hidden="true">
+                  {getInitials(profile?.name)}
                 </div>
-                <p className="profile-edit-subtitle">
-                  Update your personal information and delivery preferences.
-                </p>
+                <div className="profile-hero-meta">
+                  <h1 className="profile-hero-name">Edit Profile</h1>
+                  <p className="profile-hero-subtitle">
+                    Update your personal information and delivery preferences.
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="profile-hero-badges">
-              <span className="profile-badge-customer">
-                <ShieldIcon />
-                {profile?.role || 'CUSTOMER'}
-              </span>
-              <span className="profile-badge-active">
-                <span className="profile-status-dot" aria-hidden="true" />
-                {profile?.status || 'ACTIVE'}
-              </span>
+              <div className="profile-hero-badges">
+                <span className="profile-badge-customer">
+                  <ShieldIcon size={12} />
+                  {profile?.role || 'CUSTOMER'}
+                </span>
+                <span className="profile-badge-active">
+                  <span className="profile-status-dot" aria-hidden="true" />
+                  {profile?.status || 'ACTIVE'}
+                </span>
+              </div>
             </div>
           </section>
 
           {/* Edit Profile Form Card */}
-          <section className="profile-edit-card" aria-label="Edit Profile Form">
-            <div className="profile-edit-card-header">
-              <div>
-                <h2 className="profile-edit-card-title">
-                  <UserIcon />
-                  <span>Personal Details & Delivery Information</span>
-                </h2>
-                <p className="profile-edit-card-desc">
-                  These details will be used for your account profile and courier delivery coordination.
-                </p>
-              </div>
+          <section className="profile-panel" aria-label="Edit Profile Form">
+            <div className="profile-panel-header">
+              <h2 className="profile-panel-title">
+                <UserIcon size={16} />
+                <span>Personal Details & Delivery Information</span>
+              </h2>
+              <p className="profile-panel-desc">
+                These details will be used for your account profile and courier delivery coordination.
+              </p>
             </div>
 
             <form className="form" onSubmit={handleSave} noValidate>
@@ -408,7 +391,7 @@ export default function ProfilePage() {
                 {/* Full Name */}
                 <div className="profile-input-group">
                   <label htmlFor="profile-name" className="profile-input-label">
-                    <span className="profile-input-label-icon" aria-hidden="true"><UserIcon /></span>
+                    <span className="profile-input-label-icon" aria-hidden="true"><UserIcon size={14} /></span>
                     <span>Full Name</span>
                     <span className="profile-field-required" aria-hidden="true">*</span>
                   </label>
@@ -433,7 +416,7 @@ export default function ProfilePage() {
                   </div>
                   {fieldErrors.name && (
                     <p id="profile-name-error" className="profile-field-error" role="alert">
-                      <WarningCircleIcon />
+                      <WarningCircleIcon size={14} />
                       <span>{fieldErrors.name}</span>
                     </p>
                   )}
@@ -442,9 +425,9 @@ export default function ProfilePage() {
                 {/* Phone Number */}
                 <div className="profile-input-group">
                   <label htmlFor="profile-phone" className="profile-input-label">
-                    <span className="profile-input-label-icon" aria-hidden="true"><PhoneIcon /></span>
+                    <span className="profile-input-label-icon" aria-hidden="true"><PhoneIcon size={14} /></span>
                     <span>Phone Number</span>
-                    <span className="profile-field-required" aria-hidden="true" style={{ color: '#dc2626' }}>*</span>
+                    <span className="profile-field-required" aria-hidden="true">*</span>
                   </label>
                   <div className="profile-input-container">
                     <input
@@ -458,7 +441,6 @@ export default function ProfilePage() {
                       aria-required="true"
                       aria-invalid={Boolean(fieldErrors.phone) || undefined}
                       aria-describedby={fieldErrors.phone ? 'profile-phone-error' : undefined}
-                      style={fieldErrors.phone ? { borderColor: '#dc2626', backgroundColor: '#fffcfc' } : {}}
                       value={formData.phone}
                       onChange={(e) => {
                         const val = e.target.value
@@ -479,24 +461,9 @@ export default function ProfilePage() {
                     />
                   </div>
                   {fieldErrors.phone && (
-                    <p
-                      id="profile-phone-error"
-                      className="profile-field-error"
-                      role="alert"
-                      style={{
-                        color: '#dc2626',
-                        fontSize: '12px',
-                        fontWeight: 500,
-                        marginTop: '6px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                      }}
-                    >
-                      <span style={{ display: 'inline-flex', color: '#dc2626' }}>
-                        <WarningCircleIcon size={14} />
-                      </span>
-                      <span style={{ color: '#dc2626' }}>{fieldErrors.phone}</span>
+                    <p id="profile-phone-error" className="profile-field-error" role="alert">
+                      <WarningCircleIcon size={14} />
+                      <span>{fieldErrors.phone}</span>
                     </p>
                   )}
                 </div>
@@ -504,9 +471,9 @@ export default function ProfilePage() {
                 {/* Account Email (Read-only Reference) */}
                 <div className="profile-email-readonly-tile">
                   <div className="profile-email-readonly-info">
-                    <div className="profile-email-icon" aria-hidden="true">
-                      <MailIcon />
-                    </div>
+                    <span className="profile-row-icon" aria-hidden="true">
+                      <MailIcon size={16} />
+                    </span>
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                         <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
@@ -514,13 +481,13 @@ export default function ProfilePage() {
                         </span>
                         <span className="profile-verified-badge">✓ Verified</span>
                       </div>
-                      <span style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)' }}>
+                      <span style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-text)' }}>
                         {profile?.email || '—'}
                       </span>
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                    <LockIcon />
+                    <LockIcon size={13} />
                     <span>Cannot be modified</span>
                   </div>
                 </div>
@@ -528,7 +495,7 @@ export default function ProfilePage() {
                 {/* Address (Full width) */}
                 <div className="profile-input-group profile-form-full">
                   <label htmlFor="profile-address" className="profile-input-label">
-                    <span className="profile-input-label-icon" aria-hidden="true"><MapPinIcon /></span>
+                    <span className="profile-input-label-icon" aria-hidden="true"><MapPinIcon size={14} /></span>
                     <span>Primary Delivery Address</span>
                   </label>
                   <div className="profile-input-container">
@@ -540,7 +507,7 @@ export default function ProfilePage() {
                       placeholder="Enter your street address, apartment, building or landmark, city..."
                       autoComplete="street-address"
                       aria-invalid={Boolean(fieldErrors.address) || undefined}
-                      aria-describedby={fieldErrors.address ? 'profile-address-error' : 'profile-address-hint'}
+                      aria-describedby={fieldErrors.address ? 'profile-address-error' : undefined}
                       value={formData.address}
                       onChange={(e) => {
                         setFormData((prev) => ({ ...prev, address: e.target.value }))
@@ -550,7 +517,7 @@ export default function ProfilePage() {
                   </div>
                   {fieldErrors.address && (
                     <p id="profile-address-error" className="profile-field-error" role="alert">
-                      <WarningCircleIcon />
+                      <WarningCircleIcon size={14} />
                       <span>{fieldErrors.address}</span>
                     </p>
                   )}
@@ -565,7 +532,7 @@ export default function ProfilePage() {
                   disabled={submitting}
                   onClick={handleCancel}
                 >
-                  <CloseIcon />
+                  <CloseIcon size={14} />
                   <span>Cancel</span>
                 </button>
                 <button
@@ -581,7 +548,7 @@ export default function ProfilePage() {
                     </>
                   ) : (
                     <>
-                      <CheckMarkIcon />
+                      <CheckMarkIcon size={14} />
                       <span>Save Changes</span>
                     </>
                   )}
@@ -592,10 +559,10 @@ export default function ProfilePage() {
         </>
       ) : (
         /* ===================================================================
-           VIEW PROFILE MODE (Unchanged)
+           VIEW PROFILE MODE (Clean, Minimal, Two Distinct Sections)
            =================================================================== */
         <>
-          {/* Profile Header Card */}
+          {/* Profile Header */}
           <section className="profile-hero" aria-label="Profile summary">
             <div className="profile-hero-body">
               <div className="profile-hero-user">
@@ -606,7 +573,7 @@ export default function ProfilePage() {
                   <h1 className="profile-hero-name">{profile?.name || 'User'}</h1>
                   <div className="profile-hero-badges">
                     <span className="profile-badge-customer">
-                      <ShieldIcon />
+                      <ShieldIcon size={12} />
                       {profile?.role || 'CUSTOMER'}
                     </span>
                     <span className="profile-badge-active">
@@ -619,7 +586,7 @@ export default function ProfilePage() {
 
               <div className="profile-hero-actions">
                 <ButtonLink to="/change-password" variant="outline">
-                  <LockIcon size={15} />
+                  <LockIcon size={14} />
                   <span>Change Password</span>
                 </ButtonLink>
                 <Button variant="primary" onClick={handleStartEdit}>
@@ -629,151 +596,121 @@ export default function ProfilePage() {
             </div>
           </section>
 
-          {/* View Mode Grid */}
+          {/* Two Clearly Separated Sections */}
           <div className="profile-grid-container">
-            {/* Left Column: Personal & Contact Information */}
+            {/* Section 1: Personal & Contact Information */}
             <section className="profile-panel" aria-label="Personal and Contact Details">
               <div className="profile-panel-header">
-                <div>
-                  <h2 className="profile-panel-title">
-                    <UserIcon />
-                    <span>Personal & Contact Information</span>
-                  </h2>
-                  <p className="profile-panel-desc">
-                    Information used for booking parcel deliveries and courier pickups.
-                  </p>
-                </div>
+                <h2 className="profile-panel-title">
+                  <span>Personal & Contact Information</span>
+                </h2>
               </div>
 
-              <div className="profile-tiles-grid">
+              <div className="profile-rows-list">
                 {/* Full Name */}
-                <div className="profile-tile">
-                  <div className="profile-tile-icon" aria-hidden="true">
-                    <UserIcon />
+                <div className="profile-row">
+                  <div className="profile-row-label">
+                    <span className="profile-row-icon" aria-hidden="true"><UserIcon size={16} /></span>
+                    <span>Full Name</span>
                   </div>
-                  <div className="profile-tile-content">
-                    <span className="profile-tile-label">Full Name</span>
-                    <span className="profile-tile-value">{profile?.name || '—'}</span>
+                  <div className="profile-row-value">{profile?.name || '—'}</div>
+                </div>
+
+                {/* Email Address */}
+                <div className="profile-row">
+                  <div className="profile-row-label">
+                    <span className="profile-row-icon" aria-hidden="true"><MailIcon size={16} /></span>
+                    <span>Email Address</span>
+                  </div>
+                  <div className="profile-row-value">
+                    <span>{profile?.email || '—'}</span>
+                    <span className="profile-verified-badge">✓ Verified</span>
                   </div>
                 </div>
 
-                {/* Email */}
-                <div className="profile-tile">
-                  <div className="profile-tile-icon" aria-hidden="true">
-                    <MailIcon />
+                {/* Phone Number */}
+                <div className="profile-row">
+                  <div className="profile-row-label">
+                    <span className="profile-row-icon" aria-hidden="true"><PhoneIcon size={16} /></span>
+                    <span>Phone Number</span>
                   </div>
-                  <div className="profile-tile-content">
-                    <span className="profile-tile-label">Email Address</span>
-                    <span className="profile-tile-value">
-                      {profile?.email || '—'}
-                      <span className="profile-verified-badge">✓ Verified</span>
-                    </span>
-                  </div>
-                </div>
-
-                {/* Phone */}
-                <div className="profile-tile">
-                  <div className="profile-tile-icon" aria-hidden="true">
-                    <PhoneIcon />
-                  </div>
-                  <div className="profile-tile-content">
-                    <span className="profile-tile-label">Phone Number</span>
-                    <span className="profile-tile-value">
-                      {profile?.phone || (
-                        <span style={{ color: 'var(--color-text-muted)', fontWeight: 400, fontStyle: 'italic' }}>
-                          Not provided
-                        </span>
-                      )}
-                    </span>
+                  <div className="profile-row-value">
+                    {profile?.phone || (
+                      <span className="profile-val-muted">Not provided</span>
+                    )}
                   </div>
                 </div>
 
                 {/* Account Type */}
-                <div className="profile-tile">
-                  <div className="profile-tile-icon" aria-hidden="true">
-                    <ShieldIcon />
+                <div className="profile-row">
+                  <div className="profile-row-label">
+                    <span className="profile-row-icon" aria-hidden="true"><ShieldIcon size={16} /></span>
+                    <span>Account Type</span>
                   </div>
-                  <div className="profile-tile-content">
-                    <span className="profile-tile-label">Account Type</span>
-                    <span className="profile-tile-value">Standard Customer</span>
-                  </div>
+                  <div className="profile-row-value">Standard Customer</div>
                 </div>
 
-                {/* Delivery Address - spans full width */}
-                <div className="profile-tile profile-tile-full">
-                  <div className="profile-tile-icon" aria-hidden="true">
-                    <MapPinIcon />
+                {/* Primary Delivery Address */}
+                <div className="profile-row">
+                  <div className="profile-row-label">
+                    <span className="profile-row-icon" aria-hidden="true"><MapPinIcon size={16} /></span>
+                    <span>Primary Delivery Address</span>
                   </div>
-                  <div className="profile-tile-content">
-                    <span className="profile-tile-label">Primary Delivery Address</span>
-                    <span className="profile-tile-value">
-                      {profile?.address || (
-                        <span style={{ color: 'var(--color-text-muted)', fontWeight: 400, fontStyle: 'italic' }}>
-                          No delivery address saved yet. Click "Edit Profile" to set one.
-                        </span>
-                      )}
-                    </span>
+                  <div className="profile-row-value">
+                    {profile?.address || (
+                      <span className="profile-val-muted">
+                        No delivery address saved yet. Click "Edit Profile" to set one.
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
             </section>
 
-            {/* Right Column: Account Security & Deliveries shortcut */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-              <section className="profile-panel" aria-label="Account Overview">
-                <div className="profile-panel-header">
-                  <div>
-                    <h2 className="profile-panel-title">
-                      <CheckCircleIcon />
-                      <span>Account Overview</span>
-                    </h2>
-                    <p className="profile-panel-desc">Account status and credentials</p>
+            {/* Section 2: Account Overview */}
+            <section className="profile-panel" aria-label="Account Overview">
+              <div className="profile-panel-header">
+                <h2 className="profile-panel-title">
+                  <span>Account Overview</span>
+                </h2>
+              </div>
+
+              <div className="profile-rows-list">
+                {/* User ID */}
+                <div className="profile-row">
+                  <div className="profile-row-label">
+                    <span className="profile-row-icon" aria-hidden="true"><IdBadgeIcon size={16} /></span>
+                    <span>User ID</span>
+                  </div>
+                  <div className="profile-row-value">
+                    <span className="profile-id-tag">#{profile?.id || '—'}</span>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {/* User ID */}
-                  <div className="profile-tile">
-                    <div className="profile-tile-icon profile-tile-icon-navy" aria-hidden="true">
-                      <IdBadgeIcon />
-                    </div>
-                    <div className="profile-tile-content">
-                      <span className="profile-tile-label">User ID</span>
-                      <code style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-primary)' }}>
-                        #{profile?.id || '—'}
-                      </code>
-                    </div>
+                {/* Account Status */}
+                <div className="profile-row">
+                  <div className="profile-row-label">
+                    <span className="profile-row-icon" aria-hidden="true"><CheckCircleIcon size={16} /></span>
+                    <span>Account Status</span>
                   </div>
-
-                  {/* Account Status */}
-                  <div className="profile-tile">
-                    <div className="profile-tile-icon profile-tile-icon-navy" aria-hidden="true">
-                      <CheckCircleIcon />
-                    </div>
-                    <div className="profile-tile-content">
-                      <span className="profile-tile-label">Account Status</span>
-                      <div style={{ marginTop: '2px' }}>
-                        <span className="profile-badge-active">
-                          <span className="profile-status-dot" aria-hidden="true" />
-                          {profile?.status || 'ACTIVE'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Member Since */}
-                  <div className="profile-tile">
-                    <div className="profile-tile-icon profile-tile-icon-navy" aria-hidden="true">
-                      <CalendarIcon />
-                    </div>
-                    <div className="profile-tile-content">
-                      <span className="profile-tile-label">Member Since</span>
-                      <span className="profile-tile-value">{formatDate(profile?.createdAt)}</span>
-                    </div>
+                  <div className="profile-row-value">
+                    <span className="profile-badge-active">
+                      <span className="profile-status-dot" aria-hidden="true" />
+                      {profile?.status || 'ACTIVE'}
+                    </span>
                   </div>
                 </div>
-              </section>
-            </div>
+
+                {/* Member Since */}
+                <div className="profile-row">
+                  <div className="profile-row-label">
+                    <span className="profile-row-icon" aria-hidden="true"><CalendarIcon size={16} /></span>
+                    <span>Member Since</span>
+                  </div>
+                  <div className="profile-row-value">{formatDate(profile?.createdAt)}</div>
+                </div>
+              </div>
+            </section>
           </div>
         </>
       )}

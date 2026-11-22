@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import Alert from '../../components/Alert'
 import EmptyState from '../../components/EmptyState'
@@ -28,57 +28,56 @@ function formatDateTime(value) {
     : '—'
 }
 
-function TrackingResult({ parcel, onLiveUpdate }) {
-  const { status: liveStatus, updatedAt: liveUpdatedAt, isConnected, events } = useParcelLiveStatus(
-    parcel.trackingNumber,
-    parcel.status
-  )
+/**
+ * Maps the Parcel Service public tracking response
+ * ({ trackingNumber, status, createdAt, deliveryCity, trackingHistory: [{ status, timestamp }] })
+ * to the shape this page renders and caches.
+ */
+function fromTrackingResponse(response) {
+  return {
+    trackingNumber: response.trackingNumber,
+    status: response.status,
+    deliveryCity: response.deliveryCity || null,
+    history: Array.isArray(response.trackingHistory)
+      ? response.trackingHistory.map((entry) => ({ status: entry.status, timestamp: entry.timestamp }))
+      : [],
+  }
+}
 
+/** Server history first, then any statuses that arrived on the live stream since. */
+function mergeHistory(base, events, liveStatus, liveUpdatedAt) {
+  const merged = Array.isArray(base) ? [...base] : []
+  for (const ev of events || []) {
+    if (ev.status && !merged.some((h) => h.status === ev.status)) {
+      merged.push({ status: ev.status, timestamp: ev.occurredAt || ev.timestamp || null })
+    }
+  }
+  if (liveStatus && liveStatus !== 'WAITING_FOR_UPDATES'
+      && !merged.some((h) => h.status === liveStatus)) {
+    merged.push({ status: liveStatus, timestamp: liveUpdatedAt || null })
+  }
+  return merged
+}
+
+function TrackingResult({ parcel, onLiveUpdate }) {
+  const {
+    status: hookStatus, updatedAt: liveUpdatedAt, isConnected, events, lastEvent,
+  } = useParcelLiveStatus(parcel.trackingNumber, parcel.status)
+
+  // The hook is seeded with the first status it was given (possibly a cached one)
+  // and keeps it until the stream sends something, so only trust it after an event.
+  const liveStatus = lastEvent?.status ? hookStatus : null
   const currentStatus = liveStatus || parcel.status
-  const [history, setHistory] = useState(Array.isArray(parcel.history) ? parcel.history : [])
+  const history = useMemo(
+    () => mergeHistory(parcel.history, events, liveStatus, liveUpdatedAt),
+    [parcel.history, events, liveStatus, liveUpdatedAt]
+  )
 
   useEffect(() => {
     if (liveStatus && liveStatus !== 'WAITING_FOR_UPDATES') {
       onLiveUpdate?.()
     }
   }, [liveStatus, onLiveUpdate])
-
-  useEffect(() => {
-    if (events && events.length > 0) {
-      setHistory((prev) => {
-        const merged = [...prev]
-        for (const ev of events) {
-          if (!merged.some((h) => h.status === ev.status)) {
-            merged.push({
-              status: ev.status,
-              timestamp: ev.occurredAt || ev.timestamp || new Date().toISOString(),
-              occurredAt: ev.occurredAt,
-              description: ev.description || ev.note || null,
-            })
-          }
-        }
-        return merged
-      })
-    }
-  }, [events])
-
-  useEffect(() => {
-    if (liveStatus && liveStatus !== parcel.status) {
-      setHistory((prev) => {
-        const exists = prev.some((h) => h.status === liveStatus)
-        if (exists) return prev
-        return [
-          ...prev,
-          {
-            status: liveStatus,
-            timestamp: liveUpdatedAt || new Date().toISOString(),
-            occurredAt: liveUpdatedAt || new Date().toISOString(),
-            description: null,
-          },
-        ]
-      })
-    }
-  }, [liveStatus, liveUpdatedAt, parcel.status])
 
   useEffect(() => {
     if (currentStatus && currentStatus !== 'WAITING_FOR_UPDATES') {
@@ -88,6 +87,7 @@ function TrackingResult({ parcel, onLiveUpdate }) {
           JSON.stringify({
             trackingNumber: parcel.trackingNumber,
             status: currentStatus,
+            deliveryCity: parcel.deliveryCity || null,
             history,
           })
         )
@@ -95,7 +95,7 @@ function TrackingResult({ parcel, onLiveUpdate }) {
         // Ignore storage errors
       }
     }
-  }, [parcel.trackingNumber, currentStatus, history])
+  }, [parcel.trackingNumber, parcel.deliveryCity, currentStatus, history])
 
   return (
     <section className="card tracking-result" aria-labelledby="tracking-result-title">
@@ -131,8 +131,8 @@ function TrackingResult({ parcel, onLiveUpdate }) {
           <span className="pill pill-info">{formatStatus(currentStatus)}</span>
         </div>
       </header>
-      {parcel.estimatedDeliveryDate && (
-        <p>Estimated delivery: {parcel.estimatedDeliveryDate}</p>
+      {parcel.deliveryCity && (
+        <p className="tracking-destination">Delivering to <strong>{parcel.deliveryCity}</strong></p>
       )}
       {history.length === 0 ? (
         <EmptyState title="No updates yet" description="Status updates will appear here." />
@@ -142,7 +142,6 @@ function TrackingResult({ parcel, onLiveUpdate }) {
             <li key={`${entry.status}-${entry.timestamp || entry.occurredAt}-${index}`}>
               <p className="timeline-status">{formatStatus(entry.status)}</p>
               <p className="timeline-time">{formatDateTime(entry.timestamp || entry.occurredAt)}</p>
-              {(entry.description || entry.note) && <p className="timeline-note">{entry.description || entry.note}</p>}
             </li>
           ))}
         </ol>
@@ -207,12 +206,9 @@ export default function TrackParcelPage() {
 
     const controller = new AbortController()
     trackParcel(trackingNumber, { signal: controller.signal })
-      .then((parcel) => {
-        let effectiveParcel = parcel
-        if (cachedParcel && cachedParcel.status && cachedParcel.status !== parcel.status) {
-          effectiveParcel = { ...parcel, status: cachedParcel.status, history: cachedParcel.history || parcel.history }
-        }
-        setResult({ key: trackingNumber, parcel: effectiveParcel, error: null })
+      .then((response) => {
+        // The server is authoritative: a fresh response replaces the cached view.
+        setResult({ key: trackingNumber, parcel: fromTrackingResponse(response), error: null })
       })
       .catch((error) => {
         if (error?.name === 'AbortError') return

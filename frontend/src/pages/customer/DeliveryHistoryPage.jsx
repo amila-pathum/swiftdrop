@@ -140,6 +140,11 @@ export default function DeliveryHistoryPage() {
   const [actionError, setActionError] = useState(null)
   const [assistantMessage, setAssistantMessage] = useState(false)
 
+  const [totalPages, setTotalPages] = useState(1)
+  const [totalElements, setTotalElements] = useState(0)
+
+  // Status and paging are applied by the server, so they stay correct however
+  // many parcels the customer has.
   const loadParcels = useCallback(() => {
     const controller = new AbortController()
     Promise.resolve()
@@ -147,15 +152,25 @@ export default function DeliveryHistoryPage() {
         if (controller.signal.aborted) return null
         setLoading(true)
         setError(null)
-        return parcelService.getMyParcels(0, 100, controller.signal)
+        return parcelService.getMyParcels(
+          page - 1,
+          PAGE_SIZE,
+          controller.signal,
+          statusFilter === 'ALL' ? undefined : statusFilter,
+        )
       })
       .then((data) => {
         if (!controller.signal.aborted && data !== null) {
           const items = Array.isArray(data)
             ? data
             : (Array.isArray(data?.content) ? data.content : [])
+          const pages = Math.max(1, Number(data?.totalPages) || 1)
           setParcels(items)
+          setTotalPages(pages)
+          setTotalElements(Number(data?.totalElements ?? items.length) || 0)
           setLoading(false)
+          // The last row of the last page may have just left this filter.
+          if (page > pages) setPage(pages)
         }
       })
       .catch((err) => {
@@ -165,29 +180,24 @@ export default function DeliveryHistoryPage() {
         }
       })
     return () => controller.abort()
-  }, [])
+  }, [page, statusFilter])
 
   useEffect(() => loadParcels(), [loadParcels])
 
-  const filtered = useMemo(() => {
+  // Search and date narrow the rows of the page currently shown.
+  const refining = search.trim() !== '' || dateFilter !== 'ALL'
+  const paginated = useMemo(() => {
     const q = search.trim().toLowerCase()
     return parcels.filter((p) => {
-      if (statusFilter !== 'ALL' && p.status !== statusFilter) return false
       if (!matchesDateFilter(p.createdAt, dateFilter)) return false
       if (q && !String(p.trackingNumber ?? '').toLowerCase().includes(q)) return false
       return true
     })
-  }, [parcels, search, statusFilter, dateFilter])
+  }, [parcels, search, dateFilter])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-
-  const paginated = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE
-    return filtered.slice(start, start + PAGE_SIZE)
-  }, [filtered, page])
-
-  const showFrom = filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
-  const showTo = Math.min(page * PAGE_SIZE, filtered.length)
+  const noDeliveriesAtAll = totalElements === 0 && statusFilter === 'ALL'
+  const showFrom = parcels.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1
+  const showTo = parcels.length === 0 ? 0 : showFrom + parcels.length - 1
 
   const handleCancel = async (parcel) => {
     if (cancelling[parcel.id]) return
@@ -197,6 +207,8 @@ export default function DeliveryHistoryPage() {
     try {
       const updated = await parcelService.cancelParcel(parcel.id)
       setParcels((prev) => prev.map((p) => (p.id === parcel.id ? { ...p, ...updated } : p)))
+      // Under a status filter the cancelled parcel no longer belongs on this page.
+      if (statusFilter !== 'ALL') loadParcels()
       setActionSuccess(`Parcel ${parcel.trackingNumber ?? parcel.id} has been cancelled.`)
     } catch (err) {
       setActionError(err.message || 'Failed to cancel parcel. Please try again.')
@@ -283,10 +295,7 @@ export default function DeliveryHistoryPage() {
             className="delivery-search-input"
             placeholder="Search by tracking number"
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value)
-              setPage(1)
-            }}
+            onChange={(e) => setSearch(e.target.value)}
             aria-label="Search by tracking number"
           />
         </div>
@@ -307,7 +316,6 @@ export default function DeliveryHistoryPage() {
             <option value="DELIVERED">Delivered</option>
             <option value="FAILED">Failed</option>
             <option value="CREATED">Created</option>
-            <option value="ASSIGNED">Assigned</option>
             <option value="PICKED_UP">Picked Up</option>
             <option value="CANCELLED">Cancelled</option>
           </select>
@@ -322,10 +330,7 @@ export default function DeliveryHistoryPage() {
           <select
             className="delivery-filter-select"
             value={dateFilter}
-            onChange={(e) => {
-              setDateFilter(e.target.value)
-              setPage(1)
-            }}
+            onChange={(e) => setDateFilter(e.target.value)}
             aria-label="Filter by date"
           >
             {DATE_FILTER_OPTIONS.map(({ value, label }) => (
@@ -377,12 +382,12 @@ export default function DeliveryHistoryPage() {
                   <tr>
                     <td colSpan="6" className="table-empty-state">
                       <p className="table-empty-title">
-                        {parcels.length === 0
+                        {noDeliveriesAtAll
                           ? 'No deliveries yet'
                           : 'No results match your filters'}
                       </p>
                       <p>
-                        {parcels.length === 0
+                        {noDeliveriesAtAll
                           ? 'Your parcel deliveries will appear here once you send one.'
                           : 'Try adjusting your search or filter criteria.'}
                       </p>
@@ -481,9 +486,12 @@ export default function DeliveryHistoryPage() {
       {!loading && !error && (
         <div className="delivery-footer">
           <div className="delivery-footer-count">
-            {filtered.length === 0
+            {totalElements === 0
               ? 'Showing 0 of 0'
-              : `Showing ${showFrom}–${showTo} of ${filtered.length}`}
+              : `Showing ${showFrom}–${showTo} of ${totalElements}`}
+            {refining && parcels.length > 0 && (
+              <span> · {paginated.length} on this page match your search and date</span>
+            )}
           </div>
 
           <div className="delivery-pagination" role="navigation" aria-label="Pagination">

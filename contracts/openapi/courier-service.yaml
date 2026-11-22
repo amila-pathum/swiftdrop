@@ -1,0 +1,251 @@
+openapi: 3.1.0
+info:
+  title: SwiftDrop Courier API – courier applications
+  version: 1.0.0
+  description: |
+    How a courier applies and how an administrator approves or rejects the
+    application. Administrators never create courier accounts: a courier
+    registers with `POST /api/auth/register/courier` (Identity Service, account
+    status PENDING_APPROVAL), then submits an application here.
+
+    Approving an application activates the login account in the Identity
+    Service (using the approving administrator's own token) and creates the
+    courier profile from the application. The courier must sign in again to
+    receive the COURIER role. Rejecting keeps the login account pending so the
+    courier can sign in and read the reason.
+
+    Courier profiles, availability and deliveries under `/api/couriers` are not
+    described here. Paths are the public paths exposed unchanged through the
+    API Gateway. Error bodies are always `{"error": "<message>"}` and never
+    contain phone numbers or other submitted values.
+servers:
+  - url: http://localhost:8080
+    description: API Gateway
+  - url: http://localhost:8084
+    description: Courier Service (local direct access)
+tags:
+  - name: Courier application
+  - name: Courier approvals
+security:
+  - bearerAuth: []
+paths:
+  /api/couriers/applications:
+    post:
+      tags: [Courier application]
+      summary: Submit the signed-in courier's application
+      description: |
+        Requires authority APPLICANT_COURIER (a courier awaiting approval) or
+        ROLE_COURIER. The applicant is always the JWT subject; a `userId` in the
+        body is ignored. One application per courier.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/ApplicationInput'}
+      responses:
+        '201':
+          description: The submitted application, status PENDING
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApplicationResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409':
+          description: This courier has already applied
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/couriers/me/application:
+    get:
+      tags: [Courier application]
+      summary: Read the signed-in courier's own application
+      description: Requires authority APPLICANT_COURIER or ROLE_COURIER.
+      responses:
+        '200':
+          description: The courier's application, including any rejection reason
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApplicationResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/couriers/admin/applications:
+    get:
+      tags: [Courier approvals]
+      summary: List courier applications
+      description: Requires role ADMIN. Newest first.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema: {$ref: '#/components/schemas/ApplicationStatus'}
+      responses:
+        '200':
+          description: Matching applications
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {$ref: '#/components/schemas/ApplicationResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /api/couriers/admin/applications/{id}:
+    get:
+      tags: [Courier approvals]
+      summary: View one courier application
+      description: Requires role ADMIN.
+      parameters:
+        - $ref: '#/components/parameters/applicationId'
+      responses:
+        '200':
+          description: The application
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApplicationResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+  /api/couriers/admin/applications/{id}/approve:
+    patch:
+      tags: [Courier approvals]
+      summary: Approve a pending courier application
+      description: |
+        Requires role ADMIN. Activates the applicant's PENDING_APPROVAL login
+        account in the Identity Service, creates an active courier profile from
+        the application, then records the decision.
+
+        Nothing is recorded if the account cannot be activated. Approving an
+        already approved application is harmless and repairs a half-finished
+        approval (for example when the Identity response was lost). A rejected
+        application cannot be approved.
+      parameters:
+        - $ref: '#/components/parameters/applicationId'
+      responses:
+        '200':
+          description: The approved application
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApplicationResponse'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409':
+          description: |
+            The application was rejected, or the login account is not a pending
+            or active courier (for example suspended or disabled).
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+        '503':
+          description: The Identity Service could not confirm the activation. Retry the approval.
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+  /api/couriers/admin/applications/{id}/reject:
+    patch:
+      tags: [Courier approvals]
+      summary: Reject a pending courier application
+      description: |
+        Requires role ADMIN. Only PENDING applications can be rejected. The
+        reason is shown to the applicant. No courier profile is created and the
+        login account stays PENDING_APPROVAL.
+      parameters:
+        - $ref: '#/components/parameters/applicationId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: '#/components/schemas/RejectInput'}
+      responses:
+        '200':
+          description: The rejected application
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/ApplicationResponse'}
+        '400': {$ref: '#/components/responses/BadRequest'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409':
+          description: The application is not pending
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/Error'}
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Identity Service access token. An ACTIVE account gets ROLE_<role>; a
+        PENDING_APPROVAL courier gets APPLICANT_COURIER instead.
+  parameters:
+    applicationId:
+      name: id
+      in: path
+      required: true
+      schema: {type: integer, format: int64, minimum: 1}
+  responses:
+    BadRequest:
+      description: Invalid request data
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Unauthorized:
+      description: Missing, invalid or expired access token
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    Forbidden:
+      description: The caller lacks the required role or authority
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+    NotFound:
+      description: No such application
+      content:
+        application/json:
+          schema: {$ref: '#/components/schemas/Error'}
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: {type: string, description: Safe to show to users.}
+    ApplicationStatus:
+      type: string
+      enum: [PENDING, APPROVED, REJECTED]
+    VehicleType:
+      type: string
+      enum: [BICYCLE, MOTORCYCLE, THREE_WHEELER, CAR, VAN, TRUCK]
+    ApplicationInput:
+      type: object
+      required: [name, phone, vehicleType, vehicleRegistrationNumber, preferredArea]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 100}
+        phone: {type: string, pattern: '^[+0-9 ()-]{7,30}$'}
+        vehicleType: {$ref: '#/components/schemas/VehicleType'}
+        vehicleRegistrationNumber: {type: string, minLength: 1, maxLength: 30}
+        preferredArea: {type: string, minLength: 1, maxLength: 100}
+    RejectInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: {type: string, minLength: 1, maxLength: 500}
+    ApplicationResponse:
+      type: object
+      properties:
+        id: {type: integer, format: int64}
+        userId: {type: integer, format: int64, description: The applicant's Identity user id.}
+        name: {type: string}
+        phone: {type: string}
+        vehicleType: {$ref: '#/components/schemas/VehicleType'}
+        vehicleRegistrationNumber: {type: string}
+        preferredArea: {type: string}
+        status: {$ref: '#/components/schemas/ApplicationStatus'}
+        reviewNote: {type: [string, 'null'], description: The rejection reason.}
+        submittedAt: {type: string, format: date-time}
+        reviewedAt: {type: [string, 'null'], format: date-time}

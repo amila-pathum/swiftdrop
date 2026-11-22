@@ -17,6 +17,7 @@ import java.math.BigDecimal;
 
 @Service
 public class ParcelCreationService {
+    private static final int MAX_TRACKING_ATTEMPTS = 10;
     private final ParcelRepository parcels;
     private final ParcelStatusHistoryRepository history;
     private final PricingClient pricing;
@@ -67,7 +68,6 @@ public class ParcelCreationService {
         }
 
         Parcel parcel = new Parcel();
-        parcel.setTrackingNumber(tracking.generate());
         parcel.setSenderId(userId);
         parcel.setCreatedBy(userId);
         parcel.setMerchantId(merchantId);
@@ -86,12 +86,26 @@ public class ParcelCreationService {
         parcel.setCharge(charge);
         parcel.setStatus(ParcelStatus.CREATED);
 
-        Parcel saved = parcels.saveAndFlush(parcel);
+        parcel.setId(java.util.UUID.randomUUID());
+        parcel.setCreatedAt(java.time.Instant.now());
+        parcel.setUpdatedAt(parcel.getCreatedAt());
+        Parcel saved = insertWithUniqueTrackingNumber(parcel);
         ParcelStatusHistory entry = new ParcelStatusHistory(
             saved, null, ParcelStatus.CREATED, userId, "Parcel created");
         history.save(entry);
         outbox.enqueueStatusChanged(saved, null, ParcelStatus.CREATED, entry.getChangedAt());
         return ParcelResponse.from(saved);
+    }
+
+    private Parcel insertWithUniqueTrackingNumber(Parcel parcel) {
+        for (int attempt = 0; attempt < MAX_TRACKING_ATTEMPTS; attempt++) {
+            parcel.setTrackingNumber(tracking.generate());
+            if (parcels.insertIfTrackingNumberAvailable(parcel) == 1) {
+                return parcels.findById(parcel.getId()).orElseThrow();
+            }
+        }
+        throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,
+            "Unable to allocate a tracking number. Please try again.");
     }
 
     private String formatAddress(String line1, String line2, String city) {

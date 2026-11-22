@@ -9,7 +9,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 
-@RestControllerAdvice(basePackages="com.swiftdrop.courier.controller")
+@RestControllerAdvice(basePackages={"com.swiftdrop.courier.controller","com.swiftdrop.courier.application"})
 public class CourierExceptionHandler {
     @ExceptionHandler(com.swiftdrop.courier.client.CourierIntegrations.RemoteFailure.class)
     ResponseEntity<?> remote(Exception e) { return ResponseEntity.status(503).body(Map.of("error",e.getMessage())); }

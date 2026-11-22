@@ -7,8 +7,7 @@ import { clearSession } from './tokenStorage'
 //
 // The identity account (credentials, role) is created by the Identity Service,
 // which exists. The business application belongs to the Merchant / Courier
-// Service. Merchant applications use its existing registration/profile API.
-// Courier application endpoints remain planned (see endpoints.js).
+// Service. Both are reviewed by an administrator, who approves or rejects them.
 
 export const ApplicationStatus = Object.freeze({
   PENDING: 'PENDING',
@@ -22,7 +21,7 @@ export const VEHICLE_TYPES = Object.freeze([
   { value: 'THREE_WHEELER', label: 'Three-wheeler' },
   { value: 'CAR', label: 'Car' },
   { value: 'VAN', label: 'Van' },
-  { value: 'LORRY', label: 'Lorry / truck' },
+  { value: 'TRUCK', label: 'Lorry / truck' },
 ])
 
 /**
@@ -45,11 +44,15 @@ export function submitMerchantApplication(details) {
   })
 }
 
-/** Sends a courier's vehicle details to the Courier Service. Needs the courier's own session. */
+/**
+ * Sends a courier's application to the Courier Service. Needs the courier's own
+ * session. Name and phone go along because the courier profile created on
+ * approval is built from this application.
+ */
 export function submitCourierApplication(details) {
-  const { vehicleType, vehicleRegistrationNumber, preferredArea } = details
+  const { name, phone, vehicleType, vehicleRegistrationNumber, preferredArea } = details
   return callEndpoint(ENDPOINTS.courierApplication, {
-    body: { vehicleType, vehicleRegistrationNumber, preferredArea },
+    body: { name, phone, vehicleType, vehicleRegistrationNumber, preferredArea },
   })
 }
 

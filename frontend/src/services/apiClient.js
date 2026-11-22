@@ -216,7 +216,7 @@ async function performRefresh(presented) {
  * @param {*} [options.body] Serialized as JSON when provided.
  * @param {boolean} [options.auth=false] Attach the stored bearer token.
  * @param {AbortSignal} [options.signal]
- * @param {'json'|'text'} [options.responseType='json']
+ * @param {'json'|'text'|'blob'} [options.responseType='json']
  * @returns {Promise<*>} Parsed JSON (or requested text) body, or null for an empty response.
  */
 export function request(path, options = {}) {
@@ -230,7 +230,7 @@ async function send(path, {
   signal,
   responseType = 'json',
 } = {}, mayRefresh, refreshedToken = null) {
-  const headers = { Accept: responseType === 'text' ? 'text/csv' : 'application/json' }
+  const headers = { Accept: responseType === 'blob' ? 'image/jpeg, image/png' : responseType === 'text' ? 'text/csv' : 'application/json' }
 
   if (auth) {
     let token = refreshedToken ?? getAccessToken()
@@ -249,8 +249,12 @@ async function send(path, {
 
   const init = { method, headers, signal }
   if (body !== undefined) {
-    headers['Content-Type'] = 'application/json'
-    init.body = JSON.stringify(body)
+    if (body instanceof FormData) {
+      init.body = body
+    } else {
+      headers['Content-Type'] = 'application/json'
+      init.body = JSON.stringify(body)
+    }
   }
 
   let response
@@ -263,7 +267,9 @@ async function send(path, {
     throw new ApiError(MESSAGES.network, { kind: ApiErrorKind.NETWORK })
   }
 
-  const data = response.ok && responseType === 'text'
+  const data = response.ok && responseType === 'blob'
+    ? await response.blob()
+    : response.ok && responseType === 'text'
     ? await response.text()
     : await readJson(response)
   if (!response.ok) {
@@ -276,7 +282,7 @@ async function send(path, {
     }
     throw errorFromResponse(response, data)
   }
-  if (responseType === 'text') {
+  if (responseType === 'text' || responseType === 'blob') {
     return data
   }
   if (data === undefined) {

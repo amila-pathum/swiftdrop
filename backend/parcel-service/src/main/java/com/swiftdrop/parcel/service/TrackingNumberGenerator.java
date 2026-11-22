@@ -1,13 +1,14 @@
 package com.swiftdrop.parcel.service;
 
 import org.springframework.stereotype.Component;
-import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Component
 public class TrackingNumberGenerator {
-    // SD + 32 hexadecimal characters = 34; fits tracking_number VARCHAR(40).
+    // Format: SD followed by 8 digits, e.g. SD10480014.
     // Database UNIQUE constraint is the final protection against rare collisions.
     public String generate() {
-        return "SD" + UUID.randomUUID().toString().replace("-", "").toUpperCase();
+        int number = ThreadLocalRandom.current().nextInt(10000000, 100000000);
+        return "SD" + number;
     }
 }
