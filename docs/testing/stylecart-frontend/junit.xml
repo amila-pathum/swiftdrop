@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<testsuites name="vitest tests" tests="3" failures="0" errors="0" time="0.054101869">
+    <testsuite name="src/OrderTimeline.test.jsx" timestamp="2026-11-22T06:20:49.687Z" hostname="amila-pathum-VivoBook" tests="3" failures="0" errors="0" skipped="0" time="0.054101869">
+        <testcase classname="src/OrderTimeline.test.jsx" name="shows confirmed shipment creation without requiring a webhook or inventing its time" time="0.041327342">
+        </testcase>
+        <testcase classname="src/OrderTimeline.test.jsx" name="does not show shipment creation for an unbooked order" time="0.00348001">
+        </testcase>
+        <testcase classname="src/OrderTimeline.test.jsx" name="replaces the confirmation with the dated creation event when its webhook arrives" time="0.007859637">
+        </testcase>
+    </testsuite>
+</testsuites>

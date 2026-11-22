@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StoreOrder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">stylecart</a> &gt; <a href="index.source.html" class="el_package">com.stylecart.model</a> &gt; <span class="el_source">StoreOrder.java</span></div><h1>StoreOrder.java</h1><pre class="source lang-java linenums">package com.stylecart.model;
+import jakarta.persistence.*;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.*;
+@Entity @Table(name=&quot;store_orders&quot;)
+<span class="fc" id="L7">public class StoreOrder {</span>
+    @Id @GeneratedValue(strategy=GenerationType.UUID) public UUID id;
+    @Column(nullable=false,unique=true,length=100) public String reference;
+    @Column(name=&quot;customer_id&quot;,nullable=false) public Long customerId;
+    @Column(name=&quot;receiver_name&quot;,nullable=false,length=150) public String receiverName;
+    @Column(nullable=false,length=30) public String phone;
+    @Column(nullable=false,length=255) public String address;
+    @Column(nullable=false,length=100) public String city;
+    @Column(name=&quot;postal_code&quot;,length=20) public String postalCode;
+    @Column(nullable=false,precision=12,scale=2) public BigDecimal subtotal;
+    @Column(name=&quot;shipping_charge&quot;,precision=12,scale=2) public BigDecimal shippingCharge;
+<span class="fc" id="L18">    @Column(name=&quot;shipment_state&quot;,nullable=false,length=30) public String shipmentState=&quot;NOT_BOOKED&quot;;</span>
+    @Column(name=&quot;tracking_number&quot;,unique=true,length=100) public String trackingNumber;
+    @Column(name=&quot;delivery_status&quot;,length=30) public String deliveryStatus;
+    @Column(name=&quot;status_at&quot;) public Instant statusAt;
+    @Column(name=&quot;submitted_at&quot;) public Instant submittedAt;
+    @Column(name=&quot;request_payload&quot;,columnDefinition=&quot;text&quot;) public String requestPayload;
+    @Column(name=&quot;last_error&quot;,length=400) public String lastError;
+<span class="fc" id="L25">    @Column(name=&quot;created_at&quot;,nullable=false) public Instant createdAt=Instant.now();</span>
+<span class="fc" id="L26">    @OneToMany(mappedBy=&quot;order&quot;,cascade=CascadeType.ALL,orphanRemoval=true) @OrderBy(&quot;id&quot;) public List&lt;OrderItem&gt; items=new ArrayList&lt;&gt;();</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhookAttempt.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">stylecart</a> &gt; <a href="index.source.html" class="el_package">com.stylecart.model</a> &gt; <span class="el_source">WebhookAttempt.java</span></div><h1>WebhookAttempt.java</h1><pre class="source lang-java linenums">package com.stylecart.model;
+import jakarta.persistence.*;
+import java.time.Instant;
+import java.util.UUID;
+@Entity @Table(name=&quot;webhook_attempts&quot;)
+<span class="fc" id="L6">public class WebhookAttempt {</span>
+    @Id @GeneratedValue(strategy=GenerationType.IDENTITY) public Long id;
+    @Column(name=&quot;event_id&quot;) public UUID eventId;
+<span class="fc" id="L9">    @Column(name=&quot;received_at&quot;,nullable=false) public Instant receivedAt=Instant.now();</span>
+    @Column(name=&quot;http_status&quot;,nullable=false) public int httpStatus;
+    @Column(nullable=false,length=40) public String outcome;
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

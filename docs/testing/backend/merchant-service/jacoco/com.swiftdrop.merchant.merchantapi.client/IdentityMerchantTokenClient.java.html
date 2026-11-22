@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IdentityMerchantTokenClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">merchant-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.merchant.merchantapi.client</a> &gt; <span class="el_source">IdentityMerchantTokenClient.java</span></div><h1>IdentityMerchantTokenClient.java</h1><pre class="source lang-java linenums">package com.swiftdrop.merchant.merchantapi.client;
+
+import java.net.http.HttpClient;
+import java.time.*;
+import java.util.Map;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.*;
+import org.springframework.web.server.ResponseStatusException;
+
+@Component
+public class IdentityMerchantTokenClient {
+    private final RestClient client;
+    private final String serviceToken;
+    private final JwtDecoder decoder;
+    public IdentityMerchantTokenClient(@Value(&quot;${IDENTITY_SERVICE_URL:http://localhost:8081}&quot;) String url,
+<span class="fc" id="L20">            @Value(&quot;${merchant.order.service-token:${MERCHANT_ORDER_SERVICE_TOKEN:}}&quot;) String serviceToken, JwtDecoder decoder) {</span>
+<span class="fc" id="L21">        var factory = new JdkClientHttpRequestFactory(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2))</span>
+<span class="fc" id="L22">                .followRedirects(HttpClient.Redirect.NEVER).build());</span>
+<span class="fc" id="L23">        factory.setReadTimeout(Duration.ofSeconds(5));</span>
+<span class="fc" id="L24">        this.client = RestClient.builder().baseUrl(url).requestFactory(factory).build();</span>
+<span class="fc" id="L25">        this.serviceToken = serviceToken; this.decoder = decoder;</span>
+<span class="fc" id="L26">    }</span>
+    public String forUser(long userId) {
+<span class="pc bpc" id="L28" title="1 of 2 branches missed.">        if (serviceToken.length() &lt; 32) throw unavailable();</span>
+        try {
+<span class="fc" id="L30">            var reply = client.post().uri(&quot;/internal/merchant-order-tokens&quot;)</span>
+<span class="fc" id="L31">                    .header(&quot;X-SwiftDrop-Merchant-Token&quot;, serviceToken).body(Map.of(&quot;userId&quot;, userId))</span>
+<span class="fc" id="L32">                    .retrieve().toEntity(Token.class);</span>
+<span class="fc" id="L33">            var body = reply.getBody();</span>
+<span class="pc bpc" id="L34" title="3 of 6 branches missed.">            if (!reply.getStatusCode().is2xxSuccessful() || body == null || !Long.valueOf(userId).equals(body.userId())</span>
+<span class="pc bpc" id="L35" title="4 of 8 branches missed.">                    || body.accessToken() == null || body.expiresIn() == null || body.expiresIn() &gt; 60 || body.expiresIn() &lt;= 0) throw unavailable();</span>
+<span class="fc" id="L36">            var jwt = decoder.decode(body.accessToken());</span>
+<span class="pc bpc" id="L37" title="1 of 4 branches missed.">            if (!Long.toString(userId).equals(jwt.getSubject()) || !&quot;MERCHANT&quot;.equals(jwt.getClaimAsString(&quot;role&quot;))</span>
+<span class="pc bpc" id="L38" title="1 of 2 branches missed.">                    || !&quot;ACTIVE&quot;.equals(jwt.getClaimAsString(&quot;status&quot;))</span>
+<span class="fc bfc" id="L39" title="All 2 branches covered.">                    || !&quot;MERCHANT_ORDER_INTEGRATION&quot;.equals(jwt.getClaimAsString(&quot;purpose&quot;))</span>
+<span class="pc bpc" id="L40" title="1 of 2 branches missed.">                    || !jwt.getAudience().containsAll(java.util.List.of(&quot;parcel-service&quot;, &quot;pricing-service&quot;))</span>
+<span class="pc bpc" id="L41" title="2 of 4 branches missed.">                    || jwt.getExpiresAt() == null || !jwt.getExpiresAt().isAfter(Instant.now())</span>
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">                    || jwt.getExpiresAt().isAfter(Instant.now().plusSeconds(65))) throw unavailable();</span>
+<span class="fc" id="L43">            return body.accessToken();</span>
+<span class="fc" id="L44">        } catch (HttpClientErrorException.Forbidden exception) {</span>
+<span class="fc" id="L45">            throw new ResponseStatusException(HttpStatus.FORBIDDEN, &quot;Linked merchant login must be active&quot;);</span>
+<span class="fc" id="L46">        } catch (ResponseStatusException exception) { throw exception; }</span>
+<span class="nc" id="L47">        catch (RuntimeException exception) { throw unavailable(); }</span>
+    }
+    private static ResponseStatusException unavailable() {
+<span class="fc" id="L50">        return new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, &quot;Merchant delegation is unavailable&quot;);</span>
+    }
+<span class="fc" id="L52">    private record Token(Long userId, String accessToken, Integer expiresIn) {</span>
+<span class="nc" id="L53">        @Override public String toString() { return &quot;Token[userId=&quot; + userId + &quot;]&quot;; }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IdentityServiceClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">notification-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.notification.client</a> &gt; <span class="el_source">IdentityServiceClient.java</span></div><h1>IdentityServiceClient.java</h1><pre class="source lang-java linenums">package com.swiftdrop.notification.client;
+
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Date;
+import java.util.Optional;
+
+<span class="fc" id="L21">@Slf4j</span>
+@Component
+public class IdentityServiceClient {
+
+    private final HttpClient httpClient;
+    private final ObjectMapper objectMapper;
+    private final String identityServiceUrl;
+    private final String jwtSecret;
+    private final String adminId;
+    private final String adminEmail;
+    private final int adminTokenVersion;
+<span class="fc" id="L32">    private volatile Integer workingTokenVersion = null;</span>
+<span class="fc" id="L33">    private volatile String workingAdminId = null;</span>
+<span class="fc" id="L34">    private volatile String workingAdminEmail = null;</span>
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public IdentityServiceClient(
+            ObjectMapper objectMapper,
+            @Value(&quot;${notification.identity.url:http://localhost:8081}&quot;) String identityServiceUrl,
+            @Value(&quot;${swiftdrop.jwt.secret:}&quot;) String jwtSecret,
+            @Value(&quot;${notification.identity.admin.id:10}&quot;) String adminId,
+            @Value(&quot;${notification.identity.admin.email:admin@swiftdrop.com}&quot;) String adminEmail,
+<span class="fc" id="L43">            @Value(&quot;${notification.identity.admin.token-version:0}&quot;) int adminTokenVersion) {</span>
+<span class="fc" id="L44">        this.objectMapper = objectMapper;</span>
+<span class="fc" id="L45">        this.identityServiceUrl = identityServiceUrl;</span>
+<span class="fc" id="L46">        this.jwtSecret = jwtSecret;</span>
+<span class="fc" id="L47">        this.adminId = adminId;</span>
+<span class="fc" id="L48">        this.adminEmail = adminEmail;</span>
+<span class="fc" id="L49">        this.adminTokenVersion = adminTokenVersion;</span>
+<span class="fc" id="L50">        this.httpClient = HttpClient.newBuilder()</span>
+<span class="fc" id="L51">                .connectTimeout(Duration.ofSeconds(3))</span>
+<span class="fc" id="L52">                .build();</span>
+<span class="fc" id="L53">    }</span>
+
+    /** Constructor for testing with mock HttpClient. */
+    public IdentityServiceClient(
+            HttpClient httpClient,
+            ObjectMapper objectMapper,
+            String identityServiceUrl,
+            String jwtSecret) {
+<span class="fc" id="L61">        this(httpClient, objectMapper, identityServiceUrl, jwtSecret, &quot;10&quot;, &quot;admin@swiftdrop.com&quot;, 0);</span>
+<span class="fc" id="L62">    }</span>
+
+    public IdentityServiceClient(
+            HttpClient httpClient,
+            ObjectMapper objectMapper,
+            String identityServiceUrl,
+            String jwtSecret,
+            String adminId,
+            String adminEmail,
+<span class="fc" id="L71">            int adminTokenVersion) {</span>
+<span class="fc" id="L72">        this.httpClient = httpClient;</span>
+<span class="fc" id="L73">        this.objectMapper = objectMapper;</span>
+<span class="fc" id="L74">        this.identityServiceUrl = identityServiceUrl;</span>
+<span class="fc" id="L75">        this.jwtSecret = jwtSecret;</span>
+<span class="fc" id="L76">        this.adminId = adminId;</span>
+<span class="fc" id="L77">        this.adminEmail = adminEmail;</span>
+<span class="fc" id="L78">        this.adminTokenVersion = adminTokenVersion;</span>
+<span class="fc" id="L79">    }</span>
+
+    /**
+     * Queries identity-service to resolve the user's email address by customerId.
+     */
+    public Optional&lt;String&gt; findEmailByCustomerId(String customerId) {
+<span class="fc bfc" id="L85" title="All 4 branches covered.">        if (customerId == null || customerId.isBlank()) {</span>
+<span class="fc" id="L86">            return Optional.empty();</span>
+        }
+
+        // 1. If customerId is already an email address
+<span class="fc bfc" id="L90" title="All 2 branches covered.">        if (customerId.contains(&quot;@&quot;)) {</span>
+<span class="fc" id="L91">            return Optional.of(customerId.trim());</span>
+        }
+
+        // 2. Query identity-service if customerId is a numeric ID
+        try {
+<span class="fc" id="L96">            long userId = Long.parseLong(customerId.trim());</span>
+<span class="fc" id="L97">            URI uri = URI.create(identityServiceUrl + &quot;/api/admin/users/&quot; + userId);</span>
+<span class="fc" id="L98">            log.debug(&quot;Calling identity-service to fetch customer details: url={}&quot;, uri);</span>
+
+<span class="fc" id="L100">            HttpResponse&lt;String&gt; response = adminGet(uri);</span>
+
+<span class="pc bpc" id="L102" title="3 of 6 branches missed.">            if (response.statusCode() == 200 &amp;&amp; response.body() != null &amp;&amp; !response.body().isBlank()) {</span>
+<span class="fc" id="L103">                JsonNode root = objectMapper.readTree(response.body());</span>
+<span class="fc" id="L104">                JsonNode emailNode = root.get(&quot;email&quot;);</span>
+<span class="pc bpc" id="L105" title="2 of 4 branches missed.">                if (emailNode != null &amp;&amp; !emailNode.asText().isBlank()) {</span>
+<span class="fc" id="L106">                    return Optional.of(emailNode.asText().trim());</span>
+                }
+<span class="nc" id="L108">            } else {</span>
+<span class="nc" id="L109">                log.warn(&quot;Identity-service returned HTTP {} for customerId '{}': {}&quot;,</span>
+<span class="nc" id="L110">                        response.statusCode(), customerId, response.body());</span>
+            }
+<span class="nc" id="L112">        } catch (NumberFormatException nfe) {</span>
+<span class="nc" id="L113">            log.debug(&quot;CustomerId '{}' is not numeric, skipping identity-service query&quot;, customerId);</span>
+<span class="nc" id="L114">        } catch (Exception ex) {</span>
+<span class="nc" id="L115">            log.warn(&quot;Could not retrieve customer email from identity-service at {} for customerId '{}': {}&quot;,</span>
+<span class="nc" id="L116">                    identityServiceUrl, customerId, ex.getMessage());</span>
+<span class="nc" id="L117">        }</span>
+
+<span class="nc" id="L119">        return Optional.empty();</span>
+    }
+
+    /**
+     * GET on identity-service with an internal ADMIN token. On 401 it retries
+     * the known admin credentials and remembers the one that works.
+     */
+    private HttpResponse&lt;String&gt; adminGet(URI uri) throws Exception {
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">        String activeAdminId = workingAdminId != null ? workingAdminId : adminId;</span>
+<span class="pc bpc" id="L128" title="1 of 2 branches missed.">        String activeAdminEmail = workingAdminEmail != null ? workingAdminEmail : adminEmail;</span>
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">        int activeVersion = workingTokenVersion != null ? workingTokenVersion : adminTokenVersion;</span>
+
+<span class="fc" id="L131">        String token = generateInternalAdminToken(activeAdminId, activeAdminEmail, activeVersion);</span>
+
+<span class="fc" id="L133">        HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()</span>
+<span class="fc" id="L134">                .uri(uri)</span>
+<span class="fc" id="L135">                .timeout(Duration.ofSeconds(3))</span>
+<span class="fc" id="L136">                .GET();</span>
+
+<span class="pc bpc" id="L138" title="1 of 2 branches missed.">        if (!token.isBlank()) {</span>
+<span class="fc" id="L139">            reqBuilder.header(&quot;Authorization&quot;, &quot;Bearer &quot; + token);</span>
+        }
+
+<span class="fc" id="L142">        HttpResponse&lt;String&gt; response = httpClient.send(reqBuilder.build(), HttpResponse.BodyHandlers.ofString());</span>
+
+        // Auto-recovery: If 401 Unauthorized occurs due to token_version, email, or admin ID divergence across environments,
+        // iterate candidate credentials to find the active admin token.
+<span class="pc bpc" id="L146" title="5 of 6 branches missed.">        if (response.statusCode() == 401 &amp;&amp; jwtSecret != null &amp;&amp; !jwtSecret.isBlank()) {</span>
+            // Build a candidate list: configured version first, then 0-50 as fallback range
+<span class="nc" id="L148">            int configuredVersion = adminTokenVersion;</span>
+<span class="nc" id="L149">            java.util.List&lt;Integer&gt; versionList = new java.util.ArrayList&lt;&gt;();</span>
+<span class="nc" id="L150">            versionList.add(configuredVersion);</span>
+<span class="nc bnc" id="L151" title="All 2 branches missed.">            for (int v = 0; v &lt;= 50; v++) {</span>
+<span class="nc bnc" id="L152" title="All 2 branches missed.">                if (v != configuredVersion) versionList.add(v);</span>
+            }
+<span class="nc" id="L154">            int[] candidateVersions = versionList.stream().mapToInt(Integer::intValue).toArray();</span>
+<span class="nc" id="L155">            String[] candidateAdminIds = {adminId, &quot;1&quot;, &quot;2&quot;, &quot;10&quot;};</span>
+<span class="nc" id="L156">            String[] candidateEmails = {adminEmail, &quot;admin@example.com&quot;, &quot;root.admin@swiftdrop.test&quot;, &quot;admin@swiftdrop.lk&quot;};</span>
+<span class="nc" id="L157">            boolean recovered = false;</span>
+
+<span class="nc bnc" id="L159" title="All 2 branches missed.">            for (String candId : candidateAdminIds) {</span>
+<span class="nc bnc" id="L160" title="All 2 branches missed.">                for (String candEmail : candidateEmails) {</span>
+<span class="nc bnc" id="L161" title="All 2 branches missed.">                    for (int candVer : candidateVersions) {</span>
+<span class="nc bnc" id="L162" title="All 6 branches missed.">                        if (candId.equals(activeAdminId) &amp;&amp; candEmail.equals(activeAdminEmail) &amp;&amp; candVer == activeVersion) {</span>
+<span class="nc" id="L163">                            continue;</span>
+                        }
+<span class="nc" id="L165">                        String candidateToken = generateInternalAdminToken(candId, candEmail, candVer);</span>
+<span class="nc bnc" id="L166" title="All 2 branches missed.">                        if (candidateToken.isBlank()) {</span>
+<span class="nc" id="L167">                            continue;</span>
+                        }
+<span class="nc" id="L169">                        HttpRequest retryReq = HttpRequest.newBuilder()</span>
+<span class="nc" id="L170">                                .uri(uri)</span>
+<span class="nc" id="L171">                                .timeout(Duration.ofSeconds(2))</span>
+<span class="nc" id="L172">                                .header(&quot;Authorization&quot;, &quot;Bearer &quot; + candidateToken)</span>
+<span class="nc" id="L173">                                .GET()</span>
+<span class="nc" id="L174">                                .build();</span>
+                        try {
+<span class="nc" id="L176">                            HttpResponse&lt;String&gt; retryResp = httpClient.send(retryReq, HttpResponse.BodyHandlers.ofString());</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">                            if (retryResp.statusCode() == 200) {</span>
+<span class="nc" id="L178">                                response = retryResp;</span>
+<span class="nc" id="L179">                                workingAdminId = candId;</span>
+<span class="nc" id="L180">                                workingAdminEmail = candEmail;</span>
+<span class="nc" id="L181">                                workingTokenVersion = candVer;</span>
+<span class="nc" id="L182">                                log.info(&quot;Auto-recovered identity-service admin token with adminId='{}', email='{}', and tokenVersion={}&quot;,</span>
+<span class="nc" id="L183">                                        candId, candEmail, candVer);</span>
+<span class="nc" id="L184">                                recovered = true;</span>
+<span class="nc" id="L185">                                break;</span>
+                            }
+<span class="nc" id="L187">                        } catch (Exception ignored) {</span>
+<span class="nc" id="L188">                        }</span>
+                    }
+<span class="nc bnc" id="L190" title="All 2 branches missed.">                    if (recovered) break;</span>
+                }
+<span class="nc bnc" id="L192" title="All 2 branches missed.">                if (recovered) break;</span>
+            }
+        }
+
+<span class="fc" id="L196">        return response;</span>
+    }
+
+    /**
+     * Identity user ids of every ACTIVE account with the given role, for example
+     * DISPATCHER. Returns an empty list when identity-service cannot be reached.
+     */
+    public java.util.List&lt;String&gt; findActiveUserIdsByRole(String role) {
+<span class="fc" id="L204">        java.util.List&lt;String&gt; ids = new java.util.ArrayList&lt;&gt;();</span>
+        try {
+<span class="pc bpc" id="L206" title="1 of 2 branches missed.">            for (int page = 0; page &lt; 50; page++) {</span>
+<span class="fc" id="L207">                URI uri = URI.create(identityServiceUrl + &quot;/api/admin/users?role=&quot; + role</span>
+                        + &quot;&amp;status=ACTIVE&amp;size=100&amp;sort=id,ASC&amp;page=&quot; + page);
+<span class="fc" id="L209">                HttpResponse&lt;String&gt; response = adminGet(uri);</span>
+<span class="pc bpc" id="L210" title="3 of 6 branches missed.">                if (response.statusCode() != 200 || response.body() == null || response.body().isBlank()) {</span>
+<span class="nc" id="L211">                    log.warn(&quot;Identity-service returned HTTP {} listing {} users&quot;, response.statusCode(), role);</span>
+<span class="nc" id="L212">                    break;</span>
+                }
+<span class="fc" id="L214">                JsonNode root = objectMapper.readTree(response.body());</span>
+<span class="fc" id="L215">                JsonNode content = root.get(&quot;content&quot;);</span>
+<span class="pc bpc" id="L216" title="3 of 6 branches missed.">                if (content == null || !content.isArray() || content.isEmpty()) {</span>
+<span class="nc" id="L217">                    break;</span>
+                }
+<span class="fc bfc" id="L219" title="All 2 branches covered.">                for (JsonNode user : content) {</span>
+<span class="fc" id="L220">                    JsonNode id = user.get(&quot;id&quot;);</span>
+<span class="pc bpc" id="L221" title="2 of 4 branches missed.">                    if (id != null &amp;&amp; !id.asText().isBlank()) {</span>
+<span class="fc" id="L222">                        ids.add(id.asText());</span>
+                    }
+<span class="fc" id="L224">                }</span>
+<span class="fc" id="L225">                JsonNode last = root.get(&quot;last&quot;);</span>
+<span class="pc bpc" id="L226" title="1 of 4 branches missed.">                if (last == null || last.asBoolean()) {</span>
+<span class="fc" id="L227">                    break;</span>
+                }
+            }
+<span class="fc" id="L230">        } catch (Exception ex) {</span>
+<span class="fc" id="L231">            log.warn(&quot;Could not list {} users from identity-service at {}: {}&quot;, role, identityServiceUrl, ex.getMessage());</span>
+<span class="fc" id="L232">        }</span>
+<span class="fc" id="L233">        return ids;</span>
+    }
+
+    private String generateInternalAdminToken() {
+<span class="nc" id="L237">        return generateInternalAdminToken(adminId, adminEmail, adminTokenVersion);</span>
+    }
+
+    private String generateInternalAdminToken(int tokenVersion) {
+<span class="nc" id="L241">        return generateInternalAdminToken(adminId, adminEmail, tokenVersion);</span>
+    }
+
+    private String generateInternalAdminToken(String id, String email, int tokenVersion) {
+<span class="pc bpc" id="L245" title="2 of 4 branches missed.">        if (jwtSecret == null || jwtSecret.isBlank()) {</span>
+<span class="nc" id="L246">            return &quot;&quot;;</span>
+        }
+        try {
+<span class="fc" id="L249">            byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);</span>
+<span class="fc" id="L250">            return Jwts.builder()</span>
+<span class="fc" id="L251">                    .subject(id)</span>
+<span class="fc" id="L252">                    .claim(&quot;email&quot;, email)</span>
+<span class="fc" id="L253">                    .claim(&quot;role&quot;, &quot;ADMIN&quot;)</span>
+<span class="fc" id="L254">                    .claim(&quot;status&quot;, &quot;ACTIVE&quot;)</span>
+<span class="fc" id="L255">                    .claim(&quot;ver&quot;, tokenVersion)</span>
+<span class="fc" id="L256">                    .issuedAt(new Date())</span>
+<span class="fc" id="L257">                    .expiration(Date.from(Instant.now().plusSeconds(300)))</span>
+<span class="fc" id="L258">                    .signWith(Keys.hmacShaKeyFor(keyBytes))</span>
+<span class="fc" id="L259">                    .compact();</span>
+<span class="nc" id="L260">        } catch (Exception ex) {</span>
+<span class="nc" id="L261">            log.warn(&quot;Failed to generate internal admin token: {}&quot;, ex.getMessage());</span>
+<span class="nc" id="L262">            return &quot;&quot;;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

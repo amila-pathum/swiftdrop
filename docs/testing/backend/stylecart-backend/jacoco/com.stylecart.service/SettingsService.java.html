@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SettingsService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">stylecart</a> &gt; <a href="index.source.html" class="el_package">com.stylecart.service</a> &gt; <span class="el_source">SettingsService.java</span></div><h1>SettingsService.java</h1><pre class="source lang-java linenums">package com.stylecart.service;
+import com.stylecart.model.IntegrationSettings;
+import com.stylecart.repo.SettingsRepository;
+import java.net.URI;
+import java.util.*;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
+@Service
+public class SettingsService {
+    private final SettingsRepository settings;private final SecretBox secrets;private final Set&lt;String&gt; allowed;private final String publicUrl;
+    private final ApplicationEventPublisher events;
+<span class="fc" id="L16">    public SettingsService(SettingsRepository settings,SecretBox secrets,@Value(&quot;${stylecart.allowed-gateways}&quot;) String origins,@Value(&quot;${stylecart.public-url}&quot;) String publicUrl,ApplicationEventPublisher events){</span>
+<span class="fc" id="L17">        this.settings=settings;this.secrets=secrets;this.publicUrl=publicUrl;this.events=events;</span>
+<span class="fc bfc" id="L18" title="All 2 branches covered.">        allowed=new HashSet&lt;&gt;();for(String value:origins.split(&quot;,&quot;))allowed.add(origin(value.trim()));</span>
+<span class="fc" id="L19">    }</span>
+<span class="fc" id="L20">    public static String origin(String value){try{var u=URI.create(value);boolean local=Set.of(&quot;localhost&quot;,&quot;127.0.0.1&quot;,&quot;[::1]&quot;).contains(u.getHost());</span>
+<span class="pc bpc" id="L21" title="7 of 12 branches missed.">        if(u.getUserInfo()!=null||u.getFragment()!=null||u.getQuery()!=null||u.getHost()==null||!(u.getPath().isEmpty()||u.getPath().equals(&quot;/&quot;))</span>
+<span class="pc bpc" id="L22" title="2 of 6 branches missed.">            ||!(u.getScheme().equals(&quot;https&quot;)||u.getScheme().equals(&quot;http&quot;)&amp;&amp;local))throw new IllegalArgumentException();</span>
+<span class="fc" id="L23">        return u.getScheme()+&quot;://&quot;+u.getAuthority();}catch(Exception e){throw new ResponseStatusException(HttpStatus.BAD_REQUEST,&quot;Use an approved HTTPS gateway or local HTTP gateway origin.&quot;);}}</span>
+<span class="fc" id="L24">    @Transactional(readOnly=true) public View view(){return toView(settings.findById(1L).orElseThrow());}</span>
+<span class="pc bpc" id="L25" title="2 of 4 branches missed.">    private View toView(IntegrationSettings s){return new View(s.gatewayUrl,s.apiKeyCipher!=null,s.secretCipher!=null,publicUrl.replaceAll(&quot;/$&quot;,&quot;&quot;)+&quot;/webhooks/swiftdrop&quot;,</span>
+        s.pickupName,s.pickupPhone,s.pickupAddress,s.pickupCity,s.pickupPostal,s.failureMode,s.failuresRemaining);}
+<span class="fc" id="L27">    @Transactional public View update(Update value){var s=settings.lock().orElseThrow();String gateway=origin(value.gatewayUrl());</span>
+<span class="pc bpc" id="L28" title="1 of 2 branches missed.">        if(!allowed.contains(gateway))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,&quot;Gateway is not in this shop server’s approved gateway list.&quot;);</span>
+<span class="pc bpc" id="L29" title="2 of 4 branches missed.">        if(value.apiKey()!=null&amp;&amp;!value.apiKey().isBlank())s.apiKeyCipher=secrets.encrypt(limit(value.apiKey(),512));</span>
+<span class="pc bpc" id="L30" title="2 of 4 branches missed.">        if(value.signingSecret()!=null&amp;&amp;!value.signingSecret().isBlank())s.secretCipher=secrets.encrypt(limit(value.signingSecret(),512));</span>
+<span class="fc" id="L31">        s.gatewayUrl=gateway;s.pickupName=limit(value.pickupName(),150);s.pickupPhone=limit(value.pickupPhone(),30);</span>
+<span class="fc" id="L32">        s.pickupAddress=limit(value.pickupAddress(),255);s.pickupCity=limit(value.pickupCity(),100);s.pickupPostal=limit(value.pickupPostal(),20);</span>
+<span class="fc" id="L33">        events.publishEvent(new LiveUpdates.Changed(null,null));return toView(s);</span>
+    }
+<span class="pc bpc" id="L35" title="1 of 2 branches missed.">    @Transactional public void failures(String mode){if(!Set.of(&quot;NORMAL&quot;,&quot;NEXT_TWO&quot;,&quot;ALWAYS&quot;).contains(mode))throw new ResponseStatusException(HttpStatus.BAD_REQUEST);</span>
+<span class="fc bfc" id="L36" title="All 2 branches covered.">        var s=settings.lock().orElseThrow();s.failureMode=mode;s.failuresRemaining=mode.equals(&quot;NEXT_TWO&quot;)?2:0;events.publishEvent(new LiveUpdates.Changed(null,null));}</span>
+<span class="fc" id="L37">    @Transactional(readOnly=true) public Credentials credentials(){var s=settings.findById(1L).orElseThrow();</span>
+<span class="pc bpc" id="L38" title="1 of 2 branches missed.">        if(!allowed.contains(origin(s.gatewayUrl)))throw new ResponseStatusException(HttpStatus.CONFLICT,&quot;Configure an approved gateway first.&quot;);</span>
+<span class="fc" id="L39">        return new Credentials(s.gatewayUrl,secrets.decrypt(s.apiKeyCipher));}</span>
+<span class="pc bpc" id="L40" title="2 of 4 branches missed.">    public static String limit(String value,int max){if(value==null)return &quot;&quot;;if(value.trim().length()&gt;max)throw new ResponseStatusException(HttpStatus.BAD_REQUEST,&quot;A setting is too long.&quot;);return value.trim();}</span>
+<span class="fc" id="L41">    public record View(String gatewayUrl,boolean apiKeyConfigured,boolean signingSecretConfigured,String webhookUrl,String pickupName,String pickupPhone,String pickupAddress,String pickupCity,String pickupPostal,String failureMode,int failuresRemaining){}</span>
+<span class="pc" id="L42">    public record Update(String gatewayUrl,String apiKey,String signingSecret,String pickupName,String pickupPhone,String pickupAddress,String pickupCity,String pickupPostal){@Override public String toString(){return &quot;SettingsUpdate[REDACTED]&quot;;}}</span>
+<span class="pc" id="L43">    public record Credentials(String gateway,String apiKey){@Override public String toString(){return &quot;Credentials[REDACTED]&quot;;}}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UpstreamUnavailableExceptionHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">api-gateway</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.gateway.error</a> &gt; <span class="el_source">UpstreamUnavailableExceptionHandler.java</span></div><h1>UpstreamUnavailableExceptionHandler.java</h1><pre class="source lang-java linenums">package com.swiftdrop.gateway.error;
+
+import org.springframework.boot.webflux.error.ErrorWebExceptionHandler;
+import org.springframework.core.Ordered;
+import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.WebClientRequestException;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.server.ServerWebExchange;
+import reactor.core.publisher.Mono;
+
+import java.nio.charset.StandardCharsets;
+import java.net.ConnectException;
+
+@Component
+@Order(Ordered.HIGHEST_PRECEDENCE)
+<span class="fc" id="L19">public class UpstreamUnavailableExceptionHandler implements ErrorWebExceptionHandler {</span>
+<span class="fc" id="L20">    private static final byte[] RESPONSE_BODY =</span>
+<span class="fc" id="L21">        &quot;{\&quot;error\&quot;:\&quot;Upstream service is unavailable\&quot;}&quot;.getBytes(StandardCharsets.UTF_8);</span>
+
+    @Override
+    public Mono&lt;Void&gt; handle(ServerWebExchange exchange, Throwable exception) {
+<span class="fc" id="L25">        var response = exchange.getResponse();</span>
+<span class="pc bpc" id="L26" title="1 of 2 branches missed.">        if (response.isCommitted()) {</span>
+<span class="nc" id="L27">            return Mono.error(exception);</span>
+        }
+<span class="fc" id="L29">        boolean unavailable = isConnectionFailure(exception);</span>
+<span class="fc" id="L30">        response.getHeaders().setContentType(MediaType.APPLICATION_JSON);</span>
+        byte[] body;
+<span class="fc bfc" id="L32" title="All 2 branches covered.">        if (unavailable) {</span>
+<span class="fc" id="L33">            response.setStatusCode(HttpStatus.BAD_GATEWAY);</span>
+<span class="fc" id="L34">            body = RESPONSE_BODY;</span>
+<span class="pc bpc" id="L35" title="1 of 2 branches missed.">        } else if (exception instanceof ResponseStatusException statusException</span>
+<span class="pc bpc" id="L36" title="1 of 2 branches missed.">                &amp;&amp; statusException.getStatusCode().is4xxClientError()) {</span>
+            // For example 404 for a path no route matches: keep the status, hide details.
+<span class="fc" id="L38">            response.setStatusCode(statusException.getStatusCode());</span>
+<span class="pc bpc" id="L39" title="1 of 2 branches missed.">            body = (statusException.getStatusCode().value() == 404</span>
+<span class="pc" id="L40">                ? &quot;{\&quot;error\&quot;:\&quot;Not found\&quot;}&quot; : &quot;{\&quot;error\&quot;:\&quot;Bad request\&quot;}&quot;)</span>
+<span class="fc" id="L41">                .getBytes(StandardCharsets.UTF_8);</span>
+        } else {
+<span class="nc" id="L43">            response.setStatusCode(HttpStatus.INTERNAL_SERVER_ERROR);</span>
+<span class="nc" id="L44">            body = &quot;{\&quot;error\&quot;:\&quot;Gateway request failed\&quot;}&quot;.getBytes(StandardCharsets.UTF_8);</span>
+        }
+<span class="fc" id="L46">        return response.writeWith(Mono.just(response.bufferFactory().wrap(body)));</span>
+    }
+
+    private boolean isConnectionFailure(Throwable exception) {
+<span class="fc" id="L50">        Throwable current = exception;</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        while (current != null) {</span>
+<span class="pc bpc" id="L52" title="1 of 4 branches missed.">            if (current instanceof ConnectException</span>
+                    || current instanceof WebClientRequestException) {
+<span class="fc" id="L54">                return true;</span>
+            }
+<span class="fc" id="L56">            current = current.getCause();</span>
+        }
+<span class="fc" id="L58">        return false;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

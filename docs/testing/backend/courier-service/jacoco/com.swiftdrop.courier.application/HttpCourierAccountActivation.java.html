@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HttpCourierAccountActivation.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">courier-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.courier.application</a> &gt; <span class="el_source">HttpCourierAccountActivation.java</span></div><h1>HttpCourierAccountActivation.java</h1><pre class="source lang-java linenums">package com.swiftdrop.courier.application;
+
+import com.swiftdrop.courier.client.CourierIntegrations.RemoteFailure;
+import com.swiftdrop.courier.exception.CourierException;
+import java.net.http.HttpClient;
+import java.time.Duration;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestClientResponseException;
+
+@Component
+public class HttpCourierAccountActivation implements CourierAccountActivation {
+    private static final String SERVICE = &quot;Identity service&quot;;
+    private final RestClient client;
+
+    public HttpCourierAccountActivation(
+<span class="fc" id="L20">            @Value(&quot;${swiftdrop.clients.identity-url:http://localhost:8081}&quot;) String url) {</span>
+<span class="fc" id="L21">        var factory = new JdkClientHttpRequestFactory(HttpClient.newBuilder()</span>
+<span class="fc" id="L22">            .connectTimeout(Duration.ofSeconds(3)).followRedirects(HttpClient.Redirect.NEVER).build());</span>
+<span class="fc" id="L23">        factory.setReadTimeout(Duration.ofSeconds(8));</span>
+<span class="fc" id="L24">        client = RestClient.builder().baseUrl(url).requestFactory(factory).build();</span>
+<span class="fc" id="L25">    }</span>
+
+    @Override
+    public void ensureActive(Long userId, String adminToken) {
+        try {
+<span class="nc" id="L30">            Account account = client.get().uri(&quot;/api/admin/users/{id}&quot;, userId)</span>
+<span class="nc" id="L31">                .headers(h -&gt; h.setBearerAuth(adminToken)).retrieve().body(Account.class);</span>
+<span class="nc" id="L32">            requireCourier(account, userId);</span>
+<span class="nc bnc" id="L33" title="All 2 branches missed.">            if (&quot;ACTIVE&quot;.equals(account.status())) return;</span>
+<span class="nc bnc" id="L34" title="All 2 branches missed.">            if (!&quot;PENDING_APPROVAL&quot;.equals(account.status())) throw notApprovable();</span>
+<span class="nc" id="L35">            Account activated = client.post().uri(&quot;/api/admin/users/{id}/activate&quot;, userId)</span>
+<span class="nc" id="L36">                .headers(h -&gt; h.setBearerAuth(adminToken)).retrieve().body(Account.class);</span>
+<span class="nc" id="L37">            requireCourier(activated, userId);</span>
+<span class="nc bnc" id="L38" title="All 2 branches missed.">            if (!&quot;ACTIVE&quot;.equals(activated.status())) throw new RemoteFailure(SERVICE, false);</span>
+<span class="nc" id="L39">        } catch (RestClientResponseException e) {</span>
+<span class="nc" id="L40">            int status = e.getStatusCode().value();</span>
+<span class="nc bnc" id="L41" title="All 4 branches missed.">            if (status == 401 || status == 403) {</span>
+<span class="nc" id="L42">                throw CourierException.forbidden(</span>
+                    &quot;Administrator authorization could not be verified by the Identity service.&quot;);
+            }
+<span class="nc bnc" id="L45" title="All 2 branches missed.">            if (status == 404) throw CourierException.conflict(&quot;The applicant's login account was not found.&quot;);</span>
+            // Never pass on remote bodies or exception text.
+<span class="nc" id="L47">            throw new RemoteFailure(SERVICE, false);</span>
+<span class="nc" id="L48">        } catch (RestClientException e) {</span>
+<span class="nc" id="L49">            throw new RemoteFailure(SERVICE, false);</span>
+<span class="nc" id="L50">        }</span>
+<span class="nc" id="L51">    }</span>
+
+    private static void requireCourier(Account account, Long userId) {
+<span class="nc bnc" id="L54" title="All 6 branches missed.">        if (account == null || !userId.equals(account.id()) || !&quot;COURIER&quot;.equals(account.role())) {</span>
+<span class="nc" id="L55">            throw notApprovable();</span>
+        }
+<span class="nc" id="L57">    }</span>
+
+    private static CourierException notApprovable() {
+<span class="nc" id="L60">        return CourierException.conflict(</span>
+            &quot;The login account must be a pending or active courier; suspended and disabled accounts cannot be approved here.&quot;);
+    }
+
+<span class="nc" id="L64">    record Account(Long id, String role, String status) {}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

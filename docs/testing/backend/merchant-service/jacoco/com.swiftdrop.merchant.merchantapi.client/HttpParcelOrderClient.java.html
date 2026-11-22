@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HttpParcelOrderClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">merchant-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.merchant.merchantapi.client</a> &gt; <span class="el_source">HttpParcelOrderClient.java</span></div><h1>HttpParcelOrderClient.java</h1><pre class="source lang-java linenums">package com.swiftdrop.merchant.merchantapi.client;
+
+import com.swiftdrop.merchant.entity.MerchantStatus;
+import com.swiftdrop.merchant.repository.MerchantRepository;
+import com.swiftdrop.merchant.merchantapi.dto.*;
+import com.swiftdrop.merchant.merchantapi.service.MerchantOrderStore;
+import java.net.http.HttpClient;
+import java.time.Duration;
+import java.util.*;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.*;
+import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.ObjectMapper;
+
+@Component
+public class HttpParcelOrderClient implements ParcelOrderClient {
+    private static final String PATH = &quot;/api/parcels/merchant/integration/orders&quot;;
+    private final RestClient client;
+    private final MerchantRepository merchants;
+    private final IdentityMerchantTokenClient tokens;
+    private final ObjectMapper mapper;
+    public HttpParcelOrderClient(@Value(&quot;${PARCEL_SERVICE_URL:http://localhost:8082}&quot;) String url,
+<span class="fc" id="L26">            MerchantRepository merchants, IdentityMerchantTokenClient tokens, ObjectMapper mapper) {</span>
+<span class="fc" id="L27">        var factory = new JdkClientHttpRequestFactory(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2))</span>
+<span class="fc" id="L28">                .followRedirects(HttpClient.Redirect.NEVER).build());</span>
+<span class="fc" id="L29">        factory.setReadTimeout(Duration.ofSeconds(12));</span>
+<span class="fc" id="L30">        client = RestClient.builder().baseUrl(url).requestFactory(factory).build();</span>
+<span class="fc" id="L31">        this.merchants = merchants; this.tokens = tokens; this.mapper = mapper;</span>
+<span class="fc" id="L32">    }</span>
+    private String token(String profileId) {
+        long id;
+<span class="pc bpc" id="L35" title="2 of 4 branches missed.">        try { id = Long.parseLong(profileId); if (id &lt;= 0 || !Long.toString(id).equals(profileId)) throw new NumberFormatException(); }</span>
+<span class="pc" id="L36">        catch (RuntimeException exception) { throw new ResponseStatusException(HttpStatus.UNAUTHORIZED); }</span>
+<span class="pc" id="L37">        var merchant = merchants.findById(id).orElseThrow(() -&gt; new ResponseStatusException(HttpStatus.NOT_FOUND, &quot;Merchant not found&quot;));</span>
+<span class="fc bfc" id="L38" title="All 2 branches covered.">        if (merchant.getStatus() != MerchantStatus.APPROVED) throw new ResponseStatusException(HttpStatus.FORBIDDEN, &quot;Merchant must be approved&quot;);</span>
+<span class="fc" id="L39">        return tokens.forUser(merchant.getUserId());</span>
+    }
+<span class="fc" id="L41">    @Override public boolean idempotentCreation() { return true; }</span>
+    @Override public MerchantOrderResponse createOrder(String merchantId, CreateMerchantOrderRequest order) {
+<span class="fc" id="L43">        String bearer = token(merchantId);</span>
+<span class="fc" id="L44">        var parcel = order.parcel();</span>
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">        String size = parcel.size() == null ? &quot;MEDIUM&quot; : parcel.size();</span>
+<span class="pc bpc" id="L46" title="1 of 2 branches missed.">        String service = parcel.serviceType() == null ? &quot;STANDARD&quot; : parcel.serviceType();</span>
+<span class="fc" id="L47">        var details = new LinkedHashMap&lt;String,Object&gt;();</span>
+<span class="fc" id="L48">        details.put(&quot;receiverName&quot;, order.receiver().name()); details.put(&quot;receiverPhone&quot;, order.receiver().phone());</span>
+<span class="fc" id="L49">        details.put(&quot;pickupAddressLine1&quot;, order.pickup().address()); details.put(&quot;pickupAddressLine2&quot;, null);</span>
+<span class="fc" id="L50">        details.put(&quot;pickupCity&quot;, order.pickup().city());</span>
+<span class="fc" id="L51">        details.put(&quot;deliveryAddressLine1&quot;, order.receiver().address()); details.put(&quot;deliveryAddressLine2&quot;, null);</span>
+<span class="fc" id="L52">        details.put(&quot;deliveryCity&quot;, order.receiver().city()); details.put(&quot;weight&quot;, parcel.weightKg());</span>
+<span class="fc" id="L53">        details.put(&quot;size&quot;, size); details.put(&quot;parcelType&quot;, service);</span>
+        String hash;
+<span class="fc" id="L55">        try { hash = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance(&quot;SHA-256&quot;)</span>
+<span class="fc" id="L56">                .digest(mapper.writeValueAsBytes(order))); }</span>
+<span class="pc" id="L57">        catch (java.security.NoSuchAlgorithmException exception) { throw new IllegalStateException(exception); }</span>
+        try {
+<span class="fc" id="L59">            var response = client.post().uri(PATH).headers(headers -&gt; headers.setBearerAuth(bearer))</span>
+<span class="fc" id="L60">                    .body(new IntegrationPayload(order.merchantOrderReference(), hash, details))</span>
+<span class="fc" id="L61">                    .retrieve().toEntity(DownstreamOrder.class);</span>
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">            if (!response.getStatusCode().is2xxSuccessful()) throw unavailable();</span>
+<span class="fc" id="L63">            return convert(response.getBody(), order.merchantOrderReference());</span>
+<span class="fc" id="L64">        } catch (RestClientResponseException exception) { throw translated(exception); }</span>
+<span class="nc" id="L65">        catch (RestClientException exception) { throw unavailable(); }</span>
+    }
+    @Override public Optional&lt;MerchantOrderResponse&gt; current(String merchantId, String reference) {
+<span class="fc" id="L68">        String bearer = token(merchantId);</span>
+        try {
+<span class="fc" id="L70">            var response = client.get().uri(PATH + &quot;/by-reference?reference={reference}&quot;, reference).headers(headers -&gt; headers.setBearerAuth(bearer))</span>
+<span class="fc" id="L71">                    .retrieve().toEntity(DownstreamOrder.class);</span>
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">            if (!response.getStatusCode().is2xxSuccessful()) throw unavailable();</span>
+<span class="fc" id="L73">            return Optional.of(convert(response.getBody(), reference));</span>
+<span class="nc" id="L74">        } catch (HttpClientErrorException.NotFound exception) { return Optional.empty(); }</span>
+<span class="nc" id="L75">        catch (RestClientResponseException exception) { throw translated(exception); }</span>
+<span class="nc" id="L76">        catch (RestClientException exception) { throw unavailable(); }</span>
+    }
+    @Override public Optional&lt;MerchantOrderStore.Page&gt; list(String merchantId, int page, int size) {
+<span class="fc" id="L79">        String bearer = token(merchantId);</span>
+        try {
+<span class="fc" id="L81">            var response = client.get().uri(PATH + &quot;?page={page}&amp;size={size}&quot;, page, size)</span>
+<span class="fc" id="L82">                    .headers(headers -&gt; headers.setBearerAuth(bearer)).retrieve().toEntity(DownstreamPage.class);</span>
+<span class="fc" id="L83">            var result = response.getBody();</span>
+<span class="pc bpc" id="L84" title="3 of 6 branches missed.">            if (!response.getStatusCode().is2xxSuccessful() || result == null || result.items() == null</span>
+<span class="pc bpc" id="L85" title="4 of 8 branches missed.">                    || result.total() &lt; 0 || result.page() != page || result.size() != size || result.items().size() &gt; size) throw unavailable();</span>
+<span class="fc" id="L86">            return Optional.of(new MerchantOrderStore.Page(result.items().stream()</span>
+<span class="fc" id="L87">                    .map(item -&gt; convert(item, item.merchantOrderReference())).toList(), result.total(), page, size));</span>
+<span class="nc" id="L88">        } catch (RestClientResponseException exception) { throw translated(exception); }</span>
+<span class="nc" id="L89">        catch (RestClientException exception) { throw unavailable(); }</span>
+    }
+    private static MerchantOrderResponse convert(DownstreamOrder result, String reference) {
+<span class="pc bpc" id="L92" title="2 of 6 branches missed.">        if (result == null || reference == null || !reference.equals(result.merchantOrderReference())</span>
+<span class="pc bpc" id="L93" title="3 of 6 branches missed.">                || result.parcelId() == null || result.trackingNumber() == null || result.trackingNumber().isBlank()</span>
+<span class="pc bpc" id="L94" title="2 of 4 branches missed.">                || result.status() == null || !Set.of(&quot;CREATED&quot;,&quot;PICKED_UP&quot;,&quot;IN_TRANSIT&quot;,&quot;OUT_FOR_DELIVERY&quot;,&quot;DELIVERED&quot;,&quot;FAILED&quot;,&quot;CANCELLED&quot;).contains(result.status())</span>
+<span class="pc bpc" id="L95" title="3 of 6 branches missed.">                || result.charge() == null || result.charge().signum() &lt; 0 || result.createdAt() == null) throw unavailable();</span>
+<span class="fc" id="L96">        return new MerchantOrderResponse(reference, result.trackingNumber(), result.status(),</span>
+<span class="fc" id="L97">                new MerchantOrderResponse.ParcelSnapshot(result.parcelId().toString(), result.charge(), result.createdAt(),</span>
+<span class="fc" id="L98">                        result.weightKg(), result.size(), result.serviceType()));</span>
+    }
+    private static ResponseStatusException translated(RestClientResponseException exception) {
+<span class="pc bpc" id="L101" title="3 of 4 branches missed.">        return switch (exception.getStatusCode().value()) {</span>
+<span class="nc" id="L102">            case 400 -&gt; new ResponseStatusException(HttpStatus.BAD_REQUEST, &quot;Parcel details are invalid&quot;);</span>
+<span class="nc" id="L103">            case 403 -&gt; new ResponseStatusException(HttpStatus.FORBIDDEN, &quot;Merchant parcel access is not available&quot;);</span>
+<span class="fc" id="L104">            case 409 -&gt; new ResponseStatusException(HttpStatus.CONFLICT, &quot;Order reference already used with different details&quot;);</span>
+<span class="nc" id="L105">            default -&gt; unavailable();</span>
+        };
+    }
+    private static ResponseStatusException unavailable() {
+<span class="fc" id="L109">        return new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, &quot;Parcel service is unavailable; retry the same order reference&quot;);</span>
+    }
+<span class="fc" id="L111">    private record DownstreamOrder(String merchantOrderReference, String trackingNumber, String status,</span>
+            java.util.UUID parcelId, java.math.BigDecimal charge, java.time.Instant createdAt,
+            java.math.BigDecimal weightKg, String size, String serviceType) { }
+<span class="fc" id="L114">    private record DownstreamPage(List&lt;DownstreamOrder&gt; items, long total, int page, int size) { }</span>
+<span class="fc" id="L115">    private record IntegrationPayload(String merchantOrderReference, String sourceRequestHash, Map&lt;String,Object&gt; parcel) {</span>
+<span class="nc" id="L116">        @Override public String toString() { return &quot;IntegrationPayload[merchantOrderReference=&quot; + merchantOrderReference + &quot;]&quot;; }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

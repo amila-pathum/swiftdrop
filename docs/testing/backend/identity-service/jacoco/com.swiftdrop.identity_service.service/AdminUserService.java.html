@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AdminUserService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.identity_service.service</a> &gt; <span class="el_source">AdminUserService.java</span></div><h1>AdminUserService.java</h1><pre class="source lang-java linenums">package com.swiftdrop.identity_service.service;
+
+import com.swiftdrop.identity_service.dto.CreateStaffRequest;
+import com.swiftdrop.identity_service.dto.UserResponse;
+import com.swiftdrop.identity_service.entity.Role;
+import com.swiftdrop.identity_service.entity.User;
+import com.swiftdrop.identity_service.entity.UserStatus;
+import com.swiftdrop.identity_service.exception.DuplicateEmailException;
+import com.swiftdrop.identity_service.exception.InvalidRoleChangeException;
+import com.swiftdrop.identity_service.exception.InvalidStatusChangeException;
+import com.swiftdrop.identity_service.exception.RoleNotAllowedException;
+import com.swiftdrop.identity_service.exception.UserNotFoundException;
+import com.swiftdrop.identity_service.repository.UserRepository;
+import com.swiftdrop.identity_service.repository.UserSpecifications;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Locale;
+import java.util.Objects;
+
+@Service
+public class AdminUserService {
+
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final AuditLogService auditLog;
+
+    public AdminUserService(UserRepository userRepository, PasswordEncoder passwordEncoder,
+<span class="fc" id="L33">            AuditLogService auditLog) {</span>
+<span class="fc" id="L34">        this.userRepository = userRepository;</span>
+<span class="fc" id="L35">        this.passwordEncoder = passwordEncoder;</span>
+<span class="fc" id="L36">        this.auditLog = auditLog;</span>
+<span class="fc" id="L37">    }</span>
+
+    @Transactional
+    public UserResponse createStaff(long adminId, CreateStaffRequest request) {
+<span class="fc bfc" id="L41" title="All 2 branches covered.">        if (!request.role().isStaff()) {</span>
+<span class="fc" id="L42">            throw new RoleNotAllowedException();</span>
+        }
+<span class="fc" id="L44">        String email = request.email().trim().toLowerCase(Locale.ROOT);</span>
+<span class="fc bfc" id="L45" title="All 2 branches covered.">        if (userRepository.existsByEmail(email)) {</span>
+<span class="fc" id="L46">            throw new DuplicateEmailException();</span>
+        }
+<span class="fc" id="L48">        User user = new User(request.name().trim(), email,</span>
+<span class="fc" id="L49">            passwordEncoder.encode(request.password()), request.role(), UserStatus.ACTIVE);</span>
+<span class="fc" id="L50">        user = userRepository.save(user);</span>
+<span class="fc" id="L51">        auditLog.logAdminAction(adminId, &quot;CREATE_STAFF&quot;, user.getId(),</span>
+<span class="fc" id="L52">            &quot;role=&quot; + request.role());</span>
+<span class="fc" id="L53">        return UserResponse.from(user);</span>
+    }
+
+    @Transactional(readOnly = true)
+    public UserResponse getUser(long userId) {
+<span class="fc" id="L58">        return UserResponse.from(find(userId));</span>
+    }
+
+    /**
+     * Lists users matching optional search and filter criteria with pagination.
+     */
+    @Transactional(readOnly = true)
+    public Page&lt;UserResponse&gt; listUsers(
+            String search,
+            String name,
+            String email,
+            String phone,
+            Role role,
+            UserStatus status,
+            Pageable pageable) {
+<span class="fc" id="L73">        Specification&lt;User&gt; spec = UserSpecifications.withFilter(search, name, email, phone, role, status);</span>
+<span class="fc" id="L74">        return userRepository.findAll(spec, pageable).map(UserResponse::from);</span>
+    }
+
+    /**
+     * Changes a user's role. An administrator cannot change their own role.
+     * Tokens issued under the old role stop working immediately.
+     */
+    @Transactional
+    public UserResponse changeRole(long adminId, long userId, Role role) {
+<span class="nc bnc" id="L83" title="All 2 branches missed.">        if (adminId == userId) {</span>
+<span class="nc" id="L84">            throw new InvalidRoleChangeException(&quot;Administrators cannot change their own role&quot;);</span>
+        }
+<span class="nc" id="L86">        Objects.requireNonNull(role, &quot;role is required&quot;);</span>
+<span class="nc" id="L87">        User user = find(userId);</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        if (user.getRole() != role) {</span>
+<span class="nc" id="L89">            user.changeRole(role);</span>
+<span class="nc bnc" id="L90" title="All 4 branches missed.">            if (user.getStatus() == UserStatus.PENDING_APPROVAL &amp;&amp; role.initialStatus() == UserStatus.ACTIVE) {</span>
+<span class="nc" id="L91">                user.changeStatus(UserStatus.ACTIVE);</span>
+            }
+<span class="nc" id="L93">            user.invalidateTokens();</span>
+<span class="nc" id="L94">            userRepository.save(user);</span>
+        }
+<span class="nc" id="L96">        return UserResponse.from(user);</span>
+    }
+
+    /**
+     * Activates, suspends or disables an account. This is how a merchant or
+     * courier becomes ACTIVE once the owning service has approved the
+     * application. Tokens issued under the old status stop working at once.
+     */
+    @Transactional
+    public UserResponse changeStatus(long adminId, long userId, UserStatus status) {
+<span class="fc bfc" id="L106" title="All 2 branches covered.">        if (adminId == userId) {</span>
+<span class="fc" id="L107">            throw new InvalidStatusChangeException();</span>
+        }
+<span class="fc" id="L109">        User user = find(userId);</span>
+<span class="fc bfc" id="L110" title="All 2 branches covered.">        if (status == UserStatus.PENDING_APPROVAL</span>
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">                &amp;&amp; user.getRole().initialStatus() != UserStatus.PENDING_APPROVAL) {</span>
+<span class="fc" id="L112">            throw new InvalidStatusChangeException();</span>
+        }
+<span class="fc" id="L114">        UserStatus oldStatus = user.getStatus();</span>
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">        if (oldStatus != status) {</span>
+<span class="fc" id="L116">            user.changeStatus(status);</span>
+<span class="fc" id="L117">            user.invalidateTokens();</span>
+<span class="fc" id="L118">            userRepository.save(user);</span>
+<span class="fc" id="L119">            auditLog.logAdminAction(adminId, &quot;CHANGE_STATUS&quot;, userId,</span>
+                oldStatus + &quot; -&gt; &quot; + status);
+        }
+<span class="fc" id="L122">        return UserResponse.from(user);</span>
+    }
+
+    /**
+     * Activates a PENDING_APPROVAL merchant or courier. The Merchant or Courier
+     * Service calls this after approving the business application, forwarding
+     * the approving administrator's own Authorization header.
+     */
+    @Transactional
+    public UserResponse activate(long adminId, long userId) {
+<span class="fc" id="L132">        User user = find(userId);</span>
+<span class="fc bfc" id="L133" title="All 2 branches covered.">        if (user.getStatus() != UserStatus.PENDING_APPROVAL) {</span>
+<span class="fc" id="L134">            throw new InvalidStatusChangeException(&quot;Account is not pending approval&quot;);</span>
+        }
+<span class="pc bpc" id="L136" title="3 of 4 branches missed.">        if (user.getRole() != Role.MERCHANT &amp;&amp; user.getRole() != Role.COURIER) {</span>
+<span class="nc" id="L137">            throw new InvalidStatusChangeException(&quot;Only merchant and courier accounts can be activated&quot;);</span>
+        }
+<span class="fc" id="L139">        user.changeStatus(UserStatus.ACTIVE);</span>
+<span class="fc" id="L140">        user.invalidateTokens();</span>
+<span class="fc" id="L141">        userRepository.save(user);</span>
+<span class="fc" id="L142">        auditLog.logAdminAction(adminId, &quot;ACTIVATE&quot;, userId,</span>
+<span class="fc" id="L143">            &quot;role=&quot; + user.getRole());</span>
+<span class="fc" id="L144">        return UserResponse.from(user);</span>
+    }
+
+    /**
+     * Records that the administrator has seen and rejected the application.
+     * The identity account stays PENDING_APPROVAL so the user can still sign in
+     * and view the rejection; the business application status is owned by the
+     * Merchant or Courier Service.
+     */
+    @Transactional
+    public UserResponse reject(long adminId, long userId) {
+<span class="fc" id="L155">        User user = find(userId);</span>
+<span class="pc bpc" id="L156" title="1 of 2 branches missed.">        if (user.getStatus() != UserStatus.PENDING_APPROVAL) {</span>
+<span class="nc" id="L157">            throw new InvalidStatusChangeException(&quot;Account is not pending approval&quot;);</span>
+        }
+<span class="pc bpc" id="L159" title="2 of 4 branches missed.">        if (user.getRole() != Role.MERCHANT &amp;&amp; user.getRole() != Role.COURIER) {</span>
+<span class="nc" id="L160">            throw new InvalidStatusChangeException(&quot;Only merchant and courier accounts can be rejected&quot;);</span>
+        }
+<span class="fc" id="L162">        auditLog.logAdminAction(adminId, &quot;REJECT&quot;, userId,</span>
+<span class="fc" id="L163">            &quot;role=&quot; + user.getRole());</span>
+<span class="fc" id="L164">        return UserResponse.from(user);</span>
+    }
+
+    private User find(long userId) {
+<span class="fc" id="L168">        return userRepository.findById(userId).orElseThrow(UserNotFoundException::new);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

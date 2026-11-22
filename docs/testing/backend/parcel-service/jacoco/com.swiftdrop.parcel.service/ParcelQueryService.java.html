@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ParcelQueryService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">parcel-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.parcel.service</a> &gt; <span class="el_source">ParcelQueryService.java</span></div><h1>ParcelQueryService.java</h1><pre class="source lang-java linenums">package com.swiftdrop.parcel.service;
+
+import com.swiftdrop.parcel.dto.response.ParcelDetailsResponse;
+import com.swiftdrop.parcel.dto.response.ParcelHistoryResponse;
+import com.swiftdrop.parcel.dto.response.ParcelSummaryResponse;
+import com.swiftdrop.parcel.entity.Parcel;
+import com.swiftdrop.parcel.entity.ParcelStatus;
+import com.swiftdrop.parcel.repository.ParcelRepository;
+import com.swiftdrop.parcel.repository.ParcelStatusHistoryRepository;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.EnumMap;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+@Service
+@Transactional(readOnly = true)
+public class ParcelQueryService {
+
+    private final ParcelRepository parcelRepository;
+    private final ParcelStatusHistoryRepository historyRepository;
+
+    public ParcelQueryService(
+            ParcelRepository parcelRepository,
+<span class="fc" id="L32">            ParcelStatusHistoryRepository historyRepository) {</span>
+
+<span class="fc" id="L34">        this.parcelRepository = parcelRepository;</span>
+<span class="fc" id="L35">        this.historyRepository = historyRepository;</span>
+<span class="fc" id="L36">    }</span>
+
+    // Get parcel details with ownership verification
+    public ParcelDetailsResponse getParcelById(
+            UUID parcelId,
+            Long userId,
+            String role) {
+
+<span class="fc" id="L44">        Parcel parcel = getAuthorizedParcel(parcelId, userId, role);</span>
+
+<span class="fc" id="L46">        return ParcelDetailsResponse.from(parcel);</span>
+    }
+
+    // Get status history with ownership verification
+    public List&lt;ParcelHistoryResponse&gt; getParcelHistory(
+            UUID parcelId,
+            Long userId,
+            String role) {
+
+<span class="fc" id="L55">        Parcel parcel = getAuthorizedParcel(parcelId, userId, role);</span>
+
+<span class="fc" id="L57">        return historyRepository</span>
+<span class="fc" id="L58">                .findByParcelIdOrderByChangedAtAsc(parcel.getId())</span>
+<span class="fc" id="L59">                .stream()</span>
+<span class="fc" id="L60">                .map(ParcelHistoryResponse::from)</span>
+<span class="fc" id="L61">                .toList();</span>
+    }
+
+    // Get authenticated customer's parcels
+    public Page&lt;ParcelDetailsResponse&gt; getMyParcels(
+            Long customerId,
+            Pageable pageable) {
+<span class="fc" id="L68">        return getMyParcels(customerId, null, pageable);</span>
+    }
+
+    // Get authenticated customer's parcels, optionally only those in one status
+    public Page&lt;ParcelDetailsResponse&gt; getMyParcels(
+            Long customerId,
+            ParcelStatus status,
+            Pageable pageable) {
+
+<span class="fc" id="L77">        requireCustomer(customerId);</span>
+
+<span class="fc bfc" id="L79" title="All 2 branches covered.">        Page&lt;Parcel&gt; page = status == null</span>
+<span class="fc" id="L80">                ? parcelRepository.findBySenderId(customerId, pageable)</span>
+<span class="fc" id="L81">                : parcelRepository.findBySenderIdAndStatus(customerId, status, pageable);</span>
+<span class="fc" id="L82">        return page.map(ParcelDetailsResponse::from);</span>
+    }
+
+    // Count the authenticated customer's parcels in each status
+    public ParcelSummaryResponse getMyParcelSummary(Long customerId) {
+<span class="fc" id="L87">        requireCustomer(customerId);</span>
+
+<span class="fc" id="L89">        Map&lt;ParcelStatus, Long&gt; byStatus = new EnumMap&lt;&gt;(ParcelStatus.class);</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">        for (ParcelStatus status : ParcelStatus.values()) {</span>
+<span class="fc" id="L91">            byStatus.put(status, 0L);</span>
+        }
+<span class="fc" id="L93">        long total = 0;</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">        for (Object[] row : parcelRepository.countBySenderIdGroupedByStatus(customerId)) {</span>
+<span class="fc" id="L95">            long count = ((Number) row[1]).longValue();</span>
+<span class="fc" id="L96">            byStatus.put((ParcelStatus) row[0], count);</span>
+<span class="fc" id="L97">            total += count;</span>
+<span class="fc" id="L98">        }</span>
+<span class="fc" id="L99">        return new ParcelSummaryResponse(total, byStatus);</span>
+    }
+
+    private void requireCustomer(Long customerId) {
+<span class="fc bfc" id="L103" title="All 4 branches covered.">        if (customerId == null || customerId &lt;= 0) {</span>
+<span class="fc" id="L104">            throw new ResponseStatusException(</span>
+                    HttpStatus.FORBIDDEN,
+                    &quot;Access denied&quot;
+            );
+        }
+<span class="fc" id="L109">    }</span>
+
+    public Page&lt;ParcelDetailsResponse&gt; getMerchantParcels(
+            Long merchantId,
+            Pageable pageable) {
+<span class="pc bpc" id="L114" title="2 of 4 branches missed.">        if (merchantId == null || merchantId &lt;= 0) {</span>
+<span class="nc" id="L115">            throw new ResponseStatusException(HttpStatus.FORBIDDEN, &quot;Access denied&quot;);</span>
+        }
+<span class="fc" id="L117">        return parcelRepository.findByMerchantId(merchantId, pageable)</span>
+<span class="fc" id="L118">                .map(ParcelDetailsResponse::from);</span>
+    }
+
+    // List parcels by status - authorized staff only
+    public Page&lt;ParcelDetailsResponse&gt; getParcelsByStatus(
+            ParcelStatus status,
+            String role,
+            Pageable pageable) {
+
+<span class="fc bfc" id="L127" title="All 2 branches covered.">        if (!isStaff(role)) {</span>
+<span class="fc" id="L128">            throw new ResponseStatusException(</span>
+                    HttpStatus.FORBIDDEN,
+                    &quot;Access denied&quot;
+            );
+        }
+
+<span class="fc" id="L134">        return parcelRepository</span>
+<span class="fc" id="L135">                .findByStatus(status, pageable)</span>
+<span class="fc" id="L136">                .map(ParcelDetailsResponse::from);</span>
+    }
+
+    // Shared authorization helper
+    private Parcel getAuthorizedParcel(
+            UUID parcelId,
+            Long userId,
+            String role) {
+
+<span class="fc bfc" id="L145" title="All 6 branches covered.">        if (userId == null || userId &lt;= 0 || role == null) {</span>
+<span class="fc" id="L146">            throw new ResponseStatusException(</span>
+                    HttpStatus.FORBIDDEN,
+                    &quot;Access denied&quot;
+            );
+        }
+
+<span class="fc" id="L152">        Parcel parcel = parcelRepository.findById(parcelId)</span>
+<span class="fc" id="L153">                .orElseThrow(() -&gt; new ResponseStatusException(</span>
+                        HttpStatus.NOT_FOUND,
+                        &quot;Parcel not found&quot;
+                ));
+
+<span class="fc bfc" id="L158" title="All 2 branches covered.">        if (isStaff(role)) {</span>
+<span class="fc" id="L159">            return parcel;</span>
+        }
+
+<span class="fc bfc" id="L162" title="All 2 branches covered.">        if (&quot;CUSTOMER&quot;.equals(role)</span>
+<span class="fc bfc" id="L163" title="All 2 branches covered.">                &amp;&amp; userId.equals(parcel.getSenderId())) {</span>
+<span class="fc" id="L164">            return parcel;</span>
+        }
+
+<span class="fc bfc" id="L167" title="All 2 branches covered.">        if (&quot;MERCHANT&quot;.equals(role)</span>
+<span class="fc bfc" id="L168" title="All 2 branches covered.">                &amp;&amp; userId.equals(parcel.getMerchantId())) {</span>
+<span class="fc" id="L169">            return parcel;</span>
+        }
+
+        // Do not expose whether another user's parcel exists.
+<span class="fc" id="L173">        throw new ResponseStatusException(</span>
+                HttpStatus.NOT_FOUND,
+                &quot;Parcel not found&quot;
+        );
+    }
+
+    private boolean isStaff(String role) {
+<span class="fc bfc" id="L180" title="All 2 branches covered.">        return &quot;ADMIN&quot;.equals(role)</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">                || &quot;DISPATCHER&quot;.equals(role);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

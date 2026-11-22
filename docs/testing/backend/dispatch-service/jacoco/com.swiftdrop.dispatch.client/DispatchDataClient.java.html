@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DispatchDataClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">dispatch-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.dispatch.client</a> &gt; <span class="el_source">DispatchDataClient.java</span></div><h1>DispatchDataClient.java</h1><pre class="source lang-java linenums">package com.swiftdrop.dispatch.client;
+
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.ParcelRow;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+/**
+ * Reads and updates data owned by parcel-service and courier-service through
+ * their APIs. Dispatch never reads another service's database.
+ */
+public interface DispatchDataClient {
+    /** Parcels in status CREATED. */
+    List&lt;ParcelRow&gt; createdParcels();
+
+    Optional&lt;ParcelRow&gt; findParcel(UUID parcelId);
+
+    /** Every active courier profile, whatever its availability. */
+    List&lt;CourierData&gt; couriers();
+
+    Optional&lt;CourierData&gt; findCourier(Long courierProfileId);
+
+    /** Records the courier on the parcel in parcel-service, so that courier may update its status. */
+    void assignParcelCourier(UUID parcelId, Long courierUserId);
+
+    /** A courier-service profile (CourierDtos.Profile); {@code id} is the profile id. */
+<span class="fc" id="L28">    record CourierData(Long id, Long userId, String name, String availability, boolean active) {</span>
+        public boolean available() {
+<span class="fc bfc" id="L30" title="All 4 branches covered.">            return active &amp;&amp; &quot;AVAILABLE&quot;.equals(availability);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

@@ -1,0 +1,1880 @@
+{
+ "api-gateway": {
+  "tests": 56,
+  "passed": 56,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "time": 2.239999999999998,
+  "unit": [
+   5,
+   5,
+   0,
+   0
+  ],
+  "integration": [
+   51,
+   51,
+   0,
+   0
+  ],
+  "failures": [],
+  "skips": [],
+  "classes": {
+   "com.swiftdrop.gateway.security.GatewayAccessRulesTest": {
+    "kind": "unit",
+    "tests": 5,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.gateway.GatewayIntegrationTest": {
+    "kind": "integration",
+    "tests": 51,
+    "failed": 0,
+    "skipped": 0
+   }
+  },
+  "coverage": {
+   "line": 92.1,
+   "branch": 72.0,
+   "instruction": 92.5,
+   "method": 96.8,
+   "lines": [
+    129,
+    140
+   ],
+   "branches": [
+    59,
+    82
+   ]
+  },
+  "run": {
+   "exit": 0,
+   "seconds": 20
+  },
+  "build_success": true,
+  "log_tail_errors": []
+ },
+ "courier-service": {
+  "tests": 69,
+  "passed": 69,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "time": 11.625,
+  "unit": [
+   13,
+   13,
+   0,
+   0
+  ],
+  "integration": [
+   56,
+   56,
+   0,
+   0
+  ],
+  "failures": [],
+  "skips": [],
+  "classes": {
+   "com.swiftdrop.courier.CourierServiceApplicationTests": {
+    "kind": "integration",
+    "tests": 3,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.courier.service.ProofStorageServiceTest": {
+    "kind": "unit",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.courier.service.CourierProfileServiceTest": {
+    "kind": "unit",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.courier.controller.CourierControllerTest": {
+    "kind": "integration",
+    "tests": 5,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.courier.application.CourierApplicationApiTest": {
+    "kind": "integration",
+    "tests": 8,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.courier.CourierWorkflowTest": {
+    "kind": "integration",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.courier.config.SecurityConfigTest": {
+    "kind": "integration",
+    "tests": 14,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.courier.DispatchCourierWorkflowTest": {
+    "kind": "integration",
+    "tests": 8,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.courier.service.CourierDeliveryServiceTest": {
+    "kind": "unit",
+    "tests": 9,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.courier.CourierMigrationUpgradeTest": {
+    "kind": "integration",
+    "tests": 1,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.courier.client.HttpCourierIntegrationsTest": {
+    "kind": "integration",
+    "tests": 4,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.courier.CourierAssignmentEventsTest": {
+    "kind": "integration",
+    "tests": 4,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.courier.RdsProfileStartupTest": {
+    "kind": "integration",
+    "tests": 7,
+    "failed": 0,
+    "skipped": 0
+   }
+  },
+  "coverage": {
+   "line": 88.9,
+   "branch": 60.6,
+   "instruction": 86.5,
+   "method": 86.5,
+   "lines": [
+    651,
+    732
+   ],
+   "branches": [
+    286,
+    472
+   ]
+  },
+  "run": {
+   "exit": 0,
+   "seconds": 210
+  },
+  "build_success": true,
+  "log_tail_errors": []
+ },
+ "dispatch-service": {
+  "tests": 84,
+  "passed": 84,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "time": 2.1549999999999994,
+  "unit": [
+   31,
+   31,
+   0,
+   0
+  ],
+  "integration": [
+   53,
+   53,
+   0,
+   0
+  ],
+  "failures": [],
+  "skips": [],
+  "classes": {
+   "com.swiftdrop.dispatch.config.SecurityConfigTest": {
+    "kind": "integration",
+    "tests": 33,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.dispatch.service.DispatchServiceTest": {
+    "kind": "unit",
+    "tests": 22,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.dispatch.RdsProfileStartupTest": {
+    "kind": "integration",
+    "tests": 7,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.dispatch.client.HttpDispatchDataClientTest": {
+    "kind": "unit",
+    "tests": 5,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.dispatch.event.ParcelStatusChangedConsumerTest": {
+    "kind": "unit",
+    "tests": 4,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.dispatch.DispatchServiceApplicationTests": {
+    "kind": "integration",
+    "tests": 13,
+    "failed": 0,
+    "skipped": 0
+   }
+  },
+  "coverage": {
+   "line": 91.6,
+   "branch": 62.0,
+   "instruction": 90.6,
+   "method": 95.0,
+   "lines": [
+    477,
+    521
+   ],
+   "branches": [
+    127,
+    205
+   ]
+  },
+  "run": {
+   "exit": 0,
+   "seconds": 30
+  },
+  "build_success": true,
+  "log_tail_errors": []
+ },
+ "identity-service": {
+  "tests": 223,
+  "passed": 223,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "time": 21.06900000000002,
+  "unit": [
+   69,
+   69,
+   0,
+   0
+  ],
+  "integration": [
+   154,
+   154,
+   0,
+   0
+  ],
+  "failures": [],
+  "skips": [],
+  "classes": {
+   "com.swiftdrop.identity_service.config.AdminBootstrapTest": {
+    "kind": "unit",
+    "tests": 8,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.identity_service.migration.FlywayMigrationTest": {
+    "kind": "integration",
+    "tests": 7,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.identity_service.service.GoogleSignInPersistenceTest": {
+    "kind": "integration",
+    "tests": 11,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.identity_service.migration.RdsProfileStartupTest": {
+    "kind": "integration",
+    "tests": 7,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.identity_service.merchantintegration.MerchantTokenExchangeTest": {
+    "kind": "integration",
+    "tests": 3,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.identity_service.service.GoogleAccountServiceTest": {
+    "kind": "unit",
+    "tests": 11,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.identity_service.SecurityApiTest": {
+    "kind": "integration",
+    "tests": 36,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.identity_service.security.GoogleSignInFlowTest": {
+    "kind": "integration",
+    "tests": 18,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.identity_service.security.JwtServiceTest": {
+    "kind": "unit",
+    "tests": 9,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.identity_service.config.GoogleCredentialsConfigTest": {
+    "kind": "unit",
+    "tests": 5,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.identity_service.config.GoogleSignInConfigTest": {
+    "kind": "integration",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.identity_service.service.PasswordResetServiceTest": {
+    "kind": "unit",
+    "tests": 9,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.identity_service.service.UserServiceTest": {
+    "kind": "unit",
+    "tests": 8,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.identity_service.service.AuthServiceTest": {
+    "kind": "unit",
+    "tests": 18,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.identity_service.IdentityServiceApplicationTests": {
+    "kind": "unit",
+    "tests": 1,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.identity_service.AccountLifecycleApiTest": {
+    "kind": "integration",
+    "tests": 53,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.identity_service.migration.ExistingDatabaseStartupTest": {
+    "kind": "integration",
+    "tests": 3,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.identity_service.service.RefreshTokenPersistenceTest": {
+    "kind": "integration",
+    "tests": 14,
+    "failed": 0,
+    "skipped": 0
+   }
+  },
+  "coverage": {
+   "line": 89.2,
+   "branch": 75.4,
+   "instruction": 89.3,
+   "method": 87.1,
+   "lines": [
+    853,
+    956
+   ],
+   "branches": [
+    236,
+    313
+   ]
+  },
+  "run": {
+   "exit": 0,
+   "seconds": 71
+  },
+  "build_success": true,
+  "log_tail_errors": []
+ },
+ "merchant-service": {
+  "tests": 90,
+  "passed": 89,
+  "failed": 1,
+  "errors": 0,
+  "skipped": 0,
+  "time": 5.173999999999993,
+  "unit": [
+   37,
+   37,
+   0,
+   0
+  ],
+  "integration": [
+   53,
+   52,
+   1,
+   0
+  ],
+  "failures": [
+   {
+    "class": "com.swiftdrop.merchant.RdsProfileStartupTest",
+    "name": "flywayUsesOnlyThePublicSchema",
+    "type": "org.opentest4j.AssertionFailedError",
+    "message": "\nExpecting actual:\n  [\"1:SQL\", \"2:SQL\", \"3:SQL\", \"4:SQL\", \"5:SQL\", \"6:SQL\"]\nto contain exactly (and in same order):\n  [\"1:SQL\", \"2:SQL\", \"3:SQL\", \"4:SQL\", \"5:SQL\"]\nbut some elements were not expected:\n  [\"6:SQL\"]\n"
+   }
+  ],
+  "skips": [],
+  "classes": {
+   "com.swiftdrop.merchant.MerchantServiceApplicationTests": {
+    "kind": "integration",
+    "tests": 1,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.merchant.service.MerchantApprovalServiceTest": {
+    "kind": "unit",
+    "tests": 4,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.merchant.merchantapi.client.MerchantOrderHttpClientTest": {
+    "kind": "integration",
+    "tests": 5,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.merchant.service.MerchantIdentityActivationClientTest": {
+    "kind": "integration",
+    "tests": 7,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.merchant.merchantapi.security.DatabaseMerchantApiKeyLookupTest": {
+    "kind": "unit",
+    "tests": 4,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.merchant.merchantapi.security.DatabaseMerchantApiSecurityIntegrationTest": {
+    "kind": "integration",
+    "tests": 6,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.merchant.merchantapi.controller.MerchantDeliveryControllerTest": {
+    "kind": "integration",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.merchant.merchantapi.security.MerchantApiSecurityConfigTest": {
+    "kind": "unit",
+    "tests": 4,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.merchant.service.MerchantServiceWorkGuideTest": {
+    "kind": "unit",
+    "tests": 5,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.merchant.merchantapi.internal.InternalWebhookHttpIntegrationTest": {
+    "kind": "integration",
+    "tests": 6,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.merchant.merchantapi.internal.InternalWebhookSettingsTest": {
+    "kind": "unit",
+    "tests": 1,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.merchant.RdsProfileStartupTest": {
+    "kind": "integration",
+    "tests": 7,
+    "failed": 1,
+    "skipped": 0
+   },
+   "com.swiftdrop.merchant.merchantapi.service.MerchantOrderStoreIntegrationTest": {
+    "kind": "integration",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.merchant.controller.MerchantApprovalControllerTest": {
+    "kind": "integration",
+    "tests": 3,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.merchant.config.SecurityConfigTest": {
+    "kind": "integration",
+    "tests": 14,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.merchant.merchantapi.controller.MerchantOrderControllerTest": {
+    "kind": "unit",
+    "tests": 6,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.merchant.merchantapi.service.MerchantOrderServiceTest": {
+    "kind": "unit",
+    "tests": 8,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.merchant.merchantapi.security.MerchantApiKeyAuthenticatorTest": {
+    "kind": "unit",
+    "tests": 5,
+    "failed": 0,
+    "skipped": 0
+   }
+  },
+  "coverage": {
+   "line": 70.9,
+   "branch": 53.1,
+   "instruction": 72.9,
+   "method": 73.6,
+   "lines": [
+    727,
+    1025
+   ],
+   "branches": [
+    208,
+    392
+   ]
+  },
+  "run": {
+   "exit": 0,
+   "seconds": 38
+  },
+  "build_success": true,
+  "log_tail_errors": [
+   "[ERROR] Tests run: 7, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 2.744 s <<< FAILURE! -- in com.swiftdrop.merchant.RdsProfileStartupTest",
+   "[ERROR] com.swiftdrop.merchant.RdsProfileStartupTest.flywayUsesOnlyThePublicSchema -- Time elapsed: 0.020 s <<< FAILURE!",
+   "[ERROR] Failures: ",
+   "[ERROR]   RdsProfileStartupTest.flywayUsesOnlyThePublicSchema:110 ",
+   "[ERROR] Tests run: 90, Failures: 1, Errors: 0, Skipped: 0",
+   "[ERROR] There are test failures."
+  ]
+ },
+ "notification-service": {
+  "tests": 113,
+  "passed": 100,
+  "failed": 5,
+  "errors": 7,
+  "skipped": 1,
+  "time": 5.154,
+  "unit": [
+   65,
+   59,
+   5,
+   1
+  ],
+  "integration": [
+   48,
+   41,
+   7,
+   0
+  ],
+  "failures": [
+   {
+    "class": "com.swiftdrop.notification.RdsProfileStartupTest",
+    "name": "nonEmptyDatabaseWithoutFlywayHistoryIsRejected",
+    "type": "java.lang.IllegalStateException",
+    "message": "Failed to load ApplicationContext for [WebMergedContextConfiguration@68d2fc35 testClass = com.swiftdrop.notification.RdsProfileStartupTest, locations = [], classes = [com.swiftdrop.notification.NotificationServiceApplication], contextInitializerClasses = [], activeProfiles = [\"rds\"], propertySourceDescriptors = [], propertySourceProperties = [\"swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\", \"management.health.rabbit.enabled=false\", \"DB_HOST=rds-host.invalid\", \"NOTIFICATION_DB_NAME=notification_db\", \"NOTIFICATION_DB_USERNAME=notification_user\", \"NOTIFICATION_DB_PASSWORD=unus"
+   },
+   {
+    "class": "com.swiftdrop.notification.RdsProfileStartupTest",
+    "name": "flywayAndHibernateAreConfiguredForThePublicSchema",
+    "type": "java.lang.IllegalStateException",
+    "message": "ApplicationContext failure threshold (1) exceeded: skipping repeated attempt to load context for [WebMergedContextConfiguration@68d2fc35 testClass = com.swiftdrop.notification.RdsProfileStartupTest, locations = [], classes = [com.swiftdrop.notification.NotificationServiceApplication], contextInitializerClasses = [], activeProfiles = [\"rds\"], propertySourceDescriptors = [], propertySourceProperties = [\"swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\", \"management.health.rabbit.enabled=false\", \"DB_HOST=rds-host.invalid\", \"NOTIFICATION_DB_NAME=notification_db\", \"NOTIFICATION_DB_"
+   },
+   {
+    "class": "com.swiftdrop.notification.RdsProfileStartupTest",
+    "name": "startsAndReportsHealthy",
+    "type": "java.lang.IllegalStateException",
+    "message": "ApplicationContext failure threshold (1) exceeded: skipping repeated attempt to load context for [WebMergedContextConfiguration@68d2fc35 testClass = com.swiftdrop.notification.RdsProfileStartupTest, locations = [], classes = [com.swiftdrop.notification.NotificationServiceApplication], contextInitializerClasses = [], activeProfiles = [\"rds\"], propertySourceDescriptors = [], propertySourceProperties = [\"swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\", \"management.health.rabbit.enabled=false\", \"DB_HOST=rds-host.invalid\", \"NOTIFICATION_DB_NAME=notification_db\", \"NOTIFICATION_DB_"
+   },
+   {
+    "class": "com.swiftdrop.notification.RdsProfileStartupTest",
+    "name": "profileResolvesToTheServiceDatabaseAndUser",
+    "type": "java.lang.IllegalStateException",
+    "message": "ApplicationContext failure threshold (1) exceeded: skipping repeated attempt to load context for [WebMergedContextConfiguration@68d2fc35 testClass = com.swiftdrop.notification.RdsProfileStartupTest, locations = [], classes = [com.swiftdrop.notification.NotificationServiceApplication], contextInitializerClasses = [], activeProfiles = [\"rds\"], propertySourceDescriptors = [], propertySourceProperties = [\"swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\", \"management.health.rabbit.enabled=false\", \"DB_HOST=rds-host.invalid\", \"NOTIFICATION_DB_NAME=notification_db\", \"NOTIFICATION_DB_"
+   },
+   {
+    "class": "com.swiftdrop.notification.RdsProfileStartupTest",
+    "name": "poolSettingsComeFromTheProfile",
+    "type": "java.lang.IllegalStateException",
+    "message": "ApplicationContext failure threshold (1) exceeded: skipping repeated attempt to load context for [WebMergedContextConfiguration@68d2fc35 testClass = com.swiftdrop.notification.RdsProfileStartupTest, locations = [], classes = [com.swiftdrop.notification.NotificationServiceApplication], contextInitializerClasses = [], activeProfiles = [\"rds\"], propertySourceDescriptors = [], propertySourceProperties = [\"swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\", \"management.health.rabbit.enabled=false\", \"DB_HOST=rds-host.invalid\", \"NOTIFICATION_DB_NAME=notification_db\", \"NOTIFICATION_DB_"
+   },
+   {
+    "class": "com.swiftdrop.notification.RdsProfileStartupTest",
+    "name": "profileUsesEncryptedConnectionsAndThePublicSchema",
+    "type": "java.lang.IllegalStateException",
+    "message": "ApplicationContext failure threshold (1) exceeded: skipping repeated attempt to load context for [WebMergedContextConfiguration@68d2fc35 testClass = com.swiftdrop.notification.RdsProfileStartupTest, locations = [], classes = [com.swiftdrop.notification.NotificationServiceApplication], contextInitializerClasses = [], activeProfiles = [\"rds\"], propertySourceDescriptors = [], propertySourceProperties = [\"swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\", \"management.health.rabbit.enabled=false\", \"DB_HOST=rds-host.invalid\", \"NOTIFICATION_DB_NAME=notification_db\", \"NOTIFICATION_DB_"
+   },
+   {
+    "class": "com.swiftdrop.notification.RdsProfileStartupTest",
+    "name": "flywayUsesOnlyThePublicSchema",
+    "type": "java.lang.IllegalStateException",
+    "message": "ApplicationContext failure threshold (1) exceeded: skipping repeated attempt to load context for [WebMergedContextConfiguration@68d2fc35 testClass = com.swiftdrop.notification.RdsProfileStartupTest, locations = [], classes = [com.swiftdrop.notification.NotificationServiceApplication], contextInitializerClasses = [], activeProfiles = [\"rds\"], propertySourceDescriptors = [], propertySourceProperties = [\"swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\", \"management.health.rabbit.enabled=false\", \"DB_HOST=rds-host.invalid\", \"NOTIFICATION_DB_NAME=notification_db\", \"NOTIFICATION_DB_"
+   },
+   {
+    "class": "com.swiftdrop.notification.service.EmailNotificationServiceTest",
+    "name": "sendParcelUpdateEmail_withUnresolvedCustomerId_fallsBackToConfiguredRecipient",
+    "type": "org.opentest4j.AssertionFailedError",
+    "message": "\nexpected: \n  \"Dear Customer,\n  \n  Your parcel **SD-456** has been successfully delivered on November 14, 2026, at 8:22 PM (Sri Lanka time).\n  \n  Thank you for choosing SwiftDrop. We appreciate your trust in our service.\n  \n  Best regards,\n  **SwiftDrop Team**\"\n but was: \n  \"Dear Customer,\n  \n  Your parcel SD-456 has been successfully delivered on November 14, 2026, at 8:22 PM (Sri Lanka time).\n  \n  Thank you for choosing SwiftDrop. We appreciate your trust in our service.\n  \n  Best regards,\n  SwiftDrop Team\""
+   },
+   {
+    "class": "com.swiftdrop.notification.service.EmailNotificationServiceTest",
+    "name": "sendParcelUpdateEmail_withResolvedEmailFromIdentityService_sendsToResolvedEmail",
+    "type": "java.lang.AssertionError",
+    "message": "\nExpecting actual:\n  \"Dear Customer,\n\nYour parcel SD-999 has been picked up by the courier on November 22, 2026, at 11:53 AM (Sri Lanka time).\n\nThank you for choosing SwiftDrop. We appreciate your trust in our service.\n\nBest regards,\nSwiftDrop Team\"\nto contain:\n  \"Your parcel **SD-999** has been picked up by the courier\" "
+   },
+   {
+    "class": "com.swiftdrop.notification.service.EmailNotificationServiceTest",
+    "name": "resolveEmailBody_convertsUtcToSriLankaTimeCorrectly",
+    "type": "org.opentest4j.AssertionFailedError",
+    "message": "\nexpected: \n  \"Dear Customer,\n  \n  Your parcel **SD-2026-9003** has been successfully delivered on November 15, 2026, at 8:00 AM (Sri Lanka time).\n  \n  Thank you for choosing SwiftDrop. We appreciate your trust in our service.\n  \n  Best regards,\n  **SwiftDrop Team**\"\n but was: \n  \"Dear Customer,\n  \n  Your parcel SD-2026-9003 has been successfully delivered on November 15, 2026, at 8:00 AM (Sri Lanka time).\n  \n  Thank you for choosing SwiftDrop. We appreciate your trust in our service.\n  \n  Best regards,\n  SwiftDrop Team\""
+   },
+   {
+    "class": "com.swiftdrop.notification.service.EmailNotificationServiceTest",
+    "name": "sendParcelUpdateEmail_withDirectEmailCustomerId_sendsToCustomer",
+    "type": "java.lang.AssertionError",
+    "message": "\nExpecting actual:\n  \"Dear Customer,\n\nYour parcel SD-123 is on the way to the delivery location as of November 14, 2026, at 8:22 PM (Sri Lanka time).\n\nThank you for choosing SwiftDrop. We appreciate your trust in our service.\n\nBest regards,\nSwiftDrop Team\"\nto contain:\n  \"Your parcel **SD-123** is on the way to the delivery location as of November 14, 2026, at 8:22 PM (Sri Lanka time).\" "
+   },
+   {
+    "class": "com.swiftdrop.notification.service.EmailNotificationServiceTest",
+    "name": "resolveEmailBody_handlesMidnightCrossingCorrectly",
+    "type": "java.lang.AssertionError",
+    "message": "\nExpecting actual:\n  \"Dear Customer,\n\nYour parcel SD-9001 is out for delivery as of November 15, 2026, at 1:30 AM (Sri Lanka time) and will arrive soon.\n\nThank you for choosing SwiftDrop. We appreciate your trust in our service.\n\nBest regards,\nSwiftDrop Team\"\nto contain:\n  \"Your parcel **SD-9001** is out for delivery as of November 15, 2026, at 1:30 AM (Sri Lanka time) and will arrive soon.\" "
+   }
+  ],
+  "skips": [
+   {
+    "class": "com.swiftdrop.notification.service.GmailSmtpLiveTest",
+    "name": "testSendLiveEmail",
+    "message": "Manual live SMTP verification test"
+   }
+  ],
+  "classes": {
+   "com.swiftdrop.notification.webhook.retry.WebhookRetryPolicyTest": {
+    "kind": "unit",
+    "tests": 4,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.notification.webhook.retry.WebhookDeliveryProcessorTest": {
+    "kind": "unit",
+    "tests": 7,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.notification.webhook.retry.WebhookEventRecorderTest": {
+    "kind": "unit",
+    "tests": 3,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.notification.webhook.retry.WebhookPipelineIntegrationTest": {
+    "kind": "integration",
+    "tests": 1,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.notification.NotificationServiceApplicationTests": {
+    "kind": "integration",
+    "tests": 1,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.notification.controller.NotificationControllerTest": {
+    "kind": "unit",
+    "tests": 6,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.notification.config.SecurityConfigTest": {
+    "kind": "integration",
+    "tests": 16,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.notification.RdsProfileStartupTest": {
+    "kind": "integration",
+    "tests": 7,
+    "failed": 7,
+    "skipped": 0
+   },
+   "com.swiftdrop.notification.webhook.consumer.WebhookParcelStatusConsumerTest": {
+    "kind": "unit",
+    "tests": 8,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.notification.consumer.ParcelAssignedConsumerTest": {
+    "kind": "unit",
+    "tests": 4,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.notification.client.IdentityServiceClientTest": {
+    "kind": "unit",
+    "tests": 5,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.notification.service.NotificationServiceTest": {
+    "kind": "unit",
+    "tests": 6,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.notification.consumer.ParcelStatusConsumerTest": {
+    "kind": "unit",
+    "tests": 7,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.notification.webhook.retry.HttpMerchantWebhookSettingsLookupTest": {
+    "kind": "integration",
+    "tests": 8,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.notification.webhook.delivery.WebhookHttpSenderTest": {
+    "kind": "integration",
+    "tests": 4,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.notification.webhook.retry.WebhookDeliveryStoreIntegrationTest": {
+    "kind": "integration",
+    "tests": 5,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.notification.webhook.security.WebhookSignatureTest": {
+    "kind": "unit",
+    "tests": 7,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.notification.service.GmailSmtpLiveTest": {
+    "kind": "unit",
+    "tests": 1,
+    "failed": 0,
+    "skipped": 1
+   },
+   "com.swiftdrop.notification.webhook.portal.WebhookManagementSecurityTest": {
+    "kind": "integration",
+    "tests": 6,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.notification.service.EmailNotificationServiceTest": {
+    "kind": "unit",
+    "tests": 7,
+    "failed": 5,
+    "skipped": 0
+   }
+  },
+  "coverage": {
+   "line": 73.2,
+   "branch": 56.4,
+   "instruction": 73.7,
+   "method": 79.8,
+   "lines": [
+    744,
+    1017
+   ],
+   "branches": [
+    273,
+    484
+   ]
+  },
+  "run": {
+   "exit": 0,
+   "seconds": 43
+  },
+  "build_success": true,
+  "log_tail_errors": [
+   "[ERROR] Tests run: 7, Failures: 0, Errors: 7, Skipped: 0, Time elapsed: 2.612 s <<< FAILURE! -- in com.swiftdrop.notification.RdsProfileStartupTest",
+   "[ERROR] com.swiftdrop.notification.RdsProfileStartupTest.nonEmptyDatabaseWithoutFlywayHistoryIsRejected -- Time elapsed: 0.001 s <<< ERROR!",
+   "[ERROR] com.swiftdrop.notification.RdsProfileStartupTest.flywayAndHibernateAreConfiguredForThePublicSchema -- Time elapsed: 0 s <<< ERROR!",
+   "[ERROR] com.swiftdrop.notification.RdsProfileStartupTest.startsAndReportsHealthy -- Time elapsed: 0.001 s <<< ERROR!",
+   "[ERROR] com.swiftdrop.notification.RdsProfileStartupTest.profileResolvesToTheServiceDatabaseAndUser -- Time elapsed: 0.001 s <<< ERROR!",
+   "[ERROR] com.swiftdrop.notification.RdsProfileStartupTest.poolSettingsComeFromTheProfile -- Time elapsed: 0.001 s <<< ERROR!",
+   "[ERROR] com.swiftdrop.notification.RdsProfileStartupTest.profileUsesEncryptedConnectionsAndThePublicSchema -- Time elapsed: 0 s <<< ERROR!",
+   "[ERROR] com.swiftdrop.notification.RdsProfileStartupTest.flywayUsesOnlyThePublicSchema -- Time elapsed: 0 s <<< ERROR!",
+   "[ERROR] Tests run: 7, Failures: 5, Errors: 0, Skipped: 0, Time elapsed: 0.153 s <<< FAILURE! -- in com.swiftdrop.notification.service.EmailNotificationServiceTest",
+   "[ERROR] com.swiftdrop.notification.service.EmailNotificationServiceTest.sendParcelUpdateEmail_withUnresolvedCustomerId_fallsBackToConfiguredRecipient -- Time elapsed: 0.126 s <<< FAILURE!",
+   "[ERROR] com.swiftdrop.notification.service.EmailNotificationServiceTest.sendParcelUpdateEmail_withResolvedEmailFromIdentityService_sendsToResolvedEmail -- Time elapsed: 0.004 s <<< FAILURE!",
+   "[ERROR] com.swiftdrop.notification.service.EmailNotificationServiceTest.resolveEmailBody_convertsUtcToSriLankaTimeCorrectly -- Time elapsed: 0.002 s <<< FAILURE!",
+   "[ERROR] com.swiftdrop.notification.service.EmailNotificationServiceTest.sendParcelUpdateEmail_withDirectEmailCustomerId_sendsToCustomer -- Time elapsed: 0.003 s <<< FAILURE!",
+   "[ERROR] com.swiftdrop.notification.service.EmailNotificationServiceTest.resolveEmailBody_handlesMidnightCrossingCorrectly -- Time elapsed: 0.002 s <<< FAILURE!",
+   "[ERROR] Failures: ",
+   "[ERROR]   EmailNotificationServiceTest.resolveEmailBody_convertsUtcToSriLankaTimeCorrectly:203 ",
+   "[ERROR]   EmailNotificationServiceTest.resolveEmailBody_handlesMidnightCrossingCorrectly:219 ",
+   "[ERROR]   EmailNotificationServiceTest.sendParcelUpdateEmail_withDirectEmailCustomerId_sendsToCustomer:74 ",
+   "[ERROR]   EmailNotificationServiceTest.sendParcelUpdateEmail_withResolvedEmailFromIdentityService_sendsToResolvedEmail:108 ",
+   "[ERROR]   EmailNotificationServiceTest.sendParcelUpdateEmail_withUnresolvedCustomerId_fallsBackToConfiguredRecipient:141 ",
+   "[ERROR] Errors: ",
+   "[ERROR]   RdsProfileStartupTest.flywayAndHibernateAreConfiguredForThePublicSchema \u00bb IllegalState ApplicationContext failure threshold (1) exceeded: skipping repeated attempt to load context for [WebMergedContextConfiguration@68d2fc35 testClass = com.swiftdrop.notification.RdsProfileStartupTest, locations = [], classes = [com.swiftdrop.notification.NotificationServiceApplication], contextInitializerClasses = [], activeProfiles = [\"rds\"], propertySourceDescriptors = [], propertySourceProperties = [\"swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\", \"management.health.rabbit.enabled=false\", \"DB_HOST=rds-host.invalid\", \"NOTIFICATION_DB_NAME=notification_db\", \"NOTIFICATION_DB_USERNAME=notification_user\", \"NOTIFICATION_DB_PASSWORD=unused-with-service-connection\", \"org.springframework.boot.test.context.SpringBootTestContextBootstrapper=true\"], contextCustomizers = [[ImportsContextCustomizer@768be8f key = [org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration, org.springframework.boot.security.test.autoconfigure.webmvc.SecurityMockMvcAutoConfiguration, org.springframework.boot.webmvc.test.autoconfigure.MockMvcWebDriverAutoConfiguration, org.springframework.boot.webmvc.test.autoconfigure.MockMvcWebClientAutoConfiguration, org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration, org.springframework.boot.webmvc.test.autoconfigure.MockMvcAutoConfiguration, org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration, org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterAutoConfiguration]], org.springframework.boot.test.context.PropertyMappingContextCustomizer@2d298995, org.springframework.boot.test.context.filter.ExcludeFilterContextCustomizer@5857d723, org.springframework.boot.test.json.DuplicateJsonObjectContextCustomizerFactory$DuplicateJsonObjectContextCustomizer@f6e3b67, org.springframework.boot.test.autoconfigure.OnFailureConditionReportContextCustomizerFactory$OnFailureConditionReportContextCustomizer@6c3884f5, org.springframework.test.context.support.DynamicPropertiesContextCustomizer@0, org.springframework.boot.webmvc.test.autoconfigure.WebDriverContextCustomizer@1f3dafd4, org.springframework.boot.web.server.context.SpringBootTestRandomPortContextCustomizer@3e0b1f03, org.springframework.boot.testcontainers.service.connection.ServiceConnectionContextCustomizer@4525d82b, org.springframework.boot.test.context.SpringBootTestAnnotation@23401e35], resourceBasePath = \"src/main/webapp\", contextLoader = org.springframework.boot.test.context.SpringBootContextLoader, parent = null]",
+   "[ERROR]   RdsProfileStartupTest.flywayUsesOnlyThePublicSchema \u00bb IllegalState ApplicationContext failure threshold (1) exceeded: skipping repeated attempt to load context for [WebMergedContextConfiguration@68d2fc35 testClass = com.swiftdrop.notification.RdsProfileStartupTest, locations = [], classes = [com.swiftdrop.notification.NotificationServiceApplication], contextInitializerClasses = [], activeProfiles = [\"rds\"], propertySourceDescriptors = [], propertySourceProperties = [\"swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\", \"management.health.rabbit.enabled=false\", \"DB_HOST=rds-host.invalid\", \"NOTIFICATION_DB_NAME=notification_db\", \"NOTIFICATION_DB_USERNAME=notification_user\", \"NOTIFICATION_DB_PASSWORD=unused-with-service-connection\", \"org.springframework.boot.test.context.SpringBootTestContextBootstrapper=true\"], contextCustomizers = [[ImportsContextCustomizer@768be8f key = [org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration, org.springframework.boot.security.test.autoconfigure.webmvc.SecurityMockMvcAutoConfiguration, org.springframework.boot.webmvc.test.autoconfigure.MockMvcWebDriverAutoConfiguration, org.springframework.boot.webmvc.test.autoconfigure.MockMvcWebClientAutoConfiguration, org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration, org.springframework.boot.webmvc.test.autoconfigure.MockMvcAutoConfiguration, org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration, org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterAutoConfiguration]], org.springframework.boot.test.context.PropertyMappingContextCustomizer@2d298995, org.springframework.boot.test.context.filter.ExcludeFilterContextCustomizer@5857d723, org.springframework.boot.test.json.DuplicateJsonObjectContextCustomizerFactory$DuplicateJsonObjectContextCustomizer@f6e3b67, org.springframework.boot.test.autoconfigure.OnFailureConditionReportContextCustomizerFactory$OnFailureConditionReportContextCustomizer@6c3884f5, org.springframework.test.context.support.DynamicPropertiesContextCustomizer@0, org.springframework.boot.webmvc.test.autoconfigure.WebDriverContextCustomizer@1f3dafd4, org.springframework.boot.web.server.context.SpringBootTestRandomPortContextCustomizer@3e0b1f03, org.springframework.boot.testcontainers.service.connection.ServiceConnectionContextCustomizer@4525d82b, org.springframework.boot.test.context.SpringBootTestAnnotation@23401e35], resourceBasePath = \"src/main/webapp\", contextLoader = org.springframework.boot.test.context.SpringBootContextLoader, parent = null]",
+   "[ERROR]   RdsProfileStartupTest.nonEmptyDatabaseWithoutFlywayHistoryIsRejected \u00bb IllegalState Failed to load ApplicationContext for [WebMergedContextConfiguration@68d2fc35 testClass = com.swiftdrop.notification.RdsProfileStartupTest, locations = [], classes = [com.swiftdrop.notification.NotificationServiceApplication], contextInitializerClasses = [], activeProfiles = [\"rds\"], propertySourceDescriptors = [], propertySourceProperties = [\"swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\", \"management.health.rabbit.enabled=false\", \"DB_HOST=rds-host.invalid\", \"NOTIFICATION_DB_NAME=notification_db\", \"NOTIFICATION_DB_USERNAME=notification_user\", \"NOTIFICATION_DB_PASSWORD=unused-with-service-connection\", \"org.springframework.boot.test.context.SpringBootTestContextBootstrapper=true\"], contextCustomizers = [[ImportsContextCustomizer@768be8f key = [org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration, org.springframework.boot.security.test.autoconfigure.webmvc.SecurityMockMvcAutoConfiguration, org.springframework.boot.webmvc.test.autoconfigure.MockMvcWebDriverAutoConfiguration, org.springframework.boot.webmvc.test.autoconfigure.MockMvcWebClientAutoConfiguration, org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration, org.springframework.boot.webmvc.test.autoconfigure.MockMvcAutoConfiguration, org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration, org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterAutoConfiguration]], org.springframework.boot.test.context.PropertyMappingContextCustomizer@2d298995, org.springframework.boot.test.context.filter.ExcludeFilterContextCustomizer@5857d723, org.springframework.boot.test.json.DuplicateJsonObjectContextCustomizerFactory$DuplicateJsonObjectContextCustomizer@f6e3b67, org.springframework.boot.test.autoconfigure.OnFailureConditionReportContextCustomizerFactory$OnFailureConditionReportContextCustomizer@6c3884f5, org.springframework.test.context.support.DynamicPropertiesContextCustomizer@0, org.springframework.boot.webmvc.test.autoconfigure.WebDriverContextCustomizer@1f3dafd4, org.springframework.boot.web.server.context.SpringBootTestRandomPortContextCustomizer@3e0b1f03, org.springframework.boot.testcontainers.service.connection.ServiceConnectionContextCustomizer@4525d82b, org.springframework.boot.test.context.SpringBootTestAnnotation@23401e35], resourceBasePath = \"src/main/webapp\", contextLoader = org.springframework.boot.test.context.SpringBootContextLoader, parent = null]",
+   "[ERROR]   RdsProfileStartupTest.poolSettingsComeFromTheProfile \u00bb IllegalState ApplicationContext failure threshold (1) exceeded: skipping repeated attempt to load context for [WebMergedContextConfiguration@68d2fc35 testClass = com.swiftdrop.notification.RdsProfileStartupTest, locations = [], classes = [com.swiftdrop.notification.NotificationServiceApplication], contextInitializerClasses = [], activeProfiles = [\"rds\"], propertySourceDescriptors = [], propertySourceProperties = [\"swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\", \"management.health.rabbit.enabled=false\", \"DB_HOST=rds-host.invalid\", \"NOTIFICATION_DB_NAME=notification_db\", \"NOTIFICATION_DB_USERNAME=notification_user\", \"NOTIFICATION_DB_PASSWORD=unused-with-service-connection\", \"org.springframework.boot.test.context.SpringBootTestContextBootstrapper=true\"], contextCustomizers = [[ImportsContextCustomizer@768be8f key = [org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration, org.springframework.boot.security.test.autoconfigure.webmvc.SecurityMockMvcAutoConfiguration, org.springframework.boot.webmvc.test.autoconfigure.MockMvcWebDriverAutoConfiguration, org.springframework.boot.webmvc.test.autoconfigure.MockMvcWebClientAutoConfiguration, org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration, org.springframework.boot.webmvc.test.autoconfigure.MockMvcAutoConfiguration, org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration, org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterAutoConfiguration]], org.springframework.boot.test.context.PropertyMappingContextCustomizer@2d298995, org.springframework.boot.test.context.filter.ExcludeFilterContextCustomizer@5857d723, org.springframework.boot.test.json.DuplicateJsonObjectContextCustomizerFactory$DuplicateJsonObjectContextCustomizer@f6e3b67, org.springframework.boot.test.autoconfigure.OnFailureConditionReportContextCustomizerFactory$OnFailureConditionReportContextCustomizer@6c3884f5, org.springframework.test.context.support.DynamicPropertiesContextCustomizer@0, org.springframework.boot.webmvc.test.autoconfigure.WebDriverContextCustomizer@1f3dafd4, org.springframework.boot.web.server.context.SpringBootTestRandomPortContextCustomizer@3e0b1f03, org.springframework.boot.testcontainers.service.connection.ServiceConnectionContextCustomizer@4525d82b, org.springframework.boot.test.context.SpringBootTestAnnotation@23401e35], resourceBasePath = \"src/main/webapp\", contextLoader = org.springframework.boot.test.context.SpringBootContextLoader, parent = null]",
+   "[ERROR]   RdsProfileStartupTest.profileResolvesToTheServiceDatabaseAndUser \u00bb IllegalState ApplicationContext failure threshold (1) exceeded: skipping repeated attempt to load context for [WebMergedContextConfiguration@68d2fc35 testClass = com.swiftdrop.notification.RdsProfileStartupTest, locations = [], classes = [com.swiftdrop.notification.NotificationServiceApplication], contextInitializerClasses = [], activeProfiles = [\"rds\"], propertySourceDescriptors = [], propertySourceProperties = [\"swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\", \"management.health.rabbit.enabled=false\", \"DB_HOST=rds-host.invalid\", \"NOTIFICATION_DB_NAME=notification_db\", \"NOTIFICATION_DB_USERNAME=notification_user\", \"NOTIFICATION_DB_PASSWORD=unused-with-service-connection\", \"org.springframework.boot.test.context.SpringBootTestContextBootstrapper=true\"], contextCustomizers = [[ImportsContextCustomizer@768be8f key = [org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration, org.springframework.boot.security.test.autoconfigure.webmvc.SecurityMockMvcAutoConfiguration, org.springframework.boot.webmvc.test.autoconfigure.MockMvcWebDriverAutoConfiguration, org.springframework.boot.webmvc.test.autoconfigure.MockMvcWebClientAutoConfiguration, org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration, org.springframework.boot.webmvc.test.autoconfigure.MockMvcAutoConfiguration, org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration, org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterAutoConfiguration]], org.springframework.boot.test.context.PropertyMappingContextCustomizer@2d298995, org.springframework.boot.test.context.filter.ExcludeFilterContextCustomizer@5857d723, org.springframework.boot.test.json.DuplicateJsonObjectContextCustomizerFactory$DuplicateJsonObjectContextCustomizer@f6e3b67, org.springframework.boot.test.autoconfigure.OnFailureConditionReportContextCustomizerFactory$OnFailureConditionReportContextCustomizer@6c3884f5, org.springframework.test.context.support.DynamicPropertiesContextCustomizer@0, org.springframework.boot.webmvc.test.autoconfigure.WebDriverContextCustomizer@1f3dafd4, org.springframework.boot.web.server.context.SpringBootTestRandomPortContextCustomizer@3e0b1f03, org.springframework.boot.testcontainers.service.connection.ServiceConnectionContextCustomizer@4525d82b, org.springframework.boot.test.context.SpringBootTestAnnotation@23401e35], resourceBasePath = \"src/main/webapp\", contextLoader = org.springframework.boot.test.context.SpringBootContextLoader, parent = null]",
+   "[ERROR]   RdsProfileStartupTest.profileUsesEncryptedConnectionsAndThePublicSchema \u00bb IllegalState ApplicationContext failure threshold (1) exceeded: skipping repeated attempt to load context for [WebMergedContextConfiguration@68d2fc35 testClass = com.swiftdrop.notification.RdsProfileStartupTest, locations = [], classes = [com.swiftdrop.notification.NotificationServiceApplication], contextInitializerClasses = [], activeProfiles = [\"rds\"], propertySourceDescriptors = [], propertySourceProperties = [\"swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\", \"management.health.rabbit.enabled=false\", \"DB_HOST=rds-host.invalid\", \"NOTIFICATION_DB_NAME=notification_db\", \"NOTIFICATION_DB_USERNAME=notification_user\", \"NOTIFICATION_DB_PASSWORD=unused-with-service-connection\", \"org.springframework.boot.test.context.SpringBootTestContextBootstrapper=true\"], contextCustomizers = [[ImportsContextCustomizer@768be8f key = [org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration, org.springframework.boot.security.test.autoconfigure.webmvc.SecurityMockMvcAutoConfiguration, org.springframework.boot.webmvc.test.autoconfigure.MockMvcWebDriverAutoConfiguration, org.springframework.boot.webmvc.test.autoconfigure.MockMvcWebClientAutoConfiguration, org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration, org.springframework.boot.webmvc.test.autoconfigure.MockMvcAutoConfiguration, org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration, org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterAutoConfiguration]], org.springframework.boot.test.context.PropertyMappingContextCustomizer@2d298995, org.springframework.boot.test.context.filter.ExcludeFilterContextCustomizer@5857d723, org.springframework.boot.test.json.DuplicateJsonObjectContextCustomizerFactory$DuplicateJsonObjectContextCustomizer@f6e3b67, org.springframework.boot.test.autoconfigure.OnFailureConditionReportContextCustomizerFactory$OnFailureConditionReportContextCustomizer@6c3884f5, org.springframework.test.context.support.DynamicPropertiesContextCustomizer@0, org.springframework.boot.webmvc.test.autoconfigure.WebDriverContextCustomizer@1f3dafd4, org.springframework.boot.web.server.context.SpringBootTestRandomPortContextCustomizer@3e0b1f03, org.springframework.boot.testcontainers.service.connection.ServiceConnectionContextCustomizer@4525d82b, org.springframework.boot.test.context.SpringBootTestAnnotation@23401e35], resourceBasePath = \"src/main/webapp\", contextLoader = org.springframework.boot.test.context.SpringBootContextLoader, parent = null]",
+   "[ERROR]   RdsProfileStartupTest.startsAndReportsHealthy \u00bb IllegalState ApplicationContext failure threshold (1) exceeded: skipping repeated attempt to load context for [WebMergedContextConfiguration@68d2fc35 testClass = com.swiftdrop.notification.RdsProfileStartupTest, locations = [], classes = [com.swiftdrop.notification.NotificationServiceApplication], contextInitializerClasses = [], activeProfiles = [\"rds\"], propertySourceDescriptors = [], propertySourceProperties = [\"swiftdrop.jwt.secret=AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=\", \"management.health.rabbit.enabled=false\", \"DB_HOST=rds-host.invalid\", \"NOTIFICATION_DB_NAME=notification_db\", \"NOTIFICATION_DB_USERNAME=notification_user\", \"NOTIFICATION_DB_PASSWORD=unused-with-service-connection\", \"org.springframework.boot.test.context.SpringBootTestContextBootstrapper=true\"], contextCustomizers = [[ImportsContextCustomizer@768be8f key = [org.springframework.boot.security.autoconfigure.web.servlet.ServletWebSecurityAutoConfiguration, org.springframework.boot.security.test.autoconfigure.webmvc.SecurityMockMvcAutoConfiguration, org.springframework.boot.webmvc.test.autoconfigure.MockMvcWebDriverAutoConfiguration, org.springframework.boot.webmvc.test.autoconfigure.MockMvcWebClientAutoConfiguration, org.springframework.boot.security.autoconfigure.SecurityAutoConfiguration, org.springframework.boot.webmvc.test.autoconfigure.MockMvcAutoConfiguration, org.springframework.boot.security.autoconfigure.UserDetailsServiceAutoConfiguration, org.springframework.boot.security.autoconfigure.web.servlet.SecurityFilterAutoConfiguration]], org.springframework.boot.test.context.PropertyMappingContextCustomizer@2d298995, org.springframework.boot.test.context.filter.ExcludeFilterContextCustomizer@5857d723, org.springframework.boot.test.json.DuplicateJsonObjectContextCustomizerFactory$DuplicateJsonObjectContextCustomizer@f6e3b67, org.springframework.boot.test.autoconfigure.OnFailureConditionReportContextCustomizerFactory$OnFailureConditionReportContextCustomizer@6c3884f5, org.springframework.test.context.support.DynamicPropertiesContextCustomizer@0, org.springframework.boot.webmvc.test.autoconfigure.WebDriverContextCustomizer@1f3dafd4, org.springframework.boot.web.server.context.SpringBootTestRandomPortContextCustomizer@3e0b1f03, org.springframework.boot.testcontainers.service.connection.ServiceConnectionContextCustomizer@4525d82b, org.springframework.boot.test.context.SpringBootTestAnnotation@23401e35], resourceBasePath = \"src/main/webapp\", contextLoader = org.springframework.boot.test.context.SpringBootContextLoader, parent = null]",
+   "[ERROR] Tests run: 113, Failures: 5, Errors: 7, Skipped: 1",
+   "[ERROR] There are test failures."
+  ]
+ },
+ "parcel-service": {
+  "tests": 201,
+  "passed": 201,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "time": 6.6039999999999965,
+  "unit": [
+   48,
+   48,
+   0,
+   0
+  ],
+  "integration": [
+   153,
+   153,
+   0,
+   0
+  ],
+  "failures": [],
+  "skips": [],
+  "classes": {
+   "com.swiftdrop.parcel.service.ParcelStatusUpdateServiceTest": {
+    "kind": "unit",
+    "tests": 6,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.event.ParcelOutboxPublisherTest": {
+    "kind": "unit",
+    "tests": 8,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.service.ParcelCreationServiceTest": {
+    "kind": "unit",
+    "tests": 1,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.service.ParcelStatusTransitionValidatorTest": {
+    "kind": "unit",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.service.ParcelServiceTest": {
+    "kind": "unit",
+    "tests": 9,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.IdentityIdMigrationTest": {
+    "kind": "integration",
+    "tests": 3,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.TrackingNumberCollisionTest": {
+    "kind": "integration",
+    "tests": 5,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.ParcelReadApiTest": {
+    "kind": "integration",
+    "tests": 7,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.ParcelStatusUpdateApiTest": {
+    "kind": "integration",
+    "tests": 13,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.service.CourierAssignmentVerifierTest": {
+    "kind": "unit",
+    "tests": 1,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.ParcelCreationApiTest": {
+    "kind": "integration",
+    "tests": 38,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.ParcelOutboxBrokerTest": {
+    "kind": "integration",
+    "tests": 3,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.ParcelTrackingApiTest": {
+    "kind": "integration",
+    "tests": 5,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.client.HttpPricingClientTest": {
+    "kind": "unit",
+    "tests": 6,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.ParcelQueryApiTest": {
+    "kind": "integration",
+    "tests": 13,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.MerchantOrderIntegrationTest": {
+    "kind": "integration",
+    "tests": 7,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.ParcelCustomerActionsApiTest": {
+    "kind": "integration",
+    "tests": 13,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.service.SriLankaDistrictsTest": {
+    "kind": "unit",
+    "tests": 3,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.CourierDeliveryStatusConsumerBrokerTest": {
+    "kind": "integration",
+    "tests": 1,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.config.SecurityConfigTest": {
+    "kind": "integration",
+    "tests": 35,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.RdsProfileStartupTest": {
+    "kind": "integration",
+    "tests": 8,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.service.ParcelQueryServiceTest": {
+    "kind": "unit",
+    "tests": 12,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.parcel.ParcelServiceApplicationTests": {
+    "kind": "integration",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   }
+  },
+  "coverage": {
+   "line": 95.4,
+   "branch": 77.4,
+   "instruction": 94.4,
+   "method": 93.3,
+   "lines": [
+    785,
+    823
+   ],
+   "branches": [
+    233,
+    301
+   ]
+  },
+  "run": {
+   "exit": 0,
+   "seconds": 77
+  },
+  "build_success": true,
+  "log_tail_errors": []
+ },
+ "pricing-service": {
+  "tests": 65,
+  "passed": 65,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "time": 5.248999999999997,
+  "unit": [
+   21,
+   21,
+   0,
+   0
+  ],
+  "integration": [
+   44,
+   44,
+   0,
+   0
+  ],
+  "failures": [],
+  "skips": [],
+  "classes": {
+   "com.swiftdrop.pricing.strategy.PricingStrategyTest": {
+    "kind": "unit",
+    "tests": 12,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.pricing.controller.ZoneControllerSecurityTest": {
+    "kind": "integration",
+    "tests": 6,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.pricing.PricingLifecycleIntegrationTest": {
+    "kind": "integration",
+    "tests": 1,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.pricing.strategy.PricingCalculatorTest": {
+    "kind": "unit",
+    "tests": 5,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.pricing.controller.PricingQuoteControllerTest": {
+    "kind": "integration",
+    "tests": 9,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.pricing.PricingServiceApplicationTests": {
+    "kind": "integration",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.pricing.ZoneMigrationTest": {
+    "kind": "integration",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.pricing.controller.RateCardControllerSecurityTest": {
+    "kind": "integration",
+    "tests": 3,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.pricing.config.SecurityConfigTest": {
+    "kind": "integration",
+    "tests": 14,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.pricing.RdsProfileStartupTest": {
+    "kind": "integration",
+    "tests": 7,
+    "failed": 0,
+    "skipped": 0
+   },
+   "com.swiftdrop.pricing.PricingQuoteServiceTest": {
+    "kind": "unit",
+    "tests": 4,
+    "failed": 0,
+    "skipped": 0
+   }
+  },
+  "coverage": {
+   "line": 95.7,
+   "branch": 85.3,
+   "instruction": 95.8,
+   "method": 93.5,
+   "lines": [
+    375,
+    392
+   ],
+   "branches": [
+    93,
+    109
+   ]
+  },
+  "run": {
+   "exit": 0,
+   "seconds": 39
+  },
+  "build_success": true,
+  "log_tail_errors": []
+ },
+ "stylecart-backend": {
+  "tests": 13,
+  "passed": 13,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "time": 3.7969999999999997,
+  "unit": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "integration": [
+   13,
+   13,
+   0,
+   0
+  ],
+  "failures": [],
+  "skips": [],
+  "classes": {
+   "com.stylecart.StyleCartIntegrationTest": {
+    "kind": "integration",
+    "tests": 13,
+    "failed": 0,
+    "skipped": 0
+   }
+  },
+  "coverage": {
+   "line": 89.6,
+   "branch": 62.5,
+   "instruction": 87.1,
+   "method": 79.2,
+   "lines": [
+    232,
+    259
+   ],
+   "branches": [
+    167,
+    267
+   ]
+  },
+  "run": {
+   "exit": 0,
+   "seconds": 22
+  },
+  "build_success": true,
+  "log_tail_errors": []
+ },
+ "frontend": {
+  "tests": 615,
+  "passed": 593,
+  "failed": 22,
+  "errors": 0,
+  "skipped": 0,
+  "time": 86.63988148899993,
+  "unit": [
+   604,
+   588,
+   16,
+   0
+  ],
+  "integration": [
+   11,
+   5,
+   6,
+   0
+  ],
+  "failures": [
+   {
+    "class": "src/App.integration.test.jsx",
+    "name": "App with the real AuthProvider > restores a stored session onto the dashboard",
+    "type": "TestingLibraryElementError",
+    "message": "Unable to find an accessible element with the role \"heading\" and name \"Customer dashboard\"  Here are the accessible roles:    banner:    Name \"\":   <header     class=\"navbar\"   />    Name \"\":   <header     class=\"customer-dashboard-header\"   />    --------------------------------------------------   button:    Name \"Open menu\":   <button     aria-controls=\"app-sidebar\"     aria-expanded=\"false\"     aria-label=\"Open menu\"     class=\"icon-button navbar-menu-button\"     type=\"button\"   />    Name \"Notifications (0 unread)\":   <button     aria-expanded=\"false\"     aria-haspopup=\"true\"     aria-lab"
+   },
+   {
+    "class": "src/App.integration.test.jsx",
+    "name": "App with the real AuthProvider > returns to login with a notice when the session expires",
+    "type": "TestingLibraryElementError",
+    "message": "Unable to find an accessible element with the role \"heading\" and name \"Your profile\"  Here are the accessible roles:    banner:    Name \"\":   <header     class=\"navbar\"   />    --------------------------------------------------   button:    Name \"Open menu\":   <button     aria-controls=\"app-sidebar\"     aria-expanded=\"false\"     aria-label=\"Open menu\"     class=\"icon-button navbar-menu-button\"     type=\"button\"   />    Name \"Notifications (0 unread)\":   <button     aria-expanded=\"false\"     aria-haspopup=\"true\"     aria-label=\"Notifications (0 unread)\"     class=\"icon-button notification-bell-"
+   },
+   {
+    "class": "src/App.integration.test.jsx",
+    "name": "App with the real AuthProvider > keeps the session and recovers via retry when the server was unavailable",
+    "type": "TestingLibraryElementError",
+    "message": "Unable to find an accessible element with the role \"heading\" and name \"Customer dashboard\"  Here are the accessible roles:    banner:    Name \"\":   <header     class=\"navbar\"   />    Name \"\":   <header     class=\"customer-dashboard-header\"   />    --------------------------------------------------   button:    Name \"Open menu\":   <button     aria-controls=\"app-sidebar\"     aria-expanded=\"false\"     aria-label=\"Open menu\"     class=\"icon-button navbar-menu-button\"     type=\"button\"   />    Name \"Notifications (0 unread)\":   <button     aria-expanded=\"false\"     aria-haspopup=\"true\"     aria-lab"
+   },
+   {
+    "class": "src/App.integration.test.jsx",
+    "name": "App with the real AuthProvider > login and registration forms > returns the user to the page they originally requested",
+    "type": "TestingLibraryElementError",
+    "message": "Unable to find an accessible element with the role \"heading\" and name \"Your profile\"  Here are the accessible roles:    banner:    Name \"\":   <header     class=\"navbar\"   />    --------------------------------------------------   button:    Name \"Open menu\":   <button     aria-controls=\"app-sidebar\"     aria-expanded=\"false\"     aria-label=\"Open menu\"     class=\"icon-button navbar-menu-button\"     type=\"button\"   />    Name \"Notifications (0 unread)\":   <button     aria-expanded=\"false\"     aria-haspopup=\"true\"     aria-label=\"Notifications (0 unread)\"     class=\"icon-button notification-bell-"
+   },
+   {
+    "class": "src/App.integration.test.jsx",
+    "name": "App with the real AuthProvider > login and registration forms > sends a direct login to the role dashboard",
+    "type": "TestingLibraryElementError",
+    "message": "Unable to find an accessible element with the role \"heading\" and name \"Customer dashboard\"  Here are the accessible roles:    banner:    Name \"\":   <header     class=\"navbar\"   />    Name \"\":   <header     class=\"customer-dashboard-header\"   />    --------------------------------------------------   button:    Name \"Open menu\":   <button     aria-controls=\"app-sidebar\"     aria-expanded=\"false\"     aria-label=\"Open menu\"     class=\"icon-button navbar-menu-button\"     type=\"button\"   />    Name \"Notifications (0 unread)\":   <button     aria-expanded=\"false\"     aria-haspopup=\"true\"     aria-lab"
+   },
+   {
+    "class": "src/App.integration.test.jsx",
+    "name": "App with the real AuthProvider > accounts awaiting approval > restores a pending courier session onto the application status page",
+    "type": "TestingLibraryElementError",
+    "message": "Unable to find an accessible element with the role \"heading\" and name \"Application pending\"  Here are the accessible roles:    banner:    Name \"\":   <header     class=\"navbar\"   />    --------------------------------------------------   link:    Name \"SwiftDrop\":   <a     class=\"brand\"     data-discover=\"true\"     href=\"/\"   />    --------------------------------------------------   button:    Name \"Notifications (0 unread)\":   <button     aria-expanded=\"false\"     aria-haspopup=\"true\"     aria-label=\"Notifications (0 unread)\"     class=\"icon-button notification-bell-button\"     type=\"button\" "
+   },
+   {
+    "class": "src/App.test.jsx",
+    "name": "App routing > authenticated users > reach their dashboard inside the shared layout",
+    "type": "TestingLibraryElementError",
+    "message": "Unable to find an accessible element with the role \"heading\" and name \"Customer dashboard\"  Here are the accessible roles:    banner:    Name \"\":   <header     class=\"navbar\"   />    Name \"\":   <header     class=\"customer-dashboard-header\"   />    --------------------------------------------------   button:    Name \"Open menu\":   <button     aria-controls=\"app-sidebar\"     aria-expanded=\"false\"     aria-label=\"Open menu\"     class=\"icon-button navbar-menu-button\"     type=\"button\"   />    Name \"Notifications (0 unread)\":   <button     aria-expanded=\"false\"     aria-haspopup=\"true\"     aria-lab"
+   },
+   {
+    "class": "src/App.test.jsx",
+    "name": "App routing > authenticated users > can view their profile with only the public profile fields",
+    "type": "TestingLibraryElementError",
+    "message": "Unable to find an accessible element with the role \"heading\" and name \"Your profile\"  Here are the accessible roles:    banner:    Name \"\":   <header     class=\"navbar\"   />    --------------------------------------------------   button:    Name \"Open menu\":   <button     aria-controls=\"app-sidebar\"     aria-expanded=\"false\"     aria-label=\"Open menu\"     class=\"icon-button navbar-menu-button\"     type=\"button\"   />    Name \"Notifications (0 unread)\":   <button     aria-expanded=\"false\"     aria-haspopup=\"true\"     aria-label=\"Notifications (0 unread)\"     class=\"icon-button notification-bell-"
+   },
+   {
+    "class": "src/App.test.jsx",
+    "name": "App routing > authenticated users > are redirected from /login to the dashboard",
+    "type": "TestingLibraryElementError",
+    "message": "Unable to find an accessible element with the role \"heading\" and name \"Customer dashboard\"  Here are the accessible roles:    banner:    Name \"\":   <header     class=\"navbar\"   />    Name \"\":   <header     class=\"customer-dashboard-header\"   />    --------------------------------------------------   button:    Name \"Open menu\":   <button     aria-controls=\"app-sidebar\"     aria-expanded=\"false\"     aria-label=\"Open menu\"     class=\"icon-button navbar-menu-button\"     type=\"button\"   />    Name \"Notifications (0 unread)\":   <button     aria-expanded=\"false\"     aria-haspopup=\"true\"     aria-lab"
+   },
+   {
+    "class": "src/App.test.jsx",
+    "name": "App routing > authenticated users > are redirected from /register to the dashboard",
+    "type": "TestingLibraryElementError",
+    "message": "Unable to find an accessible element with the role \"heading\" and name \"Customer dashboard\"  Here are the accessible roles:    banner:    Name \"\":   <header     class=\"navbar\"   />    Name \"\":   <header     class=\"customer-dashboard-header\"   />    --------------------------------------------------   button:    Name \"Open menu\":   <button     aria-controls=\"app-sidebar\"     aria-expanded=\"false\"     aria-label=\"Open menu\"     class=\"icon-button navbar-menu-button\"     type=\"button\"   />    Name \"Notifications (0 unread)\":   <button     aria-expanded=\"false\"     aria-haspopup=\"true\"     aria-lab"
+   },
+   {
+    "class": "src/App.test.jsx",
+    "name": "App routing > authenticated users > are redirected from /register/merchant to the dashboard",
+    "type": "TestingLibraryElementError",
+    "message": "Unable to find an accessible element with the role \"heading\" and name \"Customer dashboard\"  Here are the accessible roles:    banner:    Name \"\":   <header     class=\"navbar\"   />    Name \"\":   <header     class=\"customer-dashboard-header\"   />    --------------------------------------------------   button:    Name \"Open menu\":   <button     aria-controls=\"app-sidebar\"     aria-expanded=\"false\"     aria-label=\"Open menu\"     class=\"icon-button navbar-menu-button\"     type=\"button\"   />    Name \"Notifications (0 unread)\":   <button     aria-expanded=\"false\"     aria-haspopup=\"true\"     aria-lab"
+   },
+   {
+    "class": "src/App.test.jsx",
+    "name": "App routing > authenticated users > are redirected from /register/courier to the dashboard",
+    "type": "TestingLibraryElementError",
+    "message": "Unable to find an accessible element with the role \"heading\" and name \"Customer dashboard\"  Here are the accessible roles:    banner:    Name \"\":   <header     class=\"navbar\"   />    Name \"\":   <header     class=\"customer-dashboard-header\"   />    --------------------------------------------------   button:    Name \"Open menu\":   <button     aria-controls=\"app-sidebar\"     aria-expanded=\"false\"     aria-label=\"Open menu\"     class=\"icon-button navbar-menu-button\"     type=\"button\"   />    Name \"Notifications (0 unread)\":   <button     aria-expanded=\"false\"     aria-haspopup=\"true\"     aria-lab"
+   },
+   {
+    "class": "src/App.test.jsx",
+    "name": "App routing > authenticated users > are redirected from /forgot-password to the dashboard",
+    "type": "TestingLibraryElementError",
+    "message": "Unable to find an accessible element with the role \"heading\" and name \"Customer dashboard\"  Here are the accessible roles:    banner:    Name \"\":   <header     class=\"navbar\"   />    Name \"\":   <header     class=\"customer-dashboard-header\"   />    --------------------------------------------------   button:    Name \"Open menu\":   <button     aria-controls=\"app-sidebar\"     aria-expanded=\"false\"     aria-label=\"Open menu\"     class=\"icon-button navbar-menu-button\"     type=\"button\"   />    Name \"Notifications (0 unread)\":   <button     aria-expanded=\"false\"     aria-haspopup=\"true\"     aria-lab"
+   },
+   {
+    "class": "src/App.test.jsx",
+    "name": "App routing > authenticated users > allows MERCHANT to access merchant pages and redirects CUSTOMER",
+    "type": "TestingLibraryElementError",
+    "message": "Unable to find an accessible element with the role \"heading\" and name \"Customer dashboard\"  Here are the accessible roles:    banner:    Name \"\":   <header     class=\"navbar\"   />    Name \"\":   <header     class=\"customer-dashboard-header\"   />    --------------------------------------------------   button:    Name \"Open menu\":   <button     aria-controls=\"app-sidebar\"     aria-expanded=\"false\"     aria-label=\"Open menu\"     class=\"icon-button navbar-menu-button\"     type=\"button\"   />    Name \"Notifications (0 unread)\":   <button     aria-expanded=\"false\"     aria-haspopup=\"true\"     aria-lab"
+   },
+   {
+    "class": "src/App.test.jsx",
+    "name": "App routing > role-based dashboard > shows the customer dashboard placeholder",
+    "type": "TestingLibraryElementError",
+    "message": "Unable to find an accessible element with the role \"heading\" and name \"Customer dashboard\"  Here are the accessible roles:    banner:    Name \"\":   <header     class=\"navbar\"   />    Name \"\":   <header     class=\"customer-dashboard-header\"   />    --------------------------------------------------   button:    Name \"Open menu\":   <button     aria-controls=\"app-sidebar\"     aria-expanded=\"false\"     aria-label=\"Open menu\"     class=\"icon-button navbar-menu-button\"     type=\"button\"   />    Name \"Notifications (0 unread)\":   <button     aria-expanded=\"false\"     aria-haspopup=\"true\"     aria-lab"
+   },
+   {
+    "class": "src/App.test.jsx",
+    "name": "App routing > role-based dashboard > shows dispatcher account management to ADMIN",
+    "type": "TypeError",
+    "message": "Cannot read properties of undefined (reading 'catch')"
+   },
+   {
+    "class": "src/App.test.jsx",
+    "name": "App routing > role-based dashboard > allows admins to open reports and redirects other roles away",
+    "type": "TestingLibraryElementError",
+    "message": "Unable to find role=\"heading\" and name \"Customer dashboard\"  Ignored nodes: comments, script, style <body>   <div>     <div       class=\"app-layout\"     >       <header         class=\"navbar\"       >         <div           class=\"navbar-start\"         >           <button             aria-controls=\"app-sidebar\"             aria-expanded=\"false\"             aria-label=\"Open menu\"             class=\"icon-button navbar-menu-button\"             type=\"button\"           >             <svg               aria-hidden=\"true\"               fill=\"none\"               height=\"20\"               stroke=\"curren"
+   },
+   {
+    "class": "src/App.test.jsx",
+    "name": "App routing > role-based dashboard > redirects ADMIN from /dashboard to /admin/dashboard",
+    "type": "TypeError",
+    "message": "Cannot read properties of undefined (reading 'catch')"
+   },
+   {
+    "class": "src/App.test.jsx",
+    "name": "App routing > role-based dashboard > sends ADMIN away from /customer/dashboard to their own dashboard",
+    "type": "TypeError",
+    "message": "Cannot read properties of undefined (reading 'catch')"
+   },
+   {
+    "class": "src/App.test.jsx",
+    "name": "App routing > accounts awaiting approval > let a pending account view its profile",
+    "type": "TestingLibraryElementError",
+    "message": "Unable to find an accessible element with the role \"heading\" and name \"Your profile\"  Here are the accessible roles:    banner:    Name \"\":   <header     class=\"navbar\"   />    --------------------------------------------------   button:    Name \"Open menu\":   <button     aria-controls=\"app-sidebar\"     aria-expanded=\"false\"     aria-label=\"Open menu\"     class=\"icon-button navbar-menu-button\"     type=\"button\"   />    Name \"Notifications (0 unread)\":   <button     aria-expanded=\"false\"     aria-haspopup=\"true\"     aria-label=\"Notifications (0 unread)\"     class=\"icon-button notification-bell-"
+   },
+   {
+    "class": "src/pages/auth/GoogleCallbackPage.test.jsx",
+    "name": "GoogleCallbackPage > success > exchanges the code once under StrictMode and signs the user in",
+    "type": "TestingLibraryElementError",
+    "message": "Unable to find an accessible element with the role \"heading\" and name \"Customer dashboard\"  Here are the accessible roles:    banner:    Name \"\":   <header     class=\"navbar\"   />    Name \"\":   <header     class=\"customer-dashboard-header\"   />    --------------------------------------------------   button:    Name \"Open menu\":   <button     aria-controls=\"app-sidebar\"     aria-expanded=\"false\"     aria-label=\"Open menu\"     class=\"icon-button navbar-menu-button\"     type=\"button\"   />    Name \"Notifications (0 unread)\":   <button     aria-expanded=\"false\"     aria-haspopup=\"true\"     aria-lab"
+   },
+   {
+    "class": "src/pages/auth/GoogleCallbackPage.test.jsx",
+    "name": "GoogleCallbackPage > success > returns to the page the user originally requested",
+    "type": "TestingLibraryElementError",
+    "message": "Unable to find an accessible element with the role \"heading\" and name \"Your profile\"  Here are the accessible roles:    banner:    Name \"\":   <header     class=\"navbar\"   />    --------------------------------------------------   button:    Name \"Open menu\":   <button     aria-controls=\"app-sidebar\"     aria-expanded=\"false\"     aria-label=\"Open menu\"     class=\"icon-button navbar-menu-button\"     type=\"button\"   />    Name \"Notifications (0 unread)\":   <button     aria-expanded=\"false\"     aria-haspopup=\"true\"     aria-label=\"Notifications (0 unread)\"     class=\"icon-button notification-bell-"
+   }
+  ],
+  "skips": [],
+  "classes": {
+   "src/App.integration.test.jsx": {
+    "kind": "integration",
+    "tests": 11,
+    "failed": 6,
+    "skipped": 0
+   },
+   "src/App.test.jsx": {
+    "kind": "unit",
+    "tests": 61,
+    "failed": 14,
+    "skipped": 0
+   },
+   "src/components/CopyTrackingNumberButton.test.jsx": {
+    "kind": "unit",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/components/GoogleSignInButton.test.jsx": {
+    "kind": "unit",
+    "tests": 11,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/components/NotificationBell.test.jsx": {
+    "kind": "unit",
+    "tests": 3,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/components/NotificationToast.test.jsx": {
+    "kind": "unit",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/components/ProtectedRoute.test.jsx": {
+    "kind": "unit",
+    "tests": 18,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/components/courier/DeliveryCard.test.jsx": {
+    "kind": "unit",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/components/pricing/FeeEstimate.test.jsx": {
+    "kind": "unit",
+    "tests": 5,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/context/AuthContext.test.jsx": {
+    "kind": "unit",
+    "tests": 35,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/hooks/courier/useDeliverySubmission.test.jsx": {
+    "kind": "unit",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/hooks/useParcelLiveStatus.test.js": {
+    "kind": "unit",
+    "tests": 4,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/NotificationsPage.test.jsx": {
+    "kind": "unit",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/admin/AdminDashboardPage.test.jsx": {
+    "kind": "unit",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/admin/AdminUserManagementPage.test.jsx": {
+    "kind": "unit",
+    "tests": 7,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/admin/CourierApprovalsPage.test.jsx": {
+    "kind": "unit",
+    "tests": 6,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/admin/MerchantApprovalsPage.test.jsx": {
+    "kind": "unit",
+    "tests": 8,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/admin/PricingPage.test.jsx": {
+    "kind": "unit",
+    "tests": 6,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/admin/ZoneManagementPage.test.jsx": {
+    "kind": "unit",
+    "tests": 4,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/application/ApplicationStatusPage.test.jsx": {
+    "kind": "unit",
+    "tests": 15,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/auth/CourierRegisterPage.test.jsx": {
+    "kind": "unit",
+    "tests": 7,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/auth/ForgotPasswordPage.test.jsx": {
+    "kind": "unit",
+    "tests": 3,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/auth/GoogleCallbackPage.test.jsx": {
+    "kind": "unit",
+    "tests": 24,
+    "failed": 2,
+    "skipped": 0
+   },
+   "src/pages/auth/LoginPage.test.jsx": {
+    "kind": "unit",
+    "tests": 19,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/auth/MerchantRegisterPage.test.jsx": {
+    "kind": "unit",
+    "tests": 13,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/auth/RegisterPage.test.jsx": {
+    "kind": "unit",
+    "tests": 22,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/auth/ResetPasswordPage.test.jsx": {
+    "kind": "unit",
+    "tests": 6,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/courier/deliveries/CourierDeliveriesPage.test.jsx": {
+    "kind": "unit",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/courier/delivery-detail/CourierDeliveryDetailPage.test.jsx": {
+    "kind": "unit",
+    "tests": 6,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/courier/delivery-detail/components/DeliveryUpdateForm.test.jsx": {
+    "kind": "unit",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/courier/today/CourierTodayPage.test.jsx": {
+    "kind": "unit",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/customer/CreateDeliveryPage.test.jsx": {
+    "kind": "unit",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/customer/CustomerDashboardPage.test.jsx": {
+    "kind": "unit",
+    "tests": 3,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/customer/DeliveryDetailsPage.test.jsx": {
+    "kind": "unit",
+    "tests": 11,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/customer/DeliveryHistoryPage.test.jsx": {
+    "kind": "unit",
+    "tests": 6,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/dispatcher/CourierWorkloadPage.test.jsx": {
+    "kind": "unit",
+    "tests": 1,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/dispatcher/DispatchReportsPage.test.jsx": {
+    "kind": "unit",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/dispatcher/DispatcherDashboardPage.test.jsx": {
+    "kind": "unit",
+    "tests": 5,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/dispatcher/OngoingDeliveriesPage.test.jsx": {
+    "kind": "unit",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/merchant/MerchantApiKeysPage.test.jsx": {
+    "kind": "unit",
+    "tests": 6,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/merchant/MerchantDashboardPage.test.jsx": {
+    "kind": "unit",
+    "tests": 10,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/merchant/MerchantDeliveriesPage.test.jsx": {
+    "kind": "unit",
+    "tests": 10,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/merchant/MerchantOrdersPage.test.jsx": {
+    "kind": "unit",
+    "tests": 11,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/pages/merchant/MerchantWebhookPage.test.jsx": {
+    "kind": "unit",
+    "tests": 19,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/services/adminUserService.test.js": {
+    "kind": "unit",
+    "tests": 6,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/services/apiClient.test.js": {
+    "kind": "unit",
+    "tests": 39,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/services/applicationService.test.js": {
+    "kind": "unit",
+    "tests": 8,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/services/authService.test.js": {
+    "kind": "unit",
+    "tests": 26,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/services/config.test.js": {
+    "kind": "unit",
+    "tests": 3,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/services/courierService.test.js": {
+    "kind": "unit",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/services/endpoints.test.js": {
+    "kind": "unit",
+    "tests": 7,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/services/errorMessages.test.js": {
+    "kind": "unit",
+    "tests": 5,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/services/googleAuth.test.js": {
+    "kind": "unit",
+    "tests": 13,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/services/merchantService.test.js": {
+    "kind": "unit",
+    "tests": 13,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/services/notificationService.test.js": {
+    "kind": "unit",
+    "tests": 6,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/services/parcelService.test.js": {
+    "kind": "unit",
+    "tests": 3,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/services/tokenStorage.test.js": {
+    "kind": "unit",
+    "tests": 31,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/utils/courier/courierValidation.test.js": {
+    "kind": "unit",
+    "tests": 4,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/utils/notificationFormatter.test.js": {
+    "kind": "unit",
+    "tests": 4,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/utils/postLoginPath.test.js": {
+    "kind": "unit",
+    "tests": 21,
+    "failed": 0,
+    "skipped": 0
+   },
+   "src/utils/roles.test.js": {
+    "kind": "unit",
+    "tests": 24,
+    "failed": 0,
+    "skipped": 0
+   }
+  },
+  "coverage": {
+   "line": 77.45,
+   "branch": 66.89,
+   "statement": 74.63,
+   "function": 72.35,
+   "lines": [
+    2910,
+    3757
+   ],
+   "branches": [
+    2591,
+    3873
+   ]
+  }
+ },
+ "stylecart-frontend": {
+  "tests": 3,
+  "passed": 3,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "time": 0.052666989,
+  "unit": [
+   3,
+   3,
+   0,
+   0
+  ],
+  "integration": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "failures": [],
+  "skips": [],
+  "classes": {
+   "src/OrderTimeline.test.jsx": {
+    "kind": "unit",
+    "tests": 3,
+    "failed": 0,
+    "skipped": 0
+   }
+  },
+  "coverage": {
+   "line": 4.16,
+   "branch": 1.15,
+   "statement": 1.25,
+   "function": 2.29,
+   "lines": [
+    3,
+    72
+   ],
+   "branches": [
+    3,
+    260
+   ]
+  }
+ },
+ "ai-service": {
+  "tests": 17,
+  "passed": 17,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "time": 0.038000000000000006,
+  "unit": [
+   17,
+   17,
+   0,
+   0
+  ],
+  "integration": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "failures": [],
+  "skips": [],
+  "classes": {
+   "tests.test_agent": {
+    "kind": "unit",
+    "tests": 1,
+    "failed": 0,
+    "skipped": 0
+   },
+   "tests.test_auth": {
+    "kind": "unit",
+    "tests": 4,
+    "failed": 0,
+    "skipped": 0
+   },
+   "tests.test_executor": {
+    "kind": "unit",
+    "tests": 4,
+    "failed": 0,
+    "skipped": 0
+   },
+   "tests.test_health": {
+    "kind": "unit",
+    "tests": 1,
+    "failed": 0,
+    "skipped": 0
+   },
+   "tests.test_parcel_client": {
+    "kind": "unit",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "tests.test_pricing_client": {
+    "kind": "unit",
+    "tests": 2,
+    "failed": 0,
+    "skipped": 0
+   },
+   "tests.test_tools": {
+    "kind": "unit",
+    "tests": 3,
+    "failed": 0,
+    "skipped": 0
+   }
+  },
+  "coverage": {
+   "line": 87.9,
+   "lines": [
+    131,
+    149
+   ],
+   "branch": null
+  }
+ },
+ "event-contracts": {
+  "tests": 8,
+  "passed": 8,
+  "failed": 0,
+  "errors": 0,
+  "skipped": 0,
+  "time": 0,
+  "unit": [
+   8,
+   8,
+   0,
+   0
+  ],
+  "integration": [
+   0,
+   0,
+   0,
+   0
+  ],
+  "failures": [],
+  "skips": [],
+  "classes": {
+   "backend.parcel-service.verification.test_creation_event_contract.CreationEventContractTest": {
+    "kind": "unit",
+    "tests": 8,
+    "failed": 0,
+    "skipped": 0
+   }
+  },
+  "coverage": null
+ }
+}

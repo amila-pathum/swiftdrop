@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ParcelEventOutbox.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">parcel-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.parcel.event</a> &gt; <span class="el_source">ParcelEventOutbox.java</span></div><h1>ParcelEventOutbox.java</h1><pre class="source lang-java linenums">package com.swiftdrop.parcel.event;
+
+import com.swiftdrop.parcel.entity.Parcel;
+import com.swiftdrop.parcel.entity.ParcelStatus;
+import java.time.Instant;
+import java.sql.Timestamp;
+import java.util.UUID;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+
+@Component
+public class ParcelEventOutbox {
+    public static final String ROUTING_KEY = &quot;parcel.status-changed&quot;;
+    public static final String DELIVERY_SNAPSHOT_ROUTING_KEY = &quot;parcel.delivery-snapshot.v1&quot;;
+
+    private final JdbcTemplate jdbc;
+    private final ObjectMapper objectMapper;
+
+<span class="fc" id="L21">    public ParcelEventOutbox(JdbcTemplate jdbc, ObjectMapper objectMapper) {</span>
+<span class="fc" id="L22">        this.jdbc = jdbc;</span>
+<span class="fc" id="L23">        this.objectMapper = objectMapper;</span>
+<span class="fc" id="L24">    }</span>
+
+    public UUID enqueueStatusChanged(Parcel parcel, ParcelStatus oldStatus,
+                                     ParcelStatus newStatus, Instant occurredAt) {
+<span class="fc" id="L28">        return enqueueStatusChanged(UUID.randomUUID(), parcel, oldStatus, newStatus, occurredAt);</span>
+    }
+
+    /**
+     * Same as above with a caller-chosen event id. A courier update reuses its
+     * submission id, so the Courier Service recognises the event as its own
+     * update and does not list it twice.
+     */
+    public UUID enqueueStatusChanged(UUID eventId, Parcel parcel, ParcelStatus oldStatus,
+                                     ParcelStatus newStatus, Instant occurredAt) {
+<span class="fc" id="L38">        ParcelStatusChangedEvent event = new ParcelStatusChangedEvent(</span>
+            eventId,
+            &quot;ParcelStatusChanged&quot;,
+            occurredAt,
+<span class="fc" id="L42">            parcel.getTrackingNumber(),</span>
+<span class="fc" id="L43">            parcel.getId().toString(),</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">            parcel.getMerchantId() == null ? null : parcel.getMerchantId().toString(),</span>
+<span class="fc" id="L45">            parcel.getMerchantOrderReference(),</span>
+<span class="fc" id="L46">            parcel.getSenderId().toString(),</span>
+<span class="fc bfc" id="L47" title="All 2 branches covered.">            parcel.getAssignedCourierId() == null ? null : parcel.getAssignedCourierId().toString(),</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">            oldStatus == null ? null : oldStatus.name(),</span>
+<span class="fc" id="L49">            newStatus.name()</span>
+        );
+<span class="fc" id="L51">        insert(eventId, parcel.getId(), ROUTING_KEY, event, occurredAt);</span>
+<span class="fc" id="L52">        return eventId;</span>
+    }
+
+    /**
+     * Queues the delivery details for the Courier Service. Sent when a courier is
+     * assigned, so only parcels a courier works on leave this service.
+     */
+    public UUID enqueueDeliverySnapshot(Parcel parcel, Instant occurredAt) {
+<span class="fc" id="L60">        UUID eventId = UUID.randomUUID();</span>
+<span class="fc" id="L61">        ParcelDeliverySnapshotEvent event = new ParcelDeliverySnapshotEvent(</span>
+            eventId,
+            &quot;ParcelDeliverySnapshot&quot;,
+            occurredAt,
+<span class="fc" id="L65">            parcel.getId(),</span>
+<span class="fc" id="L66">            parcel.getTrackingNumber(),</span>
+<span class="fc" id="L67">            parcel.getPickupAddress(),</span>
+<span class="fc" id="L68">            parcel.getDeliveryAddress(),</span>
+<span class="fc" id="L69">            parcel.getReceiverName(),</span>
+<span class="fc" id="L70">            parcel.getReceiverPhone(),</span>
+<span class="fc" id="L71">            parcel.getWeight(),</span>
+<span class="fc" id="L72">            parcel.getSize(),</span>
+<span class="fc" id="L73">            parcel.getMerchantId()</span>
+        );
+<span class="fc" id="L75">        insert(eventId, parcel.getId(), DELIVERY_SNAPSHOT_ROUTING_KEY, event, occurredAt);</span>
+<span class="fc" id="L76">        return eventId;</span>
+    }
+
+    private void insert(UUID eventId, UUID parcelId, String routingKey, Object event, Instant occurredAt) {
+        try {
+<span class="fc" id="L81">            jdbc.update(&quot;&quot;&quot;</span>
+                INSERT INTO parcel_event_outbox
+                    (event_id, parcel_id, routing_key, payload, occurred_at)
+                VALUES (?, ?, ?, ?, ?)
+                &quot;&quot;&quot;, eventId, parcelId, routingKey,
+<span class="fc" id="L86">                objectMapper.writeValueAsString(event), Timestamp.from(occurredAt));</span>
+<span class="nc" id="L87">        } catch (JacksonException exception) {</span>
+<span class="nc" id="L88">            throw new IllegalStateException(&quot;Could not serialize parcel event &quot; + routingKey, exception);</span>
+<span class="fc" id="L89">        }</span>
+<span class="fc" id="L90">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MerchantApiKeyService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">merchant-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.merchant.service</a> &gt; <span class="el_source">MerchantApiKeyService.java</span></div><h1>MerchantApiKeyService.java</h1><pre class="source lang-java linenums">package com.swiftdrop.merchant.service;
+
+import com.swiftdrop.merchant.dto.response.CreatedMerchantApiKeyResponse;
+import com.swiftdrop.merchant.dto.response.MerchantApiKeyResponse;
+import com.swiftdrop.merchant.entity.Merchant;
+import com.swiftdrop.merchant.entity.MerchantApiKey;
+import com.swiftdrop.merchant.entity.MerchantStatus;
+import com.swiftdrop.merchant.merchantapi.security.MerchantApiKeyLookup;
+import com.swiftdrop.merchant.merchantapi.security.MerchantKeyDetails;
+import com.swiftdrop.merchant.repository.MerchantApiKeyRepository;
+import com.swiftdrop.merchant.repository.MerchantRepository;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.Base64;
+import java.util.HexFormat;
+import java.util.List;
+import java.util.Optional;
+
+@Service
+public class MerchantApiKeyService implements MerchantApiKeyLookup {
+    private final MerchantRepository merchants;
+    private final MerchantApiKeyRepository keys;
+<span class="fc" id="L32">    private final SecureRandom random = new SecureRandom();</span>
+
+<span class="fc" id="L34">    public MerchantApiKeyService(MerchantRepository merchants, MerchantApiKeyRepository keys) {</span>
+<span class="fc" id="L35">        this.merchants = merchants;</span>
+<span class="fc" id="L36">        this.keys = keys;</span>
+<span class="fc" id="L37">    }</span>
+
+    @Transactional
+    public CreatedMerchantApiKeyResponse create(Long userId, String keyName) {
+<span class="fc" id="L41">        Merchant merchant = approvedMerchant(userId);</span>
+<span class="fc" id="L42">        byte[] bytes = new byte[32];</span>
+<span class="fc" id="L43">        random.nextBytes(bytes);</span>
+<span class="fc" id="L44">        String plaintext = &quot;sd_&quot; + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);</span>
+
+<span class="fc" id="L46">        MerchantApiKey key = new MerchantApiKey();</span>
+<span class="fc" id="L47">        key.setMerchant(merchant);</span>
+<span class="fc" id="L48">        key.setKeyName(keyName.trim());</span>
+<span class="fc" id="L49">        key.setKeyPrefix(plaintext.substring(0, 12));</span>
+<span class="fc" id="L50">        key.setKeyHash(sha256(plaintext));</span>
+<span class="fc" id="L51">        MerchantApiKey saved = keys.saveAndFlush(key);</span>
+<span class="fc" id="L52">        return new CreatedMerchantApiKeyResponse(MerchantApiKeyResponse.from(saved), plaintext);</span>
+    }
+
+    @Transactional(readOnly = true)
+    public List&lt;MerchantApiKeyResponse&gt; list(Long userId) {
+<span class="fc" id="L57">        Merchant merchant = approvedMerchant(userId);</span>
+<span class="fc" id="L58">        return keys.findByMerchantIdOrderByCreatedAtDesc(merchant.getId())</span>
+<span class="fc" id="L59">                .stream().map(MerchantApiKeyResponse::from).toList();</span>
+    }
+
+    @Transactional
+    public void revoke(Long userId, Long keyId) {
+<span class="nc" id="L64">        Merchant merchant = approvedMerchant(userId);</span>
+<span class="nc" id="L65">        MerchantApiKey key = keys.findByIdAndMerchantId(keyId, merchant.getId())</span>
+<span class="nc" id="L66">                .orElseThrow(() -&gt; new ResponseStatusException(HttpStatus.NOT_FOUND, &quot;API key not found&quot;));</span>
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        if (key.getRevokedAt() != null) {</span>
+<span class="nc" id="L68">            throw new ResponseStatusException(HttpStatus.CONFLICT, &quot;API key already revoked&quot;);</span>
+        }
+<span class="nc" id="L70">        key.setRevokedAt(OffsetDateTime.now());</span>
+<span class="nc" id="L71">    }</span>
+
+    private Merchant approvedMerchant(Long userId) {
+<span class="fc" id="L74">        Merchant merchant = merchants.findByUserId(userId)</span>
+<span class="pc" id="L75">                .orElseThrow(() -&gt; new ResponseStatusException(HttpStatus.NOT_FOUND,</span>
+                        &quot;Merchant profile not found&quot;));
+<span class="fc bfc" id="L77" title="All 2 branches covered.">        if (merchant.getStatus() != MerchantStatus.APPROVED) {</span>
+<span class="fc" id="L78">            throw new ResponseStatusException(HttpStatus.FORBIDDEN,</span>
+                    &quot;Merchant must be approved to manage API keys&quot;);
+        }
+<span class="fc" id="L81">        return merchant;</span>
+    }
+
+    @Override
+    @Transactional
+    public Optional&lt;MerchantKeyDetails&gt; findByApiKey(String apiKey) {
+<span class="pc bpc" id="L87" title="2 of 4 branches missed.">        if (apiKey == null || apiKey.isBlank()) {</span>
+<span class="nc" id="L88">            return Optional.empty();</span>
+        }
+<span class="fc" id="L90">        String hash = sha256(apiKey.trim());</span>
+<span class="fc" id="L91">        return keys.findByKeyHashAndRevokedAtIsNull(hash)</span>
+<span class="fc" id="L92">                .map(key -&gt; {</span>
+<span class="fc" id="L93">                    key.setLastUsedAt(OffsetDateTime.now(ZoneOffset.UTC));</span>
+<span class="fc" id="L94">                    Merchant merchant = key.getMerchant();</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">                    boolean isApproved = merchant.getStatus() == MerchantStatus.APPROVED;</span>
+<span class="fc" id="L96">                    return new MerchantKeyDetails(</span>
+<span class="fc" id="L97">                            String.valueOf(merchant.getId()),</span>
+                            isApproved
+                    );
+                });
+    }
+
+    public static String sha256(String text) {
+        try {
+<span class="fc" id="L105">            byte[] digest = MessageDigest.getInstance(&quot;SHA-256&quot;)</span>
+<span class="fc" id="L106">                    .digest(text.getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc" id="L107">            return HexFormat.of().formatHex(digest);</span>
+<span class="nc" id="L108">        } catch (NoSuchAlgorithmException e) {</span>
+<span class="nc" id="L109">            throw new IllegalStateException(&quot;SHA-256 unavailable&quot;, e);</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

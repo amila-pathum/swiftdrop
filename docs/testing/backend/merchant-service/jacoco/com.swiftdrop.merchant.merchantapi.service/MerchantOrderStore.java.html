@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MerchantOrderStore.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">merchant-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.merchant.merchantapi.service</a> &gt; <span class="el_source">MerchantOrderStore.java</span></div><h1>MerchantOrderStore.java</h1><pre class="source lang-java linenums">package com.swiftdrop.merchant.merchantapi.service;
+
+import com.swiftdrop.merchant.merchantapi.dto.MerchantOrderResponse;
+import java.util.List;
+import java.util.Optional;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public class MerchantOrderStore {
+<span class="fc" id="L11">    private static final tools.jackson.databind.ObjectMapper JSON = new tools.jackson.databind.ObjectMapper();</span>
+    private final JdbcTemplate jdbc;
+<span class="fc" id="L13">    public MerchantOrderStore(JdbcTemplate jdbc) { this.jdbc = jdbc; }</span>
+<span class="fc" id="L14">    public record Reservation(String hash, MerchantOrderResponse result) { }</span>
+<span class="fc" id="L15">    public record Page(List&lt;MerchantOrderResponse&gt; items, long total, int page, int size) { }</span>
+    public boolean reserve(String merchant, String reference, String hash) {
+<span class="fc bfc" id="L17" title="All 2 branches covered.">        return jdbc.update(&quot;&quot;&quot;</span>
+                INSERT INTO merchant_integration_orders(merchant_id,merchant_order_reference,request_hash)
+                VALUES (?,?,?) ON CONFLICT (merchant_id,merchant_order_reference) DO NOTHING
+                &quot;&quot;&quot;, merchant, reference, hash) == 1;
+    }
+    public Reservation reservation(String merchant, String reference) {
+<span class="fc" id="L23">        return findReservation(merchant, reference).orElseThrow(() -&gt;</span>
+<span class="nc" id="L24">                new org.springframework.dao.EmptyResultDataAccessException(1));</span>
+    }
+    public Optional&lt;Reservation&gt; findReservation(String merchant, String reference) {
+<span class="fc" id="L27">        return jdbc.query(&quot;&quot;&quot;</span>
+                SELECT * FROM merchant_integration_orders WHERE merchant_id=? AND merchant_order_reference=?
+<span class="fc" id="L29">                &quot;&quot;&quot;, (rs,row) -&gt; new Reservation(rs.getString(&quot;request_hash&quot;),</span>
+<span class="fc bfc" id="L30" title="All 2 branches covered.">                rs.getString(&quot;tracking_number&quot;) == null ? null : response(rs)), merchant, reference).stream().findFirst();</span>
+    }
+    public void complete(String merchant, MerchantOrderResponse result) {
+<span class="pc bpc" id="L33" title="1 of 2 branches missed.">        String details = result.parcel() == null ? null : JSON.writeValueAsString(result.parcel());</span>
+<span class="fc" id="L34">        jdbc.update(&quot;&quot;&quot;</span>
+                UPDATE merchant_integration_orders SET tracking_number=?, parcel_status=?, parcel_details=CAST(? AS JSONB)
+                WHERE merchant_id=? AND merchant_order_reference=? AND tracking_number IS NULL
+<span class="fc" id="L37">                &quot;&quot;&quot;, result.trackingNumber(), result.status(), details, merchant, result.merchantOrderReference());</span>
+<span class="fc" id="L38">    }</span>
+    private static MerchantOrderResponse response(java.sql.ResultSet rs) throws java.sql.SQLException {
+<span class="fc" id="L40">        return new MerchantOrderResponse(rs.getString(&quot;merchant_order_reference&quot;),</span>
+<span class="pc bpc" id="L41" title="1 of 2 branches missed.">                rs.getString(&quot;tracking_number&quot;),rs.getString(&quot;parcel_status&quot;), rs.getString(&quot;parcel_details&quot;) == null ? null :</span>
+<span class="pc" id="L42">                JSON.readValue(rs.getString(&quot;parcel_details&quot;), MerchantOrderResponse.ParcelSnapshot.class));</span>
+    }
+    public Optional&lt;MerchantOrderResponse&gt; detail(String merchant, String tracking) {
+<span class="fc" id="L45">        return jdbc.query(&quot;SELECT * FROM merchant_integration_orders WHERE merchant_id=? AND tracking_number=?&quot;,</span>
+<span class="fc" id="L46">                (rs,row) -&gt; response(rs), merchant, tracking).stream().findFirst();</span>
+    }
+    public Page list(String merchant, int page, int size) {
+<span class="fc" id="L49">        var items = jdbc.query(&quot;&quot;&quot;</span>
+                SELECT * FROM merchant_integration_orders WHERE merchant_id=? AND tracking_number IS NOT NULL
+                ORDER BY created_at DESC, merchant_order_reference LIMIT ? OFFSET ?
+<span class="fc" id="L52">                &quot;&quot;&quot;, (rs,row) -&gt; response(rs), merchant, size, (long) page * size);</span>
+<span class="fc" id="L53">        long total = jdbc.queryForObject(&quot;&quot;&quot;</span>
+                SELECT COUNT(*) FROM merchant_integration_orders WHERE merchant_id=? AND tracking_number IS NOT NULL
+                &quot;&quot;&quot;, Long.class, merchant);
+<span class="fc" id="L56">        return new Page(items,total,page,size);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

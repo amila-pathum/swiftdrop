@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RateCardService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">pricing-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.pricing.service</a> &gt; <span class="el_source">RateCardService.java</span></div><h1>RateCardService.java</h1><pre class="source lang-java linenums">package com.swiftdrop.pricing.service;
+
+import com.swiftdrop.pricing.dto.request.PublishRatesRequest;
+import com.swiftdrop.pricing.dto.response.RateCardResponse;
+import com.swiftdrop.pricing.dto.response.RateVersionSummary;
+import com.swiftdrop.pricing.entity.RateVersion;
+import com.swiftdrop.pricing.entity.RouteRate;
+import com.swiftdrop.pricing.entity.Zone;
+import com.swiftdrop.pricing.exception.PricingConflictException;
+import com.swiftdrop.pricing.exception.RateNotFoundException;
+import com.swiftdrop.pricing.repository.RateVersionRepository;
+import com.swiftdrop.pricing.repository.RouteRateRepository;
+import com.swiftdrop.pricing.repository.ZoneRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+/** Published rate versions: reading the current card, publishing, and route lookup. */
+@Service
+@Transactional
+public class RateCardService {
+
+    private final RateVersionRepository versions;
+    private final RouteRateRepository routes;
+    private final ZoneRepository zones;
+
+    public RateCardService(RateVersionRepository versions, RouteRateRepository routes,
+<span class="fc" id="L39">            ZoneRepository zones) {</span>
+<span class="fc" id="L40">        this.versions = versions;</span>
+<span class="fc" id="L41">        this.routes = routes;</span>
+<span class="fc" id="L42">        this.zones = zones;</span>
+<span class="fc" id="L43">    }</span>
+
+    @Transactional(readOnly = true)
+    public Optional&lt;RateVersion&gt; currentVersion() {
+<span class="fc" id="L47">        return versions.findTopByOrderByVersionDesc();</span>
+    }
+
+    /** The current version's rate between two zones, in either direction. */
+    @Transactional(readOnly = true)
+    public RouteRate getRoute(RateVersion version, Zone first, Zone second) {
+<span class="fc" id="L53">        return routes.findRoute(version.getId(), first.getId(), second.getId())</span>
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">                .orElseThrow(() -&gt; new RateNotFoundException(first.getId().equals(second.getId())</span>
+<span class="fc" id="L55">                        ? &quot;No published rate within &quot; + first.getName()</span>
+<span class="pc" id="L56">                        : &quot;No published rate between &quot; + first.getName() + &quot; and &quot; + second.getName()));</span>
+    }
+
+    /** Every pair of active zones, filled in from the current version where it has a rate. */
+    @Transactional(readOnly = true)
+    public RateCardResponse getRateCard() {
+<span class="fc" id="L62">        Optional&lt;RateVersion&gt; current = currentVersion();</span>
+<span class="fc" id="L63">        List&lt;RouteRate&gt; published = current.map(RateVersion::getRoutes).orElse(List.of());</span>
+<span class="fc" id="L64">        List&lt;Zone&gt; active = zones.findByActiveTrueOrderByNameAsc();</span>
+
+<span class="fc" id="L66">        List&lt;RateCardResponse.Route&gt; rows = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">        for (int i = 0; i &lt; active.size(); i++) {</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">            for (int j = i; j &lt; active.size(); j++) {</span>
+<span class="fc" id="L69">                Zone origin = active.get(i);</span>
+<span class="fc" id="L70">                Zone destination = active.get(j);</span>
+<span class="fc" id="L71">                RouteRate rate = published.stream()</span>
+<span class="fc" id="L72">                        .filter(route -&gt; route.connects(origin.getId(), destination.getId()))</span>
+<span class="fc" id="L73">                        .findFirst().orElse(null);</span>
+<span class="fc" id="L74">                rows.add(new RateCardResponse.Route(summary(origin), summary(destination),</span>
+<span class="fc bfc" id="L75" title="All 2 branches covered.">                        rate == null ? null : rate.getBaseWeightKg(),</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">                        rate == null ? null : rate.getBaseFee(),</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">                        rate == null ? null : rate.getAdditionalKgFee(),</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">                        rate == null ? null : rate.getExpressMultiplier()));</span>
+            }
+        }
+
+<span class="fc" id="L82">        RateCardResponse.SizeSurcharges surcharges = current</span>
+<span class="fc" id="L83">                .map(v -&gt; new RateCardResponse.SizeSurcharges(</span>
+<span class="fc" id="L84">                        v.getSmallSurcharge(), v.getMediumSurcharge(), v.getLargeSurcharge()))</span>
+<span class="fc" id="L85">                .orElse(new RateCardResponse.SizeSurcharges(</span>
+<span class="fc" id="L86">                        BigDecimal.ZERO.setScale(2), BigDecimal.ZERO.setScale(2), BigDecimal.ZERO.setScale(2)));</span>
+
+<span class="fc" id="L88">        return new RateCardResponse(</span>
+<span class="fc" id="L89">                current.map(RateVersion::getVersion).orElse(null),</span>
+<span class="fc" id="L90">                current.map(RateVersion::getPublishedAt).orElse(null),</span>
+<span class="fc" id="L91">                current.map(RateVersion::getPublishedBy).orElse(null),</span>
+                surcharges, rows);
+    }
+
+    @Transactional(readOnly = true)
+    public List&lt;RateVersionSummary&gt; getVersionHistory() {
+<span class="fc" id="L97">        return versions.findAllByOrderByVersionDesc().stream()</span>
+<span class="fc" id="L98">                .map(v -&gt; new RateVersionSummary(v.getVersion(), v.getPublishedAt(),</span>
+<span class="fc" id="L99">                        v.getPublishedBy(), routes.countByVersion(v.getId())))</span>
+<span class="fc" id="L100">                .toList();</span>
+    }
+
+    /**
+     * Publishes the next version. Rates for pairs involving a disabled zone are carried
+     * over from the current version (the admin page cannot show them), so re-enabling a
+     * zone restores its prices.
+     */
+    public RateCardResponse publish(PublishRatesRequest request, String publisher) {
+<span class="fc" id="L109">        Optional&lt;RateVersion&gt; current = currentVersion();</span>
+<span class="fc" id="L110">        Integer currentNumber = current.map(RateVersion::getVersion).orElse(null);</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">        if (!Objects.equals(currentNumber, request.basedOnVersion())) {</span>
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">            throw new PricingConflictException(currentNumber == null</span>
+<span class="nc" id="L113">                    ? &quot;The rates you were editing no longer exist. Reload and try again.&quot;</span>
+<span class="fc" id="L114">                    : &quot;Version v&quot; + currentNumber + &quot; was published while you were editing. &quot;</span>
+                        + &quot;Reload to see it, then make your changes again.&quot;);
+        }
+
+<span class="fc" id="L118">        Map&lt;UUID, Zone&gt; byId = zones.findAll().stream()</span>
+<span class="fc" id="L119">                .collect(Collectors.toMap(Zone::getId, Function.identity()));</span>
+
+<span class="fc bfc" id="L121" title="All 2 branches covered.">        RateVersion next = new RateVersion(currentNumber == null ? 1 : currentNumber + 1,</span>
+<span class="fc" id="L122">                request.sizeSurcharges().small(), request.sizeSurcharges().medium(),</span>
+<span class="fc" id="L123">                request.sizeSurcharges().large(), publisher);</span>
+
+<span class="fc" id="L125">        Set&lt;String&gt; pairs = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">        for (PublishRatesRequest.Route route : request.routes()) {</span>
+<span class="fc" id="L127">            Zone origin = activeZone(byId, route.originZoneId());</span>
+<span class="fc" id="L128">            Zone destination = activeZone(byId, route.destinationZoneId());</span>
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">            if (!pairs.add(pairKey(origin.getId(), destination.getId()))) {</span>
+<span class="nc" id="L130">                throw new IllegalArgumentException(&quot;The route &quot; + origin.getName() + &quot; – &quot;</span>
+<span class="nc" id="L131">                        + destination.getName() + &quot; is listed more than once&quot;);</span>
+            }
+<span class="fc" id="L133">            next.addRoute(new RouteRate(origin, destination, route.baseWeightKg(),</span>
+<span class="fc" id="L134">                    route.baseFee(), route.additionalKgFee(), route.expressMultiplier()));</span>
+<span class="fc" id="L135">        }</span>
+
+<span class="fc" id="L137">        current.ifPresent(previous -&gt; previous.getRoutes().stream()</span>
+<span class="pc bpc" id="L138" title="3 of 4 branches missed.">                .filter(route -&gt; !route.getZoneA().isActive() || !route.getZoneB().isActive())</span>
+<span class="fc" id="L139">                .filter(route -&gt; pairs.add(pairKey(route.getZoneA().getId(), route.getZoneB().getId())))</span>
+<span class="fc" id="L140">                .forEach(route -&gt; next.addRoute(route.copy())));</span>
+
+<span class="fc" id="L142">        versions.saveAndFlush(next);</span>
+<span class="fc" id="L143">        return getRateCard();</span>
+    }
+
+    private static Zone activeZone(Map&lt;UUID, Zone&gt; byId, UUID id) {
+<span class="fc" id="L147">        Zone zone = byId.get(id);</span>
+<span class="pc bpc" id="L148" title="1 of 4 branches missed.">        if (zone == null || !zone.isActive()) {</span>
+<span class="fc" id="L149">            throw new IllegalArgumentException(&quot;Zone &quot; + id + &quot; does not exist or is disabled&quot;);</span>
+        }
+<span class="fc" id="L151">        return zone;</span>
+    }
+
+    private static String pairKey(UUID first, UUID second) {
+<span class="fc bfc" id="L155" title="All 2 branches covered.">        return RouteRate.compare(first, second) &lt;= 0 ? first + &quot;:&quot; + second : second + &quot;:&quot; + first;</span>
+    }
+
+    private static RateCardResponse.ZoneSummary summary(Zone zone) {
+<span class="fc" id="L159">        return new RateCardResponse.ZoneSummary(zone.getId(), zone.getName(), zone.getCode());</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

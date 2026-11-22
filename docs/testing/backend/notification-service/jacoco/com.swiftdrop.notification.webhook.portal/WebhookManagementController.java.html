@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhookManagementController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">notification-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.notification.webhook.portal</a> &gt; <span class="el_source">WebhookManagementController.java</span></div><h1>WebhookManagementController.java</h1><pre class="source lang-java linenums">package com.swiftdrop.notification.webhook.portal;
+
+import com.swiftdrop.notification.webhook.retry.*;
+import java.time.Instant;
+import java.util.Map;
+import java.util.UUID;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.ObjectMapper;
+
+/** Private API: Merchant Service resolves the user to an approved merchant before calling. */
+@RestController
+@RequestMapping(&quot;/internal/webhooks/merchants/{merchantId}/deliveries&quot;)
+public class WebhookManagementController {
+    private final WebhookDeliveryStore store;
+    private final MerchantWebhookSettingsLookup settings;
+    private final ObjectMapper mapper;
+    public WebhookManagementController(WebhookDeliveryStore store,
+<span class="fc" id="L20">            MerchantWebhookSettingsLookup settings, ObjectMapper mapper) {</span>
+<span class="fc" id="L21">        this.store = store; this.settings = settings; this.mapper = mapper;</span>
+<span class="fc" id="L22">    }</span>
+    @GetMapping
+    public WebhookDeliveryStore.Page history(@PathVariable String merchantId,
+            @RequestParam(defaultValue=&quot;false&quot;) boolean failedOnly,
+            @RequestParam(defaultValue=&quot;0&quot;) int page, @RequestParam(defaultValue=&quot;20&quot;) int size) {
+<span class="fc" id="L27">        return store.history(merchantId, failedOnly, page, size);</span>
+    }
+    @GetMapping(&quot;/{id}&quot;)
+    public Map&lt;String, Object&gt; detail(@PathVariable String merchantId, @PathVariable UUID id) {
+<span class="nc" id="L31">        return Map.of(&quot;delivery&quot;, store.detail(merchantId, id).orElseThrow(() -&gt;</span>
+<span class="nc" id="L32">                new ResponseStatusException(HttpStatus.NOT_FOUND, &quot;Delivery not found&quot;)),</span>
+<span class="nc" id="L33">                &quot;attempts&quot;, store.attempts(merchantId, id));</span>
+    }
+    @PostMapping(&quot;/{id}/retry&quot;)
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public Map&lt;String, Object&gt; retry(@PathVariable String merchantId, @PathVariable UUID id) {
+<span class="pc bpc" id="L38" title="1 of 2 branches missed.">        if (store.detail(merchantId, id).isEmpty()) {</span>
+<span class="fc" id="L39">            throw new ResponseStatusException(HttpStatus.NOT_FOUND, &quot;Delivery not found&quot;);</span>
+        }
+<span class="nc bnc" id="L41" title="All 2 branches missed.">        if (!store.retry(merchantId, id, Instant.now())) {</span>
+<span class="nc" id="L42">            throw new ResponseStatusException(HttpStatus.CONFLICT, &quot;Only failed deliveries can be retried&quot;);</span>
+        }
+<span class="nc" id="L44">        return Map.of(&quot;id&quot;, id, &quot;state&quot;, &quot;PENDING&quot;);</span>
+    }
+    @PostMapping(&quot;/test&quot;)
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public Map&lt;String, Object&gt; test(@PathVariable String merchantId) {
+<span class="pc bpc" id="L49" title="1 of 2 branches missed.">        if (settings.findForMerchant(merchantId).filter(MerchantWebhookSettingsLookup.Settings::enabled).isEmpty()) {</span>
+<span class="fc" id="L50">            throw new ResponseStatusException(HttpStatus.CONFLICT, &quot;Enable webhook settings before sending a test&quot;);</span>
+        }
+<span class="nc" id="L52">        UUID eventId = UUID.randomUUID();</span>
+<span class="nc" id="L53">        Instant now = Instant.now();</span>
+<span class="nc" id="L54">        byte[] payload = mapper.writeValueAsBytes(Map.of(&quot;eventId&quot;, eventId.toString(),</span>
+<span class="nc" id="L55">                &quot;eventType&quot;, &quot;WebhookTest&quot;, &quot;occurredAt&quot;, now.toString(),</span>
+                &quot;trackingNumber&quot;, &quot;TEST&quot;, &quot;newStatus&quot;, &quot;TEST&quot;));
+<span class="nc" id="L57">        UUID id = store.enqueue(eventId, merchantId, &quot;TEST&quot;, null, &quot;TEST&quot;, payload, now);</span>
+<span class="nc" id="L58">        return Map.of(&quot;id&quot;, id, &quot;eventId&quot;, eventId, &quot;state&quot;, &quot;PENDING&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

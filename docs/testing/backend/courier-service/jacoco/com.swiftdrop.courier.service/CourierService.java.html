@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CourierService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">courier-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.courier.service</a> &gt; <span class="el_source">CourierService.java</span></div><h1>CourierService.java</h1><pre class="source lang-java linenums">package com.swiftdrop.courier.service;
+
+import com.swiftdrop.courier.dto.CourierResponse;
+import com.swiftdrop.courier.repository.CourierRepository;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+@Service
+public class CourierService {
+    private final CourierRepository couriers;
+    private final com.swiftdrop.courier.repository.CourierProfileRepository profiles;
+
+<span class="fc" id="L17">    public CourierService(CourierRepository couriers,com.swiftdrop.courier.repository.CourierProfileRepository profiles) {</span>
+<span class="fc" id="L18">        this.couriers = couriers;</span>
+<span class="fc" id="L19">        this.profiles = profiles;</span>
+<span class="fc" id="L20">    }</span>
+
+    public List&lt;CourierResponse&gt; list() {
+<span class="fc" id="L23">        var result = new java.util.LinkedHashMap&lt;UUID,CourierResponse&gt;();</span>
+<span class="fc" id="L24">        couriers.findAll(Sort.by(&quot;displayName&quot;)).forEach(c -&gt; result.put(c.getCourierId(),CourierResponse.from(c)));</span>
+<span class="pc bnc" id="L25" title="All 2 branches missed.">        profiles.findAll(Sort.by(&quot;name&quot;)).forEach(p -&gt; result.put(p.dispatchCourierId,</span>
+            new CourierResponse(p.dispatchCourierId,p.name,p.active,p.availability == com.swiftdrop.courier.entity.Availability.AVAILABLE,p.id,p.userId)));
+<span class="fc" id="L27">        return result.values().stream().sorted(java.util.Comparator.comparing(CourierResponse::name)).toList();</span>
+    }
+
+    public Optional&lt;CourierResponse&gt; find(UUID courierId) {
+<span class="fc" id="L31">        var profile = profiles.findByDispatchCourierId(courierId);</span>
+<span class="pc bpc" id="L32" title="1 of 2 branches missed.">        if (profile.isPresent()) {</span>
+<span class="nc" id="L33">            var p=profile.get();</span>
+<span class="nc bnc" id="L34" title="All 2 branches missed.">            return Optional.of(new CourierResponse(p.dispatchCourierId,p.name,p.active,p.availability == com.swiftdrop.courier.entity.Availability.AVAILABLE,p.id,p.userId));</span>
+        }
+<span class="fc" id="L36">        return couriers.findById(courierId).map(CourierResponse::from);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

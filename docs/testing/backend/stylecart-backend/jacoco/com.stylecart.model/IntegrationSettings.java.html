@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>IntegrationSettings.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">stylecart</a> &gt; <a href="index.source.html" class="el_package">com.stylecart.model</a> &gt; <span class="el_source">IntegrationSettings.java</span></div><h1>IntegrationSettings.java</h1><pre class="source lang-java linenums">package com.stylecart.model;
+import jakarta.persistence.*;
+@Entity @Table(name=&quot;integration_settings&quot;)
+<span class="fc" id="L4">public class IntegrationSettings {</span>
+<span class="fc" id="L5">    @Id public Long id=1L;</span>
+    @Column(name=&quot;gateway_url&quot;,nullable=false) public String gatewayUrl;
+    @Column(name=&quot;api_key_cipher&quot;,columnDefinition=&quot;text&quot;) public String apiKeyCipher;
+    @Column(name=&quot;secret_cipher&quot;,columnDefinition=&quot;text&quot;) public String secretCipher;
+<span class="fc" id="L9">    @Column(name=&quot;pickup_name&quot;,nullable=false) public String pickupName=&quot;&quot;;</span>
+<span class="fc" id="L10">    @Column(name=&quot;pickup_phone&quot;,nullable=false) public String pickupPhone=&quot;&quot;;</span>
+<span class="fc" id="L11">    @Column(name=&quot;pickup_address&quot;,nullable=false) public String pickupAddress=&quot;&quot;;</span>
+<span class="fc" id="L12">    @Column(name=&quot;pickup_city&quot;,nullable=false) public String pickupCity=&quot;Colombo&quot;;</span>
+<span class="fc" id="L13">    @Column(name=&quot;pickup_postal&quot;,nullable=false) public String pickupPostal=&quot;&quot;;</span>
+<span class="fc" id="L14">    @Column(name=&quot;failure_mode&quot;,nullable=false) public String failureMode=&quot;NORMAL&quot;;</span>
+    @Column(name=&quot;failures_remaining&quot;,nullable=false) public int failuresRemaining;
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

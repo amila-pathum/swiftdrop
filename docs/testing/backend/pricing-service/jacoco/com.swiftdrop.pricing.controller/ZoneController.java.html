@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ZoneController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">pricing-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.pricing.controller</a> &gt; <span class="el_source">ZoneController.java</span></div><h1>ZoneController.java</h1><pre class="source lang-java linenums">package com.swiftdrop.pricing.controller;
+
+import com.swiftdrop.pricing.dto.request.ZoneRequest;
+import com.swiftdrop.pricing.dto.response.ZoneResponse;
+import com.swiftdrop.pricing.service.ZoneService;
+import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.UUID;
+
+@RestController
+@RequestMapping(&quot;/api/zones&quot;)
+public class ZoneController {
+
+    private final ZoneService zoneService;
+
+<span class="fc" id="L20">    public ZoneController(ZoneService zoneService) {</span>
+<span class="fc" id="L21">        this.zoneService = zoneService;</span>
+<span class="fc" id="L22">    }</span>
+
+    /** Active zones for any signed-in user (booking dropdowns); ADMIN may include disabled ones. */
+    @GetMapping
+    @PreAuthorize(&quot;!#includeInactive or hasRole('ADMIN')&quot;)
+    public List&lt;ZoneResponse&gt; getZones(@RequestParam(defaultValue = &quot;false&quot;) boolean includeInactive) {
+<span class="fc bfc" id="L28" title="All 2 branches covered.">        return (includeInactive ? zoneService.getAllZones() : zoneService.getActiveZones())</span>
+<span class="fc" id="L29">                .stream()</span>
+<span class="fc" id="L30">                .map(ZoneResponse::from)</span>
+<span class="fc" id="L31">                .toList();</span>
+    }
+
+    @GetMapping(&quot;/{id}&quot;)
+    public ZoneResponse getZoneById(@PathVariable UUID id) {
+<span class="nc" id="L36">        return ZoneResponse.from(zoneService.getZoneById(id));</span>
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize(&quot;hasRole('ADMIN')&quot;)
+    public ZoneResponse createZone(@Valid @RequestBody ZoneRequest request) {
+<span class="fc" id="L43">        return ZoneResponse.from(zoneService.createZone(request));</span>
+    }
+
+    @PutMapping(&quot;/{id}&quot;)
+    @PreAuthorize(&quot;hasRole('ADMIN')&quot;)
+    public ZoneResponse updateZone(@PathVariable UUID id, @Valid @RequestBody ZoneRequest request) {
+<span class="fc" id="L49">        return ZoneResponse.from(zoneService.updateZone(id, request));</span>
+    }
+
+    @PatchMapping(&quot;/{id}/disable&quot;)
+    @PreAuthorize(&quot;hasRole('ADMIN')&quot;)
+    public ZoneResponse disableZone(@PathVariable UUID id) {
+<span class="fc" id="L55">        return ZoneResponse.from(zoneService.disableZone(id));</span>
+    }
+
+    @PatchMapping(&quot;/{id}/enable&quot;)
+    @PreAuthorize(&quot;hasRole('ADMIN')&quot;)
+    public ZoneResponse enableZone(@PathVariable UUID id) {
+<span class="fc" id="L61">        return ZoneResponse.from(zoneService.enableZone(id));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

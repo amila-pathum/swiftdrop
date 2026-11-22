@@ -1,0 +1,215 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PdfReceiptGenerator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">parcel-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.parcel.service</a> &gt; <span class="el_source">PdfReceiptGenerator.java</span></div><h1>PdfReceiptGenerator.java</h1><pre class="source lang-java linenums">package com.swiftdrop.parcel.service;
+
+import com.swiftdrop.parcel.entity.Parcel;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+
+public final class PdfReceiptGenerator {
+
+<span class="fc" id="L17">    private static final DateTimeFormatter DATE_FORMATTER =</span>
+<span class="fc" id="L18">            DateTimeFormatter.ofPattern(&quot;yyyy-MM-dd HH:mm:ss 'UTC'&quot;).withZone(ZoneOffset.UTC);</span>
+
+    private PdfReceiptGenerator() { }
+
+    public static byte[] generate(Parcel parcel, Instant deliveredAt) {
+        try {
+<span class="fc" id="L24">            ByteArrayOutputStream out = new ByteArrayOutputStream();</span>
+<span class="fc" id="L25">            List&lt;Long&gt; offsets = new ArrayList&lt;&gt;();</span>
+
+            // Header
+<span class="fc" id="L28">            write(out, &quot;%PDF-1.4\n%\u00E2\u00E3\u00CF\u00D3\n&quot;);</span>
+
+            // Object 1: Catalog
+<span class="fc" id="L31">            offsets.add((long) out.size());</span>
+<span class="fc" id="L32">            write(out, &quot;1 0 obj\n&lt;&lt; /Type /Catalog /Pages 2 0 R &gt;&gt;\nendobj\n&quot;);</span>
+
+            // Object 2: Pages
+<span class="fc" id="L35">            offsets.add((long) out.size());</span>
+<span class="fc" id="L36">            write(out, &quot;2 0 obj\n&lt;&lt; /Type /Pages /Kids [3 0 R] /Count 1 &gt;&gt;\nendobj\n&quot;);</span>
+
+            // Object 3: Page (US Letter: 612 x 792 pt)
+<span class="fc" id="L39">            offsets.add((long) out.size());</span>
+<span class="fc" id="L40">            write(out, &quot;3 0 obj\n&lt;&lt; /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] &quot;</span>
+                    + &quot;/Contents 4 0 R /Resources &lt;&lt; /Font &lt;&lt; /F1 5 0 R /F2 6 0 R &gt;&gt; &gt;&gt; &gt;&gt;\nendobj\n&quot;);
+
+            // Object 4: Content Stream
+<span class="fc" id="L44">            byte[] streamContent = buildContentStream(parcel, deliveredAt);</span>
+<span class="fc" id="L45">            offsets.add((long) out.size());</span>
+<span class="fc" id="L46">            write(out, &quot;4 0 obj\n&lt;&lt; /Length &quot; + streamContent.length + &quot; &gt;&gt;\nstream\n&quot;);</span>
+<span class="fc" id="L47">            out.write(streamContent);</span>
+<span class="fc" id="L48">            write(out, &quot;\nendstream\nendobj\n&quot;);</span>
+
+            // Object 5: Font F1 (Helvetica Regular)
+<span class="fc" id="L51">            offsets.add((long) out.size());</span>
+<span class="fc" id="L52">            write(out, &quot;5 0 obj\n&lt;&lt; /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding &gt;&gt;\nendobj\n&quot;);</span>
+
+            // Object 6: Font F2 (Helvetica-Bold)
+<span class="fc" id="L55">            offsets.add((long) out.size());</span>
+<span class="fc" id="L56">            write(out, &quot;6 0 obj\n&lt;&lt; /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding &gt;&gt;\nendobj\n&quot;);</span>
+
+            // Cross-Reference Table
+<span class="fc" id="L59">            long startXref = out.size();</span>
+<span class="fc" id="L60">            write(out, &quot;xref\n0 7\n&quot;);</span>
+<span class="fc" id="L61">            write(out, &quot;0000000000 65535 f \r\n&quot;);</span>
+<span class="fc bfc" id="L62" title="All 2 branches covered.">            for (Long offset : offsets) {</span>
+<span class="fc" id="L63">                write(out, String.format(Locale.ROOT, &quot;%010d 00000 n \r\n&quot;, offset));</span>
+<span class="fc" id="L64">            }</span>
+
+            // Trailer
+<span class="fc" id="L67">            write(out, &quot;trailer\n&lt;&lt; /Size 7 /Root 1 0 R &gt;&gt;\nstartxref\n&quot; + startXref + &quot;\n%%EOF\n&quot;);</span>
+
+<span class="fc" id="L69">            return out.toByteArray();</span>
+<span class="nc" id="L70">        } catch (IOException e) {</span>
+<span class="nc" id="L71">            throw new IllegalStateException(&quot;Failed to generate PDF receipt&quot;, e);</span>
+        }
+    }
+
+    private static byte[] buildContentStream(Parcel parcel, Instant deliveredAt) {
+<span class="fc" id="L76">        StringBuilder sb = new StringBuilder();</span>
+
+        // 1. Top brand accent bar
+<span class="fc" id="L79">        addRect(sb, 50, 745, 512, 4, 0.08, 0.38, 0.74, null, null, null);</span>
+
+        // 2. Header
+<span class="fc" id="L82">        addText(sb, &quot;F2&quot;, 22, 50, 715, &quot;SWIFTDROP&quot;, 0.08, 0.38, 0.74);</span>
+<span class="fc" id="L83">        addText(sb, &quot;F2&quot;, 12, 50, 695, &quot;PARCEL DELIVERY RECEIPT&quot;, 0.25, 0.25, 0.25);</span>
+<span class="fc" id="L84">        addText(sb, &quot;F1&quot;, 9, 50, 680, &quot;Official Customer Proof of Delivery&quot;, 0.50, 0.50, 0.50);</span>
+<span class="fc" id="L85">        addLine(sb, 50, 668, 562, 668, 0.85, 0.85, 0.85, 1.0);</span>
+
+        // 3. Receipt Summary Box
+<span class="fc" id="L88">        addRect(sb, 50, 585, 512, 72, 0.96, 0.97, 0.99, 0.85, 0.88, 0.93);</span>
+
+<span class="fc" id="L90">        addText(sb, &quot;F2&quot;, 10, 65, 638, &quot;Tracking Number:&quot;, 0.20, 0.20, 0.20);</span>
+<span class="fc" id="L91">        addText(sb, &quot;F2&quot;, 10, 165, 638, parcel.getTrackingNumber(), 0.08, 0.38, 0.74);</span>
+
+<span class="fc" id="L93">        addText(sb, &quot;F2&quot;, 9, 65, 622, &quot;Parcel ID:&quot;, 0.40, 0.40, 0.40);</span>
+<span class="pc bpc" id="L94" title="1 of 2 branches missed.">        addText(sb, &quot;F1&quot;, 9, 165, 622, parcel.getId() != null ? parcel.getId().toString() : &quot;N/A&quot;, 0.30, 0.30, 0.30);</span>
+
+<span class="fc" id="L96">        addText(sb, &quot;F2&quot;, 9, 65, 606, &quot;Created Date:&quot;, 0.40, 0.40, 0.40);</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">        addText(sb, &quot;F1&quot;, 9, 165, 606, parcel.getCreatedAt() != null ? DATE_FORMATTER.format(parcel.getCreatedAt()) : &quot;N/A&quot;, 0.30, 0.30, 0.30);</span>
+
+<span class="fc" id="L99">        addText(sb, &quot;F2&quot;, 9, 65, 592, &quot;Delivered Date:&quot;, 0.40, 0.40, 0.40);</span>
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">        addText(sb, &quot;F1&quot;, 9, 165, 592, deliveredAt != null ? DATE_FORMATTER.format(deliveredAt) : &quot;N/A&quot;, 0.13, 0.55, 0.13);</span>
+
+        // DELIVERED Status Badge
+<span class="fc" id="L103">        addRect(sb, 435, 615, 110, 26, 0.13, 0.55, 0.13, null, null, null);</span>
+<span class="fc" id="L104">        addText(sb, &quot;F2&quot;, 11, 452, 623, &quot;DELIVERED&quot;, 1.0, 1.0, 1.0);</span>
+
+        // 4. Sender &amp; Recipient Information Section
+<span class="fc" id="L107">        addText(sb, &quot;F2&quot;, 11, 50, 558, &quot;SENDER &amp; RECIPIENT INFORMATION&quot;, 0.20, 0.20, 0.20);</span>
+<span class="fc" id="L108">        addLine(sb, 50, 550, 562, 550, 0.88, 0.88, 0.88, 0.8);</span>
+
+<span class="fc" id="L110">        addText(sb, &quot;F2&quot;, 9, 50, 533, &quot;Sender ID:&quot;, 0.40, 0.40, 0.40);</span>
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">        addText(sb, &quot;F1&quot;, 9, 165, 533, parcel.getSenderId() != null ? parcel.getSenderId().toString() : &quot;N/A&quot;, 0.20, 0.20, 0.20);</span>
+
+<span class="fc" id="L113">        addText(sb, &quot;F2&quot;, 9, 50, 513, &quot;Pickup Address:&quot;, 0.40, 0.40, 0.40);</span>
+<span class="fc" id="L114">        addText(sb, &quot;F1&quot;, 9, 165, 513, parcel.getPickupAddress(), 0.20, 0.20, 0.20);</span>
+
+<span class="fc" id="L116">        addText(sb, &quot;F2&quot;, 9, 50, 488, &quot;Receiver Name:&quot;, 0.40, 0.40, 0.40);</span>
+<span class="fc" id="L117">        addText(sb, &quot;F1&quot;, 9, 165, 488, parcel.getReceiverName(), 0.20, 0.20, 0.20);</span>
+
+<span class="fc" id="L119">        addText(sb, &quot;F2&quot;, 9, 50, 468, &quot;Receiver Phone:&quot;, 0.40, 0.40, 0.40);</span>
+<span class="fc" id="L120">        addText(sb, &quot;F1&quot;, 9, 165, 468, parcel.getReceiverPhone(), 0.20, 0.20, 0.20);</span>
+
+<span class="fc" id="L122">        addText(sb, &quot;F2&quot;, 9, 50, 448, &quot;Delivery Address:&quot;, 0.40, 0.40, 0.40);</span>
+<span class="fc" id="L123">        addText(sb, &quot;F1&quot;, 9, 165, 448, parcel.getDeliveryAddress(), 0.20, 0.20, 0.20);</span>
+
+        // 5. Parcel Specifications Section
+<span class="fc" id="L126">        addText(sb, &quot;F2&quot;, 11, 50, 415, &quot;PARCEL SPECIFICATIONS&quot;, 0.20, 0.20, 0.20);</span>
+<span class="fc" id="L127">        addLine(sb, 50, 407, 562, 407, 0.88, 0.88, 0.88, 0.8);</span>
+
+<span class="fc" id="L129">        addText(sb, &quot;F2&quot;, 9, 50, 390, &quot;Parcel Type:&quot;, 0.40, 0.40, 0.40);</span>
+<span class="fc" id="L130">        addText(sb, &quot;F1&quot;, 9, 165, 390, parcel.getParcelType(), 0.20, 0.20, 0.20);</span>
+
+<span class="fc" id="L132">        addText(sb, &quot;F2&quot;, 9, 50, 370, &quot;Package Size:&quot;, 0.40, 0.40, 0.40);</span>
+<span class="fc" id="L133">        addText(sb, &quot;F1&quot;, 9, 165, 370, parcel.getSize(), 0.20, 0.20, 0.20);</span>
+
+<span class="fc" id="L135">        addText(sb, &quot;F2&quot;, 9, 50, 350, &quot;Weight:&quot;, 0.40, 0.40, 0.40);</span>
+<span class="pc bpc" id="L136" title="1 of 2 branches missed.">        addText(sb, &quot;F1&quot;, 9, 165, 350, (parcel.getWeight() != null ? parcel.getWeight().toPlainString() : &quot;0&quot;) + &quot; kg&quot;, 0.20, 0.20, 0.20);</span>
+
+        // 6. Payment &amp; Billing Summary Section
+<span class="fc" id="L139">        addText(sb, &quot;F2&quot;, 11, 50, 315, &quot;PAYMENT SUMMARY&quot;, 0.20, 0.20, 0.20);</span>
+<span class="fc" id="L140">        addLine(sb, 50, 307, 562, 307, 0.88, 0.88, 0.88, 0.8);</span>
+
+<span class="fc" id="L142">        addRect(sb, 50, 230, 512, 65, 0.95, 0.97, 1.0, 0.82, 0.88, 0.95);</span>
+<span class="fc" id="L143">        addText(sb, &quot;F2&quot;, 10, 65, 272, &quot;Total Delivery Charge:&quot;, 0.20, 0.20, 0.20);</span>
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">        addText(sb, &quot;F2&quot;, 16, 420, 268, &quot;$&quot; + (parcel.getCharge() != null ? parcel.getCharge().toPlainString() : &quot;0.00&quot;), 0.08, 0.38, 0.74);</span>
+<span class="fc" id="L145">        addText(sb, &quot;F1&quot;, 9, 65, 252, &quot;Payment Status: PAID&quot;, 0.13, 0.55, 0.13);</span>
+<span class="fc" id="L146">        addText(sb, &quot;F1&quot;, 9, 65, 238, &quot;Payment Method: Account Charge / Paid upon booking&quot;, 0.40, 0.40, 0.40);</span>
+
+        // 7. Footer
+<span class="fc" id="L149">        addLine(sb, 50, 110, 562, 110, 0.85, 0.85, 0.85, 0.8);</span>
+<span class="fc" id="L150">        addText(sb, &quot;F1&quot;, 8, 50, 95, &quot;This is an electronically generated official receipt for your SwiftDrop delivery.&quot;, 0.50, 0.50, 0.50);</span>
+<span class="fc" id="L151">        addText(sb, &quot;F2&quot;, 8, 50, 82, &quot;Thank you for choosing SwiftDrop!&quot;, 0.30, 0.30, 0.30);</span>
+<span class="fc" id="L152">        addText(sb, &quot;F1&quot;, 8, 50, 69, &quot;SwiftDrop Logistics Platform | For support, email support@swiftdrop.com&quot;, 0.50, 0.50, 0.50);</span>
+
+<span class="fc" id="L154">        return sb.toString().getBytes(StandardCharsets.ISO_8859_1);</span>
+    }
+
+    private static void addText(StringBuilder sb, String font, int size, double x, double y,
+                                String text, double r, double g, double b) {
+<span class="fc" id="L159">        sb.append(&quot;BT\n&quot;)</span>
+<span class="fc" id="L160">          .append(&quot;/&quot;).append(font).append(&quot; &quot;).append(size).append(&quot; Tf\n&quot;)</span>
+<span class="fc" id="L161">          .append(String.format(Locale.ROOT, &quot;%.2f %.2f %.2f rg\n&quot;, r, g, b))</span>
+<span class="fc" id="L162">          .append(String.format(Locale.ROOT, &quot;1 0 0 1 %.2f %.2f Tm\n&quot;, x, y))</span>
+<span class="fc" id="L163">          .append(&quot;(&quot;).append(escapePdfText(text)).append(&quot;) Tj\n&quot;)</span>
+<span class="fc" id="L164">          .append(&quot;ET\n&quot;);</span>
+<span class="fc" id="L165">    }</span>
+
+    private static void addLine(StringBuilder sb, double x1, double y1, double x2, double y2,
+                                double r, double g, double b, double width) {
+<span class="fc" id="L169">        sb.append(&quot;q\n&quot;)</span>
+<span class="fc" id="L170">          .append(String.format(Locale.ROOT, &quot;%.2f %.2f %.2f RG\n&quot;, r, g, b))</span>
+<span class="fc" id="L171">          .append(String.format(Locale.ROOT, &quot;%.2f w\n&quot;, width))</span>
+<span class="fc" id="L172">          .append(String.format(Locale.ROOT, &quot;%.2f %.2f m %.2f %.2f l S\n&quot;, x1, y1, x2, y2))</span>
+<span class="fc" id="L173">          .append(&quot;Q\n&quot;);</span>
+<span class="fc" id="L174">    }</span>
+
+    private static void addRect(StringBuilder sb, double x, double y, double w, double h,
+                                double fillR, double fillG, double fillB,
+                                Double strokeR, Double strokeG, Double strokeB) {
+<span class="fc" id="L179">        sb.append(&quot;q\n&quot;)</span>
+<span class="fc" id="L180">          .append(String.format(Locale.ROOT, &quot;%.2f %.2f %.2f rg\n&quot;, fillR, fillG, fillB));</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">        if (strokeR != null) {</span>
+<span class="fc" id="L182">            sb.append(String.format(Locale.ROOT, &quot;%.2f %.2f %.2f RG\n&quot;, strokeR, strokeG, strokeB))</span>
+<span class="fc" id="L183">              .append(&quot;1 w\n&quot;)</span>
+<span class="fc" id="L184">              .append(String.format(Locale.ROOT, &quot;%.2f %.2f %.2f %.2f re B\n&quot;, x, y, w, h));</span>
+        } else {
+<span class="fc" id="L186">            sb.append(String.format(Locale.ROOT, &quot;%.2f %.2f %.2f %.2f re f\n&quot;, x, y, w, h));</span>
+        }
+<span class="fc" id="L188">        sb.append(&quot;Q\n&quot;);</span>
+<span class="fc" id="L189">    }</span>
+
+    private static String escapePdfText(String text) {
+<span class="pc bpc" id="L192" title="1 of 2 branches missed.">        if (text == null) {</span>
+<span class="nc" id="L193">            return &quot;&quot;;</span>
+        }
+<span class="fc" id="L195">        StringBuilder sb = new StringBuilder();</span>
+<span class="fc bfc" id="L196" title="All 2 branches covered.">        for (char c : text.toCharArray()) {</span>
+<span class="pc bpc" id="L197" title="3 of 6 branches missed.">            if (c == '\\' || c == '(' || c == ')') {</span>
+<span class="nc" id="L198">                sb.append('\\').append(c);</span>
+<span class="pc bpc" id="L199" title="2 of 4 branches missed.">            } else if (c &gt;= 32 &amp;&amp; c &lt;= 126) {</span>
+<span class="fc" id="L200">                sb.append(c);</span>
+<span class="nc bnc" id="L201" title="All 6 branches missed.">            } else if (c == '\n' || c == '\r' || c == '\t') {</span>
+<span class="nc" id="L202">                sb.append(' ');</span>
+            } else {
+<span class="nc" id="L204">                sb.append('?');</span>
+            }
+        }
+<span class="fc" id="L207">        return sb.toString();</span>
+    }
+
+    private static void write(ByteArrayOutputStream out, String s) throws IOException {
+<span class="fc" id="L211">        out.write(s.getBytes(StandardCharsets.ISO_8859_1));</span>
+<span class="fc" id="L212">    }</span>
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

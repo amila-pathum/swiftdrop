@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MerchantOrderService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">merchant-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.merchant.merchantapi.service</a> &gt; <span class="el_source">MerchantOrderService.java</span></div><h1>MerchantOrderService.java</h1><pre class="source lang-java linenums">package com.swiftdrop.merchant.merchantapi.service;
+
+import com.swiftdrop.merchant.merchantapi.client.ParcelOrderClient;
+import com.swiftdrop.merchant.merchantapi.dto.CreateMerchantOrderRequest;
+import com.swiftdrop.merchant.merchantapi.dto.MerchantOrderResponse;
+
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
+
+@Service
+public class MerchantOrderService {
+
+    private final ObjectProvider&lt;ParcelOrderClient&gt; parcelClients;
+    private final MerchantOrderStore store;
+    private final tools.jackson.databind.ObjectMapper mapper;
+
+    public MerchantOrderService(
+            ObjectProvider&lt;ParcelOrderClient&gt; parcelClients,
+            MerchantOrderStore store, tools.jackson.databind.ObjectMapper mapper
+<span class="fc" id="L22">    ) {</span>
+<span class="fc" id="L23">        this.parcelClients = parcelClients;</span>
+<span class="fc" id="L24">        this.store = store;</span>
+<span class="fc" id="L25">        this.mapper = mapper;</span>
+<span class="fc" id="L26">    }</span>
+
+    public MerchantOrderResponse createOrder(
+            String merchantId,
+            CreateMerchantOrderRequest request
+    ) {
+        String hash;
+        try {
+<span class="fc" id="L34">            hash = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance(&quot;SHA-256&quot;)</span>
+<span class="fc" id="L35">                    .digest(mapper.writeValueAsBytes(request)));</span>
+<span class="pc" id="L36">        } catch (java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }</span>
+        // Returning a completed duplicate does not require an available downstream client.
+<span class="fc" id="L38">        var existing = store.findReservation(merchantId, request.merchantOrderReference());</span>
+<span class="fc bfc" id="L39" title="All 2 branches covered.">        if (existing.isPresent()) {</span>
+<span class="fc" id="L40">            var saved = completedResult(existing.get(), hash);</span>
+<span class="fc bfc" id="L41" title="All 2 branches covered.">            if (saved != null) return saved;</span>
+        }
+<span class="fc" id="L43">        ParcelOrderClient client = parcelClients.getIfAvailable();</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">        if (client == null) {</span>
+<span class="fc" id="L45">            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,</span>
+                    &quot;Parcel order creation is unavailable&quot;);
+        }
+<span class="fc bfc" id="L48" title="All 4 branches covered.">        if (existing.isEmpty() &amp;&amp; !store.reserve(merchantId, request.merchantOrderReference(), hash)) {</span>
+<span class="fc" id="L49">            var saved = completedResult(store.reservation(merchantId, request.merchantOrderReference()), hash);</span>
+<span class="fc bfc" id="L50" title="All 2 branches covered.">            if (saved != null) return saved;</span>
+<span class="pc bpc" id="L51" title="1 of 2 branches missed.">            if (!client.idempotentCreation()) throw pending();</span>
+        }
+<span class="pc bpc" id="L53" title="1 of 4 branches missed.">        if (existing.isPresent() &amp;&amp; !client.idempotentCreation()) throw pending();</span>
+        // The downstream transaction now deduplicates this exact reference and body, even after a timeout.
+<span class="fc" id="L55">        var result = client.createOrder(merchantId, request);</span>
+<span class="pc bpc" id="L56" title="2 of 4 branches missed.">        if (result == null || !request.merchantOrderReference().equals(result.merchantOrderReference())</span>
+<span class="pc bpc" id="L57" title="2 of 4 branches missed.">                || result.trackingNumber() == null || result.trackingNumber().isBlank()</span>
+<span class="pc bpc" id="L58" title="2 of 4 branches missed.">                || result.status() == null || result.status().isBlank()) {</span>
+<span class="nc" id="L59">            throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, &quot;Invalid parcel response; reconciliation required&quot;);</span>
+        }
+<span class="fc" id="L61">        store.complete(merchantId, result);</span>
+<span class="fc" id="L62">        return result;</span>
+    }
+
+    private MerchantOrderResponse completedResult(MerchantOrderStore.Reservation existing, String hash) {
+<span class="fc bfc" id="L66" title="All 2 branches covered.">        if (!hash.equals(existing.hash())) {</span>
+<span class="fc" id="L67">            throw new ResponseStatusException(HttpStatus.CONFLICT, &quot;Order reference already used with different details&quot;);</span>
+        }
+<span class="fc" id="L69">        return existing.result();</span>
+    }
+
+    private ResponseStatusException pending() {
+<span class="fc" id="L73">        return new ResponseStatusException(HttpStatus.CONFLICT,</span>
+                &quot;Order creation is pending reconciliation; do not submit a new reference&quot;);
+    }
+
+    public MerchantOrderStore.Page list(String merchant, int page, int size) {
+<span class="nc bnc" id="L78" title="All 8 branches missed.">        if (page &lt; 0 || page &gt; 1000000 || size &lt; 1 || size &gt; 100) {</span>
+<span class="nc" id="L79">            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, &quot;Invalid pagination&quot;);</span>
+        }
+<span class="nc" id="L81">        var client = parcelClients.getIfAvailable();</span>
+<span class="nc bnc" id="L82" title="All 4 branches missed.">        if (client != null &amp;&amp; client.idempotentCreation()) {</span>
+<span class="nc" id="L83">            return client.list(merchant, page, size).orElseThrow(() -&gt;</span>
+<span class="nc" id="L84">                    new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, &quot;Parcel orders are unavailable&quot;));</span>
+        }
+<span class="nc" id="L86">        return store.list(merchant,page,size);</span>
+    }
+    public MerchantOrderResponse detail(String merchant, String tracking) {
+<span class="nc" id="L89">        var saved = store.detail(merchant,tracking).orElseThrow(() -&gt;</span>
+<span class="fc" id="L90">                new ResponseStatusException(HttpStatus.NOT_FOUND,&quot;Order not found&quot;));</span>
+<span class="nc" id="L91">        var client = parcelClients.getIfAvailable();</span>
+<span class="nc bnc" id="L92" title="All 4 branches missed.">        if (client != null &amp;&amp; client.idempotentCreation()) return client.current(merchant, saved.merchantOrderReference())</span>
+<span class="nc" id="L93">                .filter(current -&gt; tracking.equals(current.trackingNumber()))</span>
+<span class="nc" id="L94">                .orElseThrow(() -&gt; new ResponseStatusException(HttpStatus.NOT_FOUND, &quot;Order not found&quot;));</span>
+<span class="nc" id="L95">        return saved;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

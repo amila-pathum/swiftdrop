@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.swiftdrop.parcel.ParcelReadApiTest
+-------------------------------------------------------------------------------
+Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.723 s -- in com.swiftdrop.parcel.ParcelReadApiTest

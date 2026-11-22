@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MerchantOrderResponse.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">merchant-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.merchant.merchantapi.dto</a> &gt; <span class="el_source">MerchantOrderResponse.java</span></div><h1>MerchantOrderResponse.java</h1><pre class="source lang-java linenums">package com.swiftdrop.merchant.merchantapi.dto;
+
+<span class="fc" id="L3">public record MerchantOrderResponse(</span>
+
+        String merchantOrderReference,
+
+        String trackingNumber,
+
+        String status,
+        ParcelSnapshot parcel
+
+) {
+<span class="fc" id="L13">    public MerchantOrderResponse(String reference, String tracking, String status) { this(reference, tracking, status, null); }</span>
+<span class="fc" id="L14">    public record ParcelSnapshot(String id, java.math.BigDecimal charge, java.time.Instant createdAt,</span>
+            java.math.BigDecimal weightKg, String size, String serviceType) { }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

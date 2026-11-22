@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CourierDeliveryReadRepository.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">courier-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.courier.repository</a> &gt; <span class="el_source">CourierDeliveryReadRepository.java</span></div><h1>CourierDeliveryReadRepository.java</h1><pre class="source lang-java linenums">package com.swiftdrop.courier.repository;
+
+import com.swiftdrop.courier.client.CourierIntegrations.*;
+import java.util.List;
+import java.util.UUID;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Repository;
+
+@Repository
+public class CourierDeliveryReadRepository {
+    private final JdbcTemplate jdbc;
+<span class="fc" id="L12">    public CourierDeliveryReadRepository(JdbcTemplate jdbc) { this.jdbc=jdbc; }</span>
+
+    public List&lt;Assignment&gt; assignments(Long profileId) {
+<span class="fc" id="L15">        return jdbc.query(&quot;&quot;&quot;</span>
+            SELECT a.*,coalesce(a.delivery_date,p.delivery_date) AS scheduled_date
+            FROM courier_delivery_assignments a JOIN courier_profiles c ON c.dispatch_courier_id=a.dispatch_courier_id
+            JOIN courier_delivery_parcels p ON p.parcel_id=a.parcel_id
+            WHERE c.id=? ORDER BY a.assigned_at DESC,a.parcel_id
+<span class="fc" id="L20">            &quot;&quot;&quot;,(rs,row)-&gt;new Assignment(rs.getObject(&quot;projection_id&quot;,UUID.class),rs.getObject(&quot;parcel_id&quot;,UUID.class),profileId,</span>
+<span class="fc" id="L21">                rs.getInt(&quot;attempt_no&quot;),rs.getBoolean(&quot;active&quot;),rs.getLong(&quot;assignment_version&quot;),</span>
+<span class="fc" id="L22">                rs.getObject(&quot;scheduled_date&quot;,java.time.LocalDate.class),rs.getTimestamp(&quot;assigned_at&quot;).toInstant()),profileId);</span>
+    }
+
+    public ParcelDetails parcel(UUID id) {
+<span class="fc" id="L26">        var history=jdbc.query(&quot;SELECT * FROM courier_delivery_history WHERE parcel_id=? ORDER BY recorded_at,id&quot;,</span>
+<span class="fc" id="L27">            (rs,row)-&gt;new ParcelHistory(rs.getObject(&quot;id&quot;,UUID.class),rs.getString(&quot;status&quot;),rs.getTimestamp(&quot;recorded_at&quot;).toInstant(),</span>
+<span class="fc" id="L28">                rs.getString(&quot;location_description&quot;),rs.getObject(&quot;attempt_no&quot;,Integer.class),rs.getString(&quot;actor_role&quot;)),id);</span>
+<span class="fc" id="L29">        var rows=jdbc.query(&quot;SELECT * FROM courier_delivery_parcels WHERE parcel_id=?&quot;,(rs,row)-&gt;new ParcelDetails(id,</span>
+<span class="pc bpc" id="L30" title="1 of 2 branches missed.">            rs.getString(&quot;tracking_number&quot;),rs.getString(&quot;status&quot;)==null?&quot;UNKNOWN&quot;:rs.getString(&quot;status&quot;),rs.getString(&quot;pickup_address&quot;),</span>
+<span class="fc" id="L31">            rs.getString(&quot;delivery_address&quot;),rs.getString(&quot;receiver_name&quot;),rs.getString(&quot;receiver_phone&quot;),rs.getBigDecimal(&quot;weight&quot;),</span>
+<span class="fc" id="L32">            rs.getString(&quot;size&quot;),rs.getString(&quot;pickup_contact_name&quot;),rs.getString(&quot;pickup_contact_phone&quot;),rs.getString(&quot;contents_description&quot;),</span>
+<span class="fc" id="L33">            rs.getBigDecimal(&quot;length_cm&quot;),rs.getBigDecimal(&quot;width_cm&quot;),rs.getBigDecimal(&quot;height_cm&quot;),history),id);</span>
+<span class="pc bpc" id="L34" title="1 of 2 branches missed.">        if(rows.isEmpty())throw new RemoteFailure(&quot;Courier parcel data&quot;,false);</span>
+<span class="fc" id="L35">        return rows.getFirst();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

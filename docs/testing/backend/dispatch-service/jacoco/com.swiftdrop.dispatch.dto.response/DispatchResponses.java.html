@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DispatchResponses.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">dispatch-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.dispatch.dto.response</a> &gt; <span class="el_source">DispatchResponses.java</span></div><h1>DispatchResponses.java</h1><pre class="source lang-java linenums">package com.swiftdrop.dispatch.dto.response;
+
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
+
+public final class DispatchResponses {
+    private DispatchResponses() { }
+
+    /**
+     * A parcel as parcel-service returns it from GET /api/parcels/dispatch.
+     * {@code courierUserId} is the identity user id parcel-service holds as the
+     * assigned courier.
+     */
+<span class="fc" id="L17">    public record ParcelRow(</span>
+        UUID parcelId,
+        String trackingNumber,
+        String pickupArea,
+        String dropoffArea,
+        String pickupAddress,
+        String deliveryAddress,
+        String size,
+        String status,
+        Long courierUserId,
+        BigDecimal charge,
+        Instant createdAt,
+        Instant updatedAt
+    ) { }
+
+    /** One stored parcel status event. */
+<span class="fc" id="L33">    public record StatusHistoryRow(String previousStatus, String newStatus, Instant changedAt) { }</span>
+
+<span class="fc" id="L35">    public record ParcelDetail(</span>
+        ParcelRow parcel,
+        List&lt;StatusHistoryRow&gt; history,
+        List&lt;AssignmentRow&gt; assignments
+    ) { }
+
+    /**
+     * A courier with its workload. {@code courierId} is the courier-service
+     * profile id; {@code available} is true only for an active courier whose
+     * availability is AVAILABLE.
+     */
+<span class="fc" id="L46">    public record CourierWorkload(</span>
+        Long courierId,
+        Long userId,
+        String name,
+        boolean active,
+        String availability,
+        boolean available,
+        long activeParcelCount
+    ) { }
+
+<span class="fc" id="L56">    public record AssignmentResult(</span>
+        UUID assignmentId,
+        UUID parcelId,
+        String trackingNumber,
+        Long courierId,
+        String courierName,
+        Long previousCourierId,
+        String assignedBy,
+        Instant assignedAt,
+        String state
+    ) { }
+
+    /** An assignment with the parcel's latest known status (CREATED until an event says otherwise). */
+<span class="fc" id="L69">    public record AssignmentRow(</span>
+        UUID assignmentId,
+        UUID parcelId,
+        String trackingNumber,
+        Long courierId,
+        String courierName,
+        String assignedBy,
+        Instant assignedAt,
+        String state,
+        String parcelStatus
+    ) { }
+
+    /** The assignment shape courier-service reads (CourierIntegrations.Assignment). */
+<span class="fc" id="L82">    public record CourierAssignment(</span>
+        UUID id,
+        UUID parcelId,
+        Long courierId,
+        int attemptNo,
+        boolean active,
+        long version,
+        LocalDate deliveryDate,
+        Instant assignedAt
+    ) { }
+
+    /** A delivery as seen through its latest stored status event. */
+<span class="fc" id="L94">    public record DeliveryRow(</span>
+        UUID parcelId,
+        String trackingNumber,
+        String status,
+        Long courierId,
+        String courierName,
+        Instant lastUpdatedAt
+    ) { }
+
+<span class="fc" id="L103">    public record PageResult&lt;T&gt;(</span>
+        List&lt;T&gt; content,
+        int page,
+        int size,
+        long totalElements,
+        int totalPages
+    ) { }
+
+<span class="fc" id="L111">    public record CountByStatus(String status, long count) { }</span>
+<span class="fc" id="L112">    public record DeliveryByDay(LocalDate date, long delivered, long failed, long total) { }</span>
+
+    /**
+     * {@code courierId} is the courier-service profile id when dispatch has an
+     * assignment for that courier; {@code courierUserId} is the id carried by
+     * the parcel status events.
+     */
+<span class="fc" id="L119">    public record ActiveDeliveriesByCourier(Long courierId, String courierUserId, String courierName, long count) { }</span>
+
+<span class="fc" id="L121">    public record DispatchSummary(</span>
+        List&lt;DeliveryByDay&gt; deliveriesPerDay,
+        BigDecimal successRate,
+        BigDecimal failureRate,
+        List&lt;CountByStatus&gt; countsByStatus,
+        List&lt;ActiveDeliveriesByCourier&gt; activeDeliveriesPerCourier
+    ) { }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

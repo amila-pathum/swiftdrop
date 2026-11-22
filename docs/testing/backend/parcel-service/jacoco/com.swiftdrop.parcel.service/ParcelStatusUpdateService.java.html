@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ParcelStatusUpdateService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">parcel-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.parcel.service</a> &gt; <span class="el_source">ParcelStatusUpdateService.java</span></div><h1>ParcelStatusUpdateService.java</h1><pre class="source lang-java linenums">package com.swiftdrop.parcel.service;
+
+import com.swiftdrop.parcel.dto.request.UpdateParcelStatusRequest;
+import com.swiftdrop.parcel.dto.response.ParcelStatusUpdateResponse;
+import com.swiftdrop.parcel.entity.Parcel;
+import com.swiftdrop.parcel.entity.ParcelStatus;
+import com.swiftdrop.parcel.entity.ParcelStatusHistory;
+import com.swiftdrop.parcel.repository.ParcelRepository;
+import com.swiftdrop.parcel.repository.ParcelStatusHistoryRepository;
+import com.swiftdrop.parcel.event.ParcelEventOutbox;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+import java.time.Instant;
+import java.util.UUID;
+import java.util.Objects;
+
+@Service
+public class ParcelStatusUpdateService {
+    private final ParcelRepository parcels;
+    private final ParcelStatusHistoryRepository history;
+    private final ParcelStatusTransitionValidator transitions;
+    private final CourierAssignmentVerifier courierAssignments;
+    private final ParcelEventOutbox outbox;
+    private final ParcelStatusIdempotencyStore idempotency;
+
+    public ParcelStatusUpdateService(ParcelRepository parcels,
+            ParcelStatusHistoryRepository history,
+            ParcelStatusTransitionValidator transitions,
+            CourierAssignmentVerifier courierAssignments,
+            ParcelEventOutbox outbox,
+<span class="fc" id="L33">            ParcelStatusIdempotencyStore idempotency) {</span>
+<span class="fc" id="L34">        this.parcels = parcels;</span>
+<span class="fc" id="L35">        this.history = history;</span>
+<span class="fc" id="L36">        this.transitions = transitions;</span>
+<span class="fc" id="L37">        this.courierAssignments = courierAssignments;</span>
+<span class="fc" id="L38">        this.outbox = outbox;</span>
+<span class="fc" id="L39">        this.idempotency = idempotency;</span>
+<span class="fc" id="L40">    }</span>
+
+    @Transactional
+    public ParcelStatusUpdateResponse update(UUID parcelId, UpdateParcelStatusRequest request,
+                                              Long actorId, String role) {
+<span class="fc" id="L45">        return update(parcelId, request, actorId, role, null);</span>
+    }
+
+    @Transactional
+    public ParcelStatusUpdateResponse update(UUID parcelId, UpdateParcelStatusRequest request,
+                                              Long actorId, String role, UUID idempotencyKey) {
+<span class="pc bpc" id="L51" title="3 of 6 branches missed.">        if (actorId == null || actorId &lt;= 0 || role == null) {</span>
+<span class="nc" id="L52">            throw new ResponseStatusException(HttpStatus.FORBIDDEN, &quot;Access is denied&quot;);</span>
+        }
+        // Pessimistic lock ensures concurrent updates observe the latest status.
+<span class="fc" id="L55">        Parcel parcel = parcels.findForStatusUpdateById(parcelId).orElseThrow(</span>
+<span class="fc" id="L56">            () -&gt; new ResponseStatusException(HttpStatus.NOT_FOUND, &quot;Parcel not found&quot;));</span>
+
+<span class="pc bpc" id="L58" title="1 of 3 branches missed.">        boolean authorized = switch (role) {</span>
+<span class="fc" id="L59">            case &quot;ADMIN&quot;, &quot;DISPATCHER&quot; -&gt; true;</span>
+<span class="fc" id="L60">            case &quot;COURIER&quot; -&gt; courierAssignments.isAssigned(parcel, actorId);</span>
+<span class="pc" id="L61">            default -&gt; false;</span>
+        };
+<span class="fc bfc" id="L63" title="All 2 branches covered.">        if (!authorized) {</span>
+<span class="fc" id="L64">            throw new ResponseStatusException(HttpStatus.FORBIDDEN, &quot;Access is denied&quot;);</span>
+        }
+<span class="fc bfc" id="L66" title="All 2 branches covered.">        String note = request.note() == null ? null : request.note().trim();</span>
+<span class="fc bfc" id="L67" title="All 4 branches covered.">        if (idempotencyKey != null &amp;&amp; !idempotency.claim(</span>
+<span class="fc" id="L68">                idempotencyKey, parcelId, actorId, request.status(), note)) {</span>
+<span class="fc" id="L69">            var stored = idempotency.find(idempotencyKey).orElseThrow(() -&gt;</span>
+<span class="nc" id="L70">                new ResponseStatusException(HttpStatus.CONFLICT, &quot;Status update is still processing&quot;));</span>
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">            if (!stored.parcelId().equals(parcelId)</span>
+<span class="pc bpc" id="L72" title="1 of 2 branches missed.">                    || !stored.actorId().equals(actorId)</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">                    || stored.requestedStatus() != request.status()</span>
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">                    || !Objects.equals(stored.requestedNote(), note)) {</span>
+<span class="fc" id="L75">                throw new ResponseStatusException(HttpStatus.CONFLICT,</span>
+                    &quot;Idempotency key was already used for a different status update&quot;);
+            }
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">            if (stored.changedAt() == null) {</span>
+<span class="nc" id="L79">                throw new ResponseStatusException(HttpStatus.CONFLICT, &quot;Status update is still processing&quot;);</span>
+            }
+<span class="fc" id="L81">            return new ParcelStatusUpdateResponse(parcelId, stored.previousStatus(),</span>
+<span class="fc" id="L82">                stored.newStatus(), stored.changedAt());</span>
+        }
+        // Member 5 owns cancellation; prevent this status endpoint bypassing that flow.
+<span class="fc bfc" id="L85" title="All 2 branches covered.">        if (request.status() == ParcelStatus.CANCELLED) {</span>
+<span class="fc" id="L86">            throw new ResponseStatusException(HttpStatus.CONFLICT, &quot;Use the cancellation flow&quot;);</span>
+        }
+
+<span class="fc" id="L89">        ParcelStatus previous = parcel.getStatus();</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">        if (!transitions.isAllowed(previous, request.status())) {</span>
+<span class="fc" id="L91">            throw new ResponseStatusException(HttpStatus.CONFLICT,</span>
+<span class="fc" id="L92">                &quot;Invalid parcel status transition: &quot; + previous + &quot; -&gt; &quot; + request.status());</span>
+        }
+<span class="fc" id="L94">        parcel.setStatus(request.status());</span>
+<span class="fc" id="L95">        ParcelStatusHistory entry = new ParcelStatusHistory(parcel, previous, request.status(), actorId, note);</span>
+<span class="fc" id="L96">        history.saveAndFlush(entry);</span>
+<span class="fc" id="L97">        outbox.enqueueStatusChanged(parcel, previous, request.status(), entry.getChangedAt());</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">        if (idempotencyKey != null) {</span>
+<span class="fc" id="L99">            idempotency.complete(idempotencyKey, previous, request.status(), entry.getChangedAt());</span>
+        }
+<span class="fc" id="L101">        return new ParcelStatusUpdateResponse(parcelId, previous, request.status(), entry.getChangedAt());</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

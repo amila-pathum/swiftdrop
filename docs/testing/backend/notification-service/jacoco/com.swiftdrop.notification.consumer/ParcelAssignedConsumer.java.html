@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ParcelAssignedConsumer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">notification-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.notification.consumer</a> &gt; <span class="el_source">ParcelAssignedConsumer.java</span></div><h1>ParcelAssignedConsumer.java</h1><pre class="source lang-java linenums">package com.swiftdrop.notification.consumer;
+
+import com.swiftdrop.notification.config.RabbitMQConfig;
+import com.swiftdrop.notification.dto.response.NotificationResponse;
+import com.swiftdrop.notification.entity.Notification;
+import com.swiftdrop.notification.entity.ProcessedEvent;
+import com.swiftdrop.notification.event.ParcelAssignedEvent;
+import com.swiftdrop.notification.repository.NotificationRepository;
+import com.swiftdrop.notification.repository.ProcessedEventRepository;
+import com.swiftdrop.notification.service.NotificationStreamService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import tools.jackson.databind.ObjectMapper;
+
+import java.time.Instant;
+import java.util.UUID;
+
+/**
+ * Tells a courier, in the app, that a parcel has been assigned to them. On a
+ * reassignment the previous courier is told the parcel is no longer theirs.
+ */
+<span class="fc" id="L27">@Slf4j</span>
+@Component
+@RequiredArgsConstructor
+@ConditionalOnProperty(name = &quot;swiftdrop.notifications.consumer-enabled&quot;, havingValue = &quot;true&quot;, matchIfMissing = true)
+public class ParcelAssignedConsumer {
+
+    public static final String ASSIGNED_TITLE = &quot;New Delivery Assigned&quot;;
+    public static final String REASSIGNED_TITLE = &quot;Delivery Reassigned&quot;;
+
+    private final ObjectMapper objectMapper;
+    private final NotificationRepository notificationRepository;
+    private final ProcessedEventRepository processedEventRepository;
+    private final NotificationStreamService notificationStreamService;
+
+    @Transactional
+    @RabbitListener(queues = RabbitMQConfig.ASSIGNED_QUEUE)
+    public void consume(byte[] message) throws Exception {
+<span class="fc" id="L44">        ParcelAssignedEvent event = objectMapper.readValue(message, ParcelAssignedEvent.class);</span>
+<span class="fc" id="L45">        log.info(&quot;Received parcel assigned event: eventId={}, trackingNumber={}, courierUserId={}&quot;,</span>
+<span class="fc" id="L46">                event.eventId(), event.trackingNumber(), event.courierUserId());</span>
+
+<span class="pc bpc" id="L48" title="1 of 4 branches missed.">        if (event.eventId() != null &amp;&amp; processedEventRepository.existsByEventId(event.eventId())) {</span>
+<span class="fc" id="L49">            log.info(&quot;Duplicate event ignored: eventId={}&quot;, event.eventId());</span>
+<span class="fc" id="L50">            return;</span>
+        }
+
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">        Instant eventTime = event.occurredAt() != null ? event.occurredAt() : Instant.now();</span>
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">        String tracking = StringUtils.hasText(event.trackingNumber()) ? event.trackingNumber() : &quot;A parcel&quot;;</span>
+
+<span class="fc bfc" id="L56" title="All 2 branches covered.">        if (StringUtils.hasText(event.courierUserId())) {</span>
+<span class="fc" id="L57">            notify(event.courierUserId(), event.trackingNumber(), ASSIGNED_TITLE,</span>
+<span class="fc" id="L58">                    String.format(&quot;Parcel %s has been assigned to you. Open your deliveries to see the pickup details.&quot;, tracking),</span>
+                    eventTime);
+        } else {
+<span class="fc" id="L61">            log.warn(&quot;Parcel assigned event {} has no courierUserId; courier not notified&quot;, event.eventId());</span>
+        }
+
+<span class="fc bfc" id="L64" title="All 2 branches covered.">        if (StringUtils.hasText(event.previousCourierUserId())</span>
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">                &amp;&amp; !event.previousCourierUserId().equals(event.courierUserId())) {</span>
+<span class="fc" id="L66">            notify(event.previousCourierUserId(), event.trackingNumber(), REASSIGNED_TITLE,</span>
+<span class="fc" id="L67">                    String.format(&quot;Parcel %s has been reassigned to another courier.&quot;, tracking),</span>
+                    eventTime);
+        }
+
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">        if (event.eventId() != null) {</span>
+<span class="fc" id="L72">            processedEventRepository.save(ProcessedEvent.builder()</span>
+<span class="fc" id="L73">                    .eventId(event.eventId())</span>
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">                    .eventType(StringUtils.hasText(event.eventType()) ? event.eventType() : &quot;parcel.assigned&quot;)</span>
+<span class="fc" id="L75">                    .processedAt(Instant.now())</span>
+<span class="fc" id="L76">                    .build());</span>
+        }
+<span class="fc" id="L78">    }</span>
+
+    private void notify(String userId, String trackingNumber, String title, String text, Instant at) {
+<span class="fc" id="L81">        Notification saved = notificationRepository.save(Notification.builder()</span>
+<span class="fc" id="L82">                .id(UUID.randomUUID())</span>
+<span class="fc" id="L83">                .userId(userId)</span>
+<span class="fc" id="L84">                .trackingNumber(trackingNumber)</span>
+<span class="fc" id="L85">                .title(title)</span>
+<span class="fc" id="L86">                .message(text)</span>
+<span class="fc" id="L87">                .isRead(false)</span>
+<span class="fc" id="L88">                .createdAt(at)</span>
+<span class="fc" id="L89">                .build());</span>
+<span class="fc" id="L90">        notificationStreamService.broadcastToUser(userId, NotificationResponse.from(saved));</span>
+<span class="fc" id="L91">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

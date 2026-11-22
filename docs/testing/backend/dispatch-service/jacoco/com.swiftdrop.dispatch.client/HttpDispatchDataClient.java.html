@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HttpDispatchDataClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">dispatch-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.dispatch.client</a> &gt; <span class="el_source">HttpDispatchDataClient.java</span></div><h1>HttpDispatchDataClient.java</h1><pre class="source lang-java linenums">package com.swiftdrop.dispatch.client;
+
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.ParcelRow;
+import com.swiftdrop.dispatch.exception.DispatchException;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
+
+/**
+ * Calls parcel-service and courier-service with the caller's own access token,
+ * so their role checks apply to the dispatcher or admin making the request.
+ */
+@Component
+public class HttpDispatchDataClient implements DispatchDataClient {
+    static final int COURIER_PAGE_SIZE = 100;
+    /** Guards against a misbehaving upstream that never reports the last page. */
+    static final int MAX_COURIER_PAGES = 50;
+
+    private final RestClient parcels;
+    private final RestClient couriers;
+    private final String createdParcelsPath;
+    private final String parcelPath;
+    private final String assignCourierPath;
+    private final String courierProfilesPath;
+
+    public HttpDispatchDataClient(RestClient.Builder builder,
+            @Value(&quot;${swiftdrop.parcel.base-url:http://localhost:8082}&quot;) String parcelBaseUrl,
+            @Value(&quot;${swiftdrop.courier.base-url:http://localhost:8084}&quot;) String courierBaseUrl,
+            @Value(&quot;${swiftdrop.parcel.created-path:/api/parcels/dispatch?status=CREATED}&quot;) String createdParcelsPath,
+            @Value(&quot;${swiftdrop.parcel.path:/api/parcels/dispatch/{parcelId}}&quot;) String parcelPath,
+            @Value(&quot;${swiftdrop.parcel.assign-courier-path:/api/parcels/{parcelId}/courier}&quot;) String assignCourierPath,
+            @Value(&quot;${swiftdrop.courier.profiles-path:/api/couriers/profiles?active=true&amp;page={page}&amp;size={size}}&quot;)
+<span class="fc" id="L48">                String courierProfilesPath) {</span>
+<span class="fc" id="L49">        this.parcels = buildClient(builder, parcelBaseUrl);</span>
+<span class="fc" id="L50">        this.couriers = buildClient(builder, courierBaseUrl);</span>
+<span class="fc" id="L51">        this.createdParcelsPath = createdParcelsPath;</span>
+<span class="fc" id="L52">        this.parcelPath = parcelPath;</span>
+<span class="fc" id="L53">        this.assignCourierPath = assignCourierPath;</span>
+<span class="fc" id="L54">        this.courierProfilesPath = courierProfilesPath;</span>
+<span class="fc" id="L55">    }</span>
+
+    @Override
+    public List&lt;ParcelRow&gt; createdParcels() {
+        try {
+<span class="fc" id="L60">            List&lt;ParcelRow&gt; response = parcels.get().uri(createdParcelsPath)</span>
+<span class="fc" id="L61">                .retrieve().body(new ParameterizedTypeReference&lt;List&lt;ParcelRow&gt;&gt;() { });</span>
+<span class="pc bpc" id="L62" title="1 of 2 branches missed.">            if (response == null) throw badGateway(&quot;Parcel service returned no parcel list&quot;);</span>
+<span class="fc" id="L63">            return response.stream().filter(Objects::nonNull).toList();</span>
+<span class="nc" id="L64">        } catch (RestClientException exception) {</span>
+<span class="nc" id="L65">            throw unavailable(&quot;Parcel service is unavailable&quot;, exception);</span>
+        }
+    }
+
+    @Override
+    public Optional&lt;ParcelRow&gt; findParcel(UUID parcelId) {
+        try {
+<span class="fc" id="L72">            ParcelRow response = parcels.get().uri(parcelPath, parcelId)</span>
+<span class="nc" id="L73">                .retrieve().body(ParcelRow.class);</span>
+<span class="nc bnc" id="L74" title="All 2 branches missed.">            if (response == null) throw badGateway(&quot;Parcel service returned no parcel&quot;);</span>
+<span class="nc" id="L75">            return Optional.of(response);</span>
+<span class="fc" id="L76">        } catch (HttpClientErrorException.NotFound exception) {</span>
+<span class="fc" id="L77">            return Optional.empty();</span>
+<span class="fc" id="L78">        } catch (RestClientException exception) {</span>
+<span class="fc" id="L79">            throw unavailable(&quot;Parcel service is unavailable&quot;, exception);</span>
+        }
+    }
+
+    @Override
+    public List&lt;CourierData&gt; couriers() {
+<span class="fc" id="L85">        List&lt;CourierData&gt; all = new ArrayList&lt;&gt;();</span>
+        try {
+<span class="pc bpc" id="L87" title="1 of 2 branches missed.">            for (int page = 0; page &lt; MAX_COURIER_PAGES; page++) {</span>
+<span class="fc" id="L88">                CourierPage response = couriers.get().uri(courierProfilesPath, page, COURIER_PAGE_SIZE)</span>
+<span class="fc" id="L89">                    .retrieve().body(CourierPage.class);</span>
+<span class="pc bpc" id="L90" title="2 of 4 branches missed.">                if (response == null || response.content() == null) {</span>
+<span class="nc" id="L91">                    throw badGateway(&quot;Courier service returned no courier list&quot;);</span>
+                }
+<span class="fc" id="L93">                response.content().stream().filter(Objects::nonNull).forEach(all::add);</span>
+<span class="fc bfc" id="L94" title="All 2 branches covered.">                if (page + 1 &gt;= response.totalPages()) break;</span>
+            }
+<span class="nc" id="L96">        } catch (RestClientException exception) {</span>
+<span class="nc" id="L97">            throw unavailable(&quot;Courier service is unavailable&quot;, exception);</span>
+<span class="fc" id="L98">        }</span>
+<span class="fc" id="L99">        return all;</span>
+    }
+
+    @Override
+    public Optional&lt;CourierData&gt; findCourier(Long courierProfileId) {
+        // TODO(R3): use GET /api/couriers/profiles/{id} once courier-service provides it.
+<span class="nc" id="L105">        return couriers().stream().filter(courier -&gt; courierProfileId.equals(courier.id())).findFirst();</span>
+    }
+
+    @Override
+    public void assignParcelCourier(UUID parcelId, Long courierUserId) {
+        try {
+<span class="fc" id="L111">            parcels.patch().uri(assignCourierPath, parcelId)</span>
+<span class="fc" id="L112">                .contentType(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L113">                .body(Map.of(&quot;courierUserId&quot;, courierUserId))</span>
+<span class="fc" id="L114">                .retrieve().toBodilessEntity();</span>
+<span class="nc" id="L115">        } catch (HttpClientErrorException.NotFound exception) {</span>
+<span class="nc" id="L116">            throw new DispatchException(HttpStatus.NOT_FOUND, &quot;Parcel not found&quot;, exception);</span>
+<span class="fc" id="L117">        } catch (HttpClientErrorException.Conflict exception) {</span>
+<span class="fc" id="L118">            throw new DispatchException(HttpStatus.CONFLICT,</span>
+                &quot;Parcel service refused the courier assignment&quot;, exception);
+<span class="nc" id="L120">        } catch (HttpClientErrorException exception) {</span>
+<span class="nc" id="L121">            throw new DispatchException(HttpStatus.BAD_GATEWAY,</span>
+                &quot;Parcel service rejected the courier assignment&quot;, exception);
+<span class="nc" id="L123">        } catch (RestClientException exception) {</span>
+<span class="nc" id="L124">            throw unavailable(&quot;Parcel service is unavailable&quot;, exception);</span>
+<span class="fc" id="L125">        }</span>
+<span class="fc" id="L126">    }</span>
+
+    /** courier-service PageResult of Profile; unknown profile fields are ignored. */
+<span class="fc" id="L129">    record CourierPage(List&lt;CourierData&gt; content, int page, int size, long totalElements, int totalPages) { }</span>
+
+    private static DispatchException badGateway(String message) {
+<span class="nc" id="L132">        return new DispatchException(HttpStatus.BAD_GATEWAY, message);</span>
+    }
+
+    private static DispatchException unavailable(String message, RestClientException cause) {
+<span class="fc" id="L136">        return new DispatchException(HttpStatus.SERVICE_UNAVAILABLE, message, cause);</span>
+    }
+
+    private static RestClient buildClient(RestClient.Builder builder, String baseUrl) {
+<span class="fc" id="L140">        return builder.clone().baseUrl(baseUrl).requestInterceptor((request, body, execution) -&gt; {</span>
+<span class="fc" id="L141">            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();</span>
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">            if (authentication instanceof JwtAuthenticationToken jwt) {</span>
+<span class="fc" id="L143">                request.getHeaders().setBearerAuth(jwt.getToken().getTokenValue());</span>
+            }
+<span class="fc" id="L145">            return execution.execute(request, body);</span>
+<span class="fc" id="L146">        }).build();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

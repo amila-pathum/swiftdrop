@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GlobalExceptionHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">pricing-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.pricing.exception</a> &gt; <span class="el_source">GlobalExceptionHandler.java</span></div><h1>GlobalExceptionHandler.java</h1><pre class="source lang-java linenums">package com.swiftdrop.pricing.exception;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+
+@RestControllerAdvice
+<span class="fc" id="L15">public class GlobalExceptionHandler {</span>
+    @ExceptionHandler({ZoneNotFoundException.class, RateNotFoundException.class})
+    ResponseEntity&lt;Map&lt;String, String&gt;&gt; notFound(RuntimeException exception) {
+<span class="fc" id="L18">        return error(HttpStatus.NOT_FOUND, exception.getMessage());</span>
+    }
+
+    @ExceptionHandler(PricingConflictException.class)
+    ResponseEntity&lt;Map&lt;String, String&gt;&gt; conflict(PricingConflictException exception) {
+<span class="fc" id="L23">        return error(HttpStatus.CONFLICT, exception.getMessage());</span>
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    ResponseEntity&lt;Map&lt;String, String&gt;&gt; duplicate(DataIntegrityViolationException exception) {
+<span class="nc" id="L28">        return error(HttpStatus.CONFLICT, &quot;This conflicts with a change saved at the same time. Reload and try again.&quot;);</span>
+    }
+
+    @ExceptionHandler(IllegalArgumentException.class)
+    ResponseEntity&lt;Map&lt;String, String&gt;&gt; invalid(IllegalArgumentException exception) {
+<span class="fc" id="L33">        return error(HttpStatus.BAD_REQUEST, exception.getMessage());</span>
+    }
+
+    @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
+    ResponseEntity&lt;Map&lt;String, String&gt;&gt; malformed(Exception exception) {
+<span class="nc" id="L38">        return error(HttpStatus.BAD_REQUEST, &quot;Invalid request format&quot;);</span>
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    ResponseEntity&lt;Map&lt;String, Object&gt;&gt; validation(MethodArgumentNotValidException exception) {
+<span class="fc" id="L43">        Map&lt;String, String&gt; fields = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L44">        exception.getBindingResult().getFieldErrors().forEach(field -&gt;</span>
+<span class="fc" id="L45">                fields.putIfAbsent(field.getField(), field.getDefaultMessage()));</span>
+<span class="fc" id="L46">        return ResponseEntity.badRequest().body(Map.of(&quot;error&quot;, &quot;Please correct the highlighted fields&quot;, &quot;fields&quot;, fields));</span>
+    }
+
+    private ResponseEntity&lt;Map&lt;String, String&gt;&gt; error(HttpStatus status, String message) {
+<span class="fc" id="L50">        return ResponseEntity.status(status).body(Map.of(&quot;error&quot;, message));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

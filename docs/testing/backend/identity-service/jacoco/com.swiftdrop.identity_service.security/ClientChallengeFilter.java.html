@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ClientChallengeFilter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.identity_service.security</a> &gt; <span class="el_source">ClientChallengeFilter.java</span></div><h1>ClientChallengeFilter.java</h1><pre class="source lang-java linenums">package com.swiftdrop.identity_service.security;
+
+import com.swiftdrop.identity_service.service.OAuthLoginCodeService;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+
+/**
+ * Captures the frontend's {@code client_challenge} when a Google sign-in starts
+ * ({@code /oauth2/authorization/google?client_challenge=...}) and keeps it in the
+ * OAuth session until the callback, where the one-time code is bound to it.
+ * A sign-in without a valid challenge is refused before reaching Google.
+ */
+public class ClientChallengeFilter extends OncePerRequestFilter {
+
+    static final String START_PATH = &quot;/oauth2/authorization/google&quot;;
+    static final String PARAMETER = &quot;client_challenge&quot;;
+<span class="fc" id="L23">    private static final String SESSION_ATTRIBUTE = ClientChallengeFilter.class.getName() + &quot;.CHALLENGE&quot;;</span>
+
+    private final GoogleSignInRedirects redirects;
+
+<span class="fc" id="L27">    public ClientChallengeFilter(GoogleSignInRedirects redirects) {</span>
+<span class="fc" id="L28">        this.redirects = redirects;</span>
+<span class="fc" id="L29">    }</span>
+
+    /** Removes and returns the challenge stored for this sign-in, or null. */
+    public static String take(HttpServletRequest request) {
+<span class="fc" id="L33">        HttpSession session = request.getSession(false);</span>
+<span class="pc bpc" id="L34" title="1 of 2 branches missed.">        if (session == null) {</span>
+<span class="nc" id="L35">            return null;</span>
+        }
+<span class="fc" id="L37">        Object challenge = session.getAttribute(SESSION_ATTRIBUTE);</span>
+<span class="fc" id="L38">        session.removeAttribute(SESSION_ATTRIBUTE);</span>
+<span class="pc bpc" id="L39" title="1 of 2 branches missed.">        return challenge instanceof String value ? value : null;</span>
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+<span class="fc bfc" id="L44" title="All 2 branches covered.">        return !request.getRequestURI().startsWith(&quot;/oauth2/authorization/&quot;);</span>
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response,
+            FilterChain chain) throws ServletException, IOException {
+<span class="fc" id="L50">        String challenge = request.getParameter(PARAMETER);</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        if (!START_PATH.equals(request.getRequestURI())</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">                || !OAuthLoginCodeService.isValidChallenge(challenge)) {</span>
+<span class="fc" id="L53">            redirects.failure(request, response, &quot;google_failed&quot;);</span>
+<span class="fc" id="L54">            return;</span>
+        }
+<span class="fc" id="L56">        request.getSession().setAttribute(SESSION_ATTRIBUTE, challenge);</span>
+<span class="fc" id="L57">        chain.doFilter(request, response);</span>
+<span class="fc" id="L58">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

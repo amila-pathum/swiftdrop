@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HttpCourierIntegrations.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">courier-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.courier.client</a> &gt; <span class="el_source">HttpCourierIntegrations.java</span></div><h1>HttpCourierIntegrations.java</h1><pre class="source lang-java linenums">package com.swiftdrop.courier.client;
+
+import com.swiftdrop.courier.client.CourierIntegrations.*;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.*;
+import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.web.client.*;
+import java.net.http.HttpClient;
+import java.time.Duration;
+import java.util.*;
+import java.util.function.Supplier;
+
+@Configuration
+<span class="fc" id="L15">public class HttpCourierIntegrations {</span>
+    private RestClient client(String base) {
+<span class="fc" id="L17">        var factory=new JdkClientHttpRequestFactory(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build());</span>
+<span class="fc" id="L18">        factory.setReadTimeout(Duration.ofSeconds(8));</span>
+<span class="fc" id="L19">        return RestClient.builder().baseUrl(base).requestFactory(factory).build();</span>
+    }
+    private &lt;T&gt; T call(String service, Supplier&lt;T&gt; request) {
+        try {
+<span class="fc" id="L23">            T result=request.get();</span>
+<span class="pc bpc" id="L24" title="1 of 2 branches missed.">            if(result==null) throw new RemoteFailure(service,false);</span>
+<span class="fc" id="L25">            return result;</span>
+<span class="fc" id="L26">        } catch(RestClientResponseException e) {</span>
+<span class="pc bpc" id="L27" title="3 of 4 branches missed.">            boolean rejected=e.getStatusCode().is4xxClientError() &amp;&amp; e.getStatusCode().value()!=429;</span>
+<span class="fc" id="L28">            throw new RemoteFailure(service,rejected);</span>
+<span class="nc" id="L29">        } catch(RestClientException e) { throw new RemoteFailure(service,false); }</span>
+    }
+    @Bean IdentityClient identityClient(@Value(&quot;${swiftdrop.clients.identity-url:http://localhost:8081}&quot;) String url) {
+<span class="fc" id="L32">        var http=client(url);</span>
+<span class="fc" id="L33">        return (userId,token)-&gt;call(&quot;Identity service&quot;,()-&gt;http.get().uri(&quot;/api/admin/users/{id}&quot;,userId)</span>
+<span class="fc" id="L34">            .headers(h-&gt;h.setBearerAuth(token)).retrieve().body(IdentityAccount.class));</span>
+    }
+    @Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name=&quot;swiftdrop.deliveries.source&quot;,havingValue=&quot;http&quot;)
+    DispatchClient dispatchClient(@Value(&quot;${swiftdrop.clients.dispatch-url:http://localhost:8085}&quot;) String url) {
+<span class="fc" id="L39">        var http=client(url);</span>
+<span class="pc" id="L40">        return (courierId,token)-&gt;call(&quot;Dispatch service&quot;,()-&gt;http.get().uri(&quot;/api/dispatch/couriers/{id}/assignments&quot;,courierId)</span>
+<span class="pc" id="L41">            .headers(h-&gt;h.setBearerAuth(token)).retrieve().body(new ParameterizedTypeReference&lt;List&lt;Assignment&gt;&gt;(){}));</span>
+    }
+    @Bean
+    @org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name=&quot;swiftdrop.deliveries.source&quot;,havingValue=&quot;http&quot;)
+    ParcelClient parcelClient(@Value(&quot;${swiftdrop.clients.parcel-url:http://localhost:8082}&quot;) String url) {
+<span class="fc" id="L46">        var http=client(url);</span>
+<span class="fc" id="L47">        return new ParcelClient() {</span>
+            public ParcelDetails parcel(UUID id,String token) {
+<span class="nc" id="L49">                return call(&quot;Parcel service&quot;,()-&gt;http.get().uri(&quot;/api/parcels/{id}&quot;,id)</span>
+<span class="nc" id="L50">                    .headers(h-&gt;h.setBearerAuth(token)).retrieve().body(ParcelDetails.class));</span>
+            }
+            public void update(UUID id,StatusUpdate update,String token) {
+<span class="fc" id="L53">                call(&quot;Parcel service&quot;,()-&gt;{</span>
+<span class="fc" id="L54">                    var response=http.post().uri(&quot;/api/parcels/{id}/status&quot;,id)</span>
+<span class="fc" id="L55">                        .headers(h-&gt;{h.setBearerAuth(token);h.set(&quot;Idempotency-Key&quot;,update.submissionId().toString());})</span>
+<span class="fc" id="L56">                        .body(update).retrieve().toBodilessEntity();</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">                    if(response.getStatusCode().value()==202)throw new RemoteFailure(&quot;Parcel service&quot;,false);</span>
+<span class="fc" id="L58">                    return Boolean.TRUE;</span>
+                });
+<span class="fc" id="L60">            }</span>
+        };
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

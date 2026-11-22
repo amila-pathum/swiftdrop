@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GoogleSignInSuccessHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.identity_service.security</a> &gt; <span class="el_source">GoogleSignInSuccessHandler.java</span></div><h1>GoogleSignInSuccessHandler.java</h1><pre class="source lang-java linenums">package com.swiftdrop.identity_service.security;
+
+import com.swiftdrop.identity_service.entity.User;
+import com.swiftdrop.identity_service.exception.GoogleSignInException;
+import com.swiftdrop.identity_service.service.GoogleAccountService;
+import com.swiftdrop.identity_service.service.GoogleAccountService.GoogleProfile;
+import com.swiftdrop.identity_service.service.OAuthLoginCodeService;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.stereotype.Component;
+
+import java.io.IOException;
+
+/**
+ * Runs after Google has authenticated the user: finds or creates the SwiftDrop
+ * account and hands the frontend a one-time code instead of a JWT.
+ */
+@Component
+public class GoogleSignInSuccessHandler implements AuthenticationSuccessHandler {
+
+<span class="fc" id="L27">    private static final Logger log = LoggerFactory.getLogger(GoogleSignInSuccessHandler.class);</span>
+
+    private final GoogleAccountService googleAccounts;
+    private final OAuthLoginCodeService loginCodes;
+    private final GoogleSignInRedirects redirects;
+
+    public GoogleSignInSuccessHandler(GoogleAccountService googleAccounts,
+<span class="fc" id="L34">            OAuthLoginCodeService loginCodes, GoogleSignInRedirects redirects) {</span>
+<span class="fc" id="L35">        this.googleAccounts = googleAccounts;</span>
+<span class="fc" id="L36">        this.loginCodes = loginCodes;</span>
+<span class="fc" id="L37">        this.redirects = redirects;</span>
+<span class="fc" id="L38">    }</span>
+
+    @Override
+    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response,
+            Authentication authentication) throws IOException {
+<span class="fc" id="L43">        String challenge = ClientChallengeFilter.take(request);</span>
+<span class="pc bpc" id="L44" title="2 of 4 branches missed.">        if (challenge == null || !(authentication.getPrincipal() instanceof OidcUser google)) {</span>
+<span class="nc" id="L45">            redirects.failure(request, response, &quot;google_failed&quot;);</span>
+<span class="nc" id="L46">            return;</span>
+        }
+        try {
+<span class="fc" id="L49">            User user = googleAccounts.resolveUser(new GoogleProfile(google.getSubject(),</span>
+<span class="fc" id="L50">                google.getEmail(), Boolean.TRUE.equals(google.getEmailVerified()),</span>
+<span class="fc" id="L51">                google.getFullName()));</span>
+<span class="fc" id="L52">            redirects.success(request, response, loginCodes.issue(user, challenge));</span>
+<span class="fc" id="L53">        } catch (GoogleSignInException exception) {</span>
+<span class="fc" id="L54">            log.info(exception.getMessage());</span>
+<span class="fc" id="L55">            redirects.failure(request, response, exception.getReason().code());</span>
+<span class="nc" id="L56">        } catch (DataIntegrityViolationException exception) {</span>
+            // The same new Google account signed in twice at once; retrying works.
+<span class="nc" id="L58">            log.info(&quot;Google sign-in raced with another sign-in for the same account&quot;);</span>
+<span class="nc" id="L59">            redirects.failure(request, response, &quot;google_failed&quot;);</span>
+<span class="fc" id="L60">        }</span>
+<span class="fc" id="L61">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

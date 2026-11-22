@@ -1,0 +1,393 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DispatchRepository.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">dispatch-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.dispatch.repository</a> &gt; <span class="el_source">DispatchRepository.java</span></div><h1>DispatchRepository.java</h1><pre class="source lang-java linenums">package com.swiftdrop.dispatch.repository;
+
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.ActiveDeliveriesByCourier;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.AssignmentResult;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.AssignmentRow;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.CountByStatus;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.DeliveryByDay;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.DeliveryRow;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.StatusHistoryRow;
+import com.swiftdrop.dispatch.event.ParcelStatusChangedEvent;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.stereotype.Repository;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+
+/**
+ * Dispatch's own data only: {@code dispatch_assignments} and the stored parcel
+ * status events in {@code dispatch_report_events}.
+ */
+@Repository
+public class DispatchRepository {
+    /** Statuses in which a parcel is out with its courier. */
+<span class="fc" id="L37">    public static final List&lt;String&gt; IN_PROGRESS_STATUSES = List.of(&quot;PICKED_UP&quot;, &quot;IN_TRANSIT&quot;, &quot;OUT_FOR_DELIVERY&quot;);</span>
+
+    /** The parcel's latest stored status, or CREATED when no event has arrived yet. */
+    private static final String LATEST_STATUS_JOIN = &quot;&quot;&quot;
+        LEFT JOIN LATERAL (
+            SELECT e.new_status FROM dispatch_report_events e
+             WHERE e.parcel_id = a.parcel_id::text
+             ORDER BY e.occurred_at DESC, e.event_id DESC LIMIT 1
+        ) latest ON true
+        &quot;&quot;&quot;;
+
+    private static final String ASSIGNMENT_ROW_SELECT = &quot;&quot;&quot;
+        SELECT a.assignment_id, a.parcel_id, a.tracking_number, a.courier_profile_id,
+               a.courier_name, a.assigned_by, a.assigned_at, a.state,
+               COALESCE(latest.new_status, 'CREATED') AS parcel_status
+          FROM dispatch_assignments a
+        &quot;&quot;&quot; + LATEST_STATUS_JOIN;
+
+    private final NamedParameterJdbcTemplate jdbc;
+
+<span class="fc" id="L57">    public DispatchRepository(NamedParameterJdbcTemplate jdbc) {</span>
+<span class="fc" id="L58">        this.jdbc = jdbc;</span>
+<span class="fc" id="L59">    }</span>
+
+    // ---------------------------------------------------------------- assignments
+
+    public Set&lt;UUID&gt; activeAssignedParcelIds() {
+<span class="fc" id="L64">        return new HashSet&lt;&gt;(jdbc.query(</span>
+            &quot;SELECT parcel_id FROM dispatch_assignments WHERE state = 'ACTIVE'&quot;,
+<span class="fc" id="L66">            Map.of(), (rs, row) -&gt; rs.getObject(&quot;parcel_id&quot;, UUID.class)));</span>
+    }
+
+    public Optional&lt;ActiveAssignment&gt; activeAssignment(UUID parcelId) {
+<span class="fc" id="L70">        return jdbc.query(&quot;&quot;&quot;</span>
+            SELECT assignment_id, tracking_number, courier_profile_id, courier_user_id, courier_name,
+                   assigned_by, assigned_at
+              FROM dispatch_assignments WHERE parcel_id = :parcelId AND state = 'ACTIVE'
+<span class="fc" id="L74">            &quot;&quot;&quot;, Map.of(&quot;parcelId&quot;, parcelId), DispatchRepository::mapActive).stream().findFirst();</span>
+    }
+
+    /** Active assignment count per courier profile id. */
+    public Map&lt;Long, Long&gt; activeAssignmentCounts() {
+<span class="fc" id="L79">        Map&lt;Long, Long&gt; counts = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L80">        jdbc.query(&quot;&quot;&quot;</span>
+            SELECT courier_profile_id, count(*) AS active_count
+              FROM dispatch_assignments WHERE state = 'ACTIVE' GROUP BY courier_profile_id
+<span class="fc" id="L83">            &quot;&quot;&quot;, Map.of(), rs -&gt; {</span>
+<span class="fc" id="L84">                counts.put(rs.getLong(&quot;courier_profile_id&quot;), rs.getLong(&quot;active_count&quot;));</span>
+<span class="fc" id="L85">            });</span>
+<span class="fc" id="L86">        return counts;</span>
+    }
+
+    /**
+     * Inserts a new ACTIVE assignment. The unique partial index on
+     * (parcel_id) WHERE state = 'ACTIVE' rejects a second active row.
+     */
+    public AssignmentResult insertAssignment(UUID parcelId, String trackingNumber, Long courierProfileId,
+            Long courierUserId, String courierName, Long previousCourierProfileId,
+            String assignedBy, Instant assignedAt) {
+<span class="fc" id="L96">        UUID assignmentId = UUID.randomUUID();</span>
+<span class="fc" id="L97">        jdbc.update(&quot;&quot;&quot;</span>
+            INSERT INTO dispatch_assignments
+                (assignment_id, parcel_id, tracking_number, courier_profile_id, courier_user_id,
+                 courier_name, previous_courier_profile_id, assigned_by, assigned_at, state)
+            VALUES (:assignmentId, :parcelId, :trackingNumber, :courierProfileId, :courierUserId,
+                 :courierName, :previousCourierProfileId, :assignedBy, :assignedAt, 'ACTIVE')
+            &quot;&quot;&quot;, new MapSqlParameterSource()
+<span class="fc" id="L104">                .addValue(&quot;assignmentId&quot;, assignmentId)</span>
+<span class="fc" id="L105">                .addValue(&quot;parcelId&quot;, parcelId)</span>
+<span class="fc" id="L106">                .addValue(&quot;trackingNumber&quot;, trackingNumber)</span>
+<span class="fc" id="L107">                .addValue(&quot;courierProfileId&quot;, courierProfileId)</span>
+<span class="fc" id="L108">                .addValue(&quot;courierUserId&quot;, courierUserId)</span>
+<span class="fc" id="L109">                .addValue(&quot;courierName&quot;, courierName)</span>
+<span class="fc" id="L110">                .addValue(&quot;previousCourierProfileId&quot;, previousCourierProfileId)</span>
+<span class="fc" id="L111">                .addValue(&quot;assignedBy&quot;, assignedBy)</span>
+<span class="fc" id="L112">                .addValue(&quot;assignedAt&quot;, Timestamp.from(assignedAt)));</span>
+<span class="fc" id="L113">        return new AssignmentResult(assignmentId, parcelId, trackingNumber, courierProfileId, courierName,</span>
+            previousCourierProfileId, assignedBy, assignedAt, &quot;ACTIVE&quot;);
+    }
+
+    /** Cancels the parcel's ACTIVE assignment, if any, and returns it as it was. */
+    public Optional&lt;ActiveAssignment&gt; cancelActiveAssignment(UUID parcelId, String cancelledBy, Instant cancelledAt) {
+<span class="fc" id="L119">        return jdbc.query(&quot;&quot;&quot;</span>
+            UPDATE dispatch_assignments
+               SET state = 'CANCELLED', cancelled_by = :cancelledBy, cancelled_at = :cancelledAt,
+                   version = version + 1
+             WHERE parcel_id = :parcelId AND state = 'ACTIVE'
+            RETURNING assignment_id, tracking_number, courier_profile_id, courier_user_id, courier_name,
+                      assigned_by, assigned_at
+            &quot;&quot;&quot;, new MapSqlParameterSource(&quot;cancelledBy&quot;, cancelledBy)
+<span class="fc" id="L127">                .addValue(&quot;cancelledAt&quot;, Timestamp.from(cancelledAt))</span>
+<span class="fc" id="L128">                .addValue(&quot;parcelId&quot;, parcelId), DispatchRepository::mapActive).stream().findFirst();</span>
+    }
+
+    public long countAssignments(String state, Long courierId, String trackingPattern) {
+<span class="fc" id="L132">        MapSqlParameterSource params = new MapSqlParameterSource();</span>
+<span class="fc" id="L133">        String where = assignmentWhere(state, courierId, trackingPattern, params);</span>
+<span class="fc" id="L134">        Long total = jdbc.queryForObject(&quot;SELECT count(*) FROM dispatch_assignments a&quot; + where, params, Long.class);</span>
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">        return total == null ? 0 : total;</span>
+    }
+
+    public List&lt;AssignmentRow&gt; findAssignments(String state, Long courierId, String trackingPattern,
+            int limit, long offset) {
+<span class="fc" id="L140">        MapSqlParameterSource params = new MapSqlParameterSource()</span>
+<span class="fc" id="L141">            .addValue(&quot;limit&quot;, limit).addValue(&quot;offset&quot;, offset);</span>
+<span class="fc" id="L142">        String where = assignmentWhere(state, courierId, trackingPattern, params);</span>
+<span class="fc" id="L143">        return jdbc.query(ASSIGNMENT_ROW_SELECT + where</span>
+            + &quot; ORDER BY a.assigned_at DESC, a.assignment_id LIMIT :limit OFFSET :offset&quot;,
+            params, DispatchRepository::mapAssignmentRow);
+    }
+
+    public List&lt;AssignmentRow&gt; parcelAssignments(UUID parcelId) {
+<span class="fc" id="L149">        return jdbc.query(ASSIGNMENT_ROW_SELECT + &quot; WHERE a.parcel_id = :parcelId ORDER BY a.assigned_at, a.assignment_id&quot;,</span>
+<span class="fc" id="L150">            Map.of(&quot;parcelId&quot;, parcelId), DispatchRepository::mapAssignmentRow);</span>
+    }
+
+    /**
+     * Every assignment of a courier profile, with its attempt number among all
+     * assignments of the same parcel.
+     */
+    public List&lt;CourierAssignmentRecord&gt; courierAssignments(Long courierProfileId) {
+<span class="fc" id="L158">        return jdbc.query(&quot;&quot;&quot;</span>
+            SELECT assignment_id, parcel_id, courier_profile_id, courier_user_id, state, version,
+                   assigned_at, attempt_no
+              FROM (
+                  SELECT a.*, row_number() OVER (
+                             PARTITION BY a.parcel_id ORDER BY a.assigned_at, a.assignment_id) AS attempt_no
+                    FROM dispatch_assignments a
+                   WHERE a.parcel_id IN (
+                       SELECT parcel_id FROM dispatch_assignments WHERE courier_profile_id = :courierId)
+              ) numbered
+             WHERE courier_profile_id = :courierId
+             ORDER BY assigned_at, assignment_id
+<span class="fc" id="L170">            &quot;&quot;&quot;, Map.of(&quot;courierId&quot;, courierProfileId), (rs, row) -&gt; new CourierAssignmentRecord(</span>
+<span class="fc" id="L171">                rs.getObject(&quot;assignment_id&quot;, UUID.class), rs.getObject(&quot;parcel_id&quot;, UUID.class),</span>
+<span class="fc" id="L172">                rs.getLong(&quot;courier_profile_id&quot;), rs.getLong(&quot;courier_user_id&quot;),</span>
+<span class="fc" id="L173">                rs.getString(&quot;state&quot;), rs.getLong(&quot;version&quot;),</span>
+<span class="fc" id="L174">                rs.getTimestamp(&quot;assigned_at&quot;).toInstant(), rs.getInt(&quot;attempt_no&quot;)));</span>
+    }
+
+    // ---------------------------------------------------------------- events
+
+    /**
+     * Stores a parcel status event once per event id and applies it to the
+     * parcel's active assignment. Returns false when the event id was already stored.
+     */
+    public boolean applyStatusEvent(ParcelStatusChangedEvent event) {
+<span class="fc" id="L184">        int inserted = jdbc.update(&quot;&quot;&quot;</span>
+            INSERT INTO dispatch_report_events
+                (event_id, event_type, occurred_at, tracking_number, parcel_id, merchant_id,
+                 merchant_order_reference, customer_id, courier_id, old_status, new_status)
+            VALUES (:eventId, :eventType, :occurredAt, :trackingNumber, :parcelId, :merchantId,
+                 :merchantOrderReference, :customerId, :courierId, :oldStatus, :newStatus)
+            ON CONFLICT (event_id) DO NOTHING
+            &quot;&quot;&quot;, new MapSqlParameterSource()
+<span class="fc" id="L192">                .addValue(&quot;eventId&quot;, event.eventId())</span>
+<span class="fc" id="L193">                .addValue(&quot;eventType&quot;, event.eventType())</span>
+<span class="fc" id="L194">                .addValue(&quot;occurredAt&quot;, Timestamp.from(event.occurredAt()))</span>
+<span class="fc" id="L195">                .addValue(&quot;trackingNumber&quot;, event.trackingNumber())</span>
+<span class="fc" id="L196">                .addValue(&quot;parcelId&quot;, event.parcelId())</span>
+<span class="fc" id="L197">                .addValue(&quot;merchantId&quot;, event.merchantId())</span>
+<span class="fc" id="L198">                .addValue(&quot;merchantOrderReference&quot;, event.merchantOrderReference())</span>
+<span class="fc" id="L199">                .addValue(&quot;customerId&quot;, event.customerId())</span>
+<span class="fc" id="L200">                .addValue(&quot;courierId&quot;, event.courierId())</span>
+<span class="fc" id="L201">                .addValue(&quot;oldStatus&quot;, event.oldStatus())</span>
+<span class="fc" id="L202">                .addValue(&quot;newStatus&quot;, event.newStatus()));</span>
+<span class="fc bfc" id="L203" title="All 2 branches covered.">        if (inserted == 0) return false;</span>
+<span class="fc" id="L204">        UUID parcelId = UUID.fromString(event.parcelId());</span>
+<span class="fc bfc" id="L205" title="All 4 branches covered.">        if (&quot;DELIVERED&quot;.equals(event.newStatus()) || &quot;FAILED&quot;.equals(event.newStatus())) {</span>
+            // version is deliberately unchanged: courier-service rejects a retried
+            // submission when the assignment version differs.
+<span class="fc" id="L208">            jdbc.update(&quot;&quot;&quot;</span>
+                UPDATE dispatch_assignments SET state = 'COMPLETED'
+                 WHERE parcel_id = :parcelId AND state = 'ACTIVE'
+<span class="fc" id="L211">                &quot;&quot;&quot;, Map.of(&quot;parcelId&quot;, parcelId));</span>
+<span class="fc bfc" id="L212" title="All 2 branches covered.">        } else if (&quot;CANCELLED&quot;.equals(event.newStatus())) {</span>
+<span class="fc" id="L213">            jdbc.update(&quot;&quot;&quot;</span>
+                UPDATE dispatch_assignments
+                   SET state = 'CANCELLED', cancelled_by = 'parcel-event', cancelled_at = :occurredAt
+                 WHERE parcel_id = :parcelId AND state = 'ACTIVE'
+                &quot;&quot;&quot;, new MapSqlParameterSource(&quot;parcelId&quot;, parcelId)
+<span class="fc" id="L218">                    .addValue(&quot;occurredAt&quot;, Timestamp.from(event.occurredAt())));</span>
+        }
+<span class="fc" id="L220">        return true;</span>
+    }
+
+    public List&lt;StatusHistoryRow&gt; history(UUID parcelId) {
+<span class="fc" id="L224">        return jdbc.query(&quot;&quot;&quot;</span>
+            SELECT old_status, new_status, occurred_at FROM dispatch_report_events
+             WHERE parcel_id = :parcelId ORDER BY occurred_at, event_id
+<span class="fc" id="L227">            &quot;&quot;&quot;, Map.of(&quot;parcelId&quot;, parcelId.toString()), (rs, row) -&gt; new StatusHistoryRow(</span>
+<span class="fc" id="L228">                rs.getString(&quot;old_status&quot;), rs.getString(&quot;new_status&quot;),</span>
+<span class="fc" id="L229">                rs.getTimestamp(&quot;occurred_at&quot;).toInstant()));</span>
+    }
+
+    // ---------------------------------------------------------------- deliveries
+
+    private static final String LATEST_EVENTS = &quot;&quot;&quot;
+        WITH latest AS (
+            SELECT DISTINCT ON (parcel_id) parcel_id, tracking_number, new_status, occurred_at
+              FROM dispatch_report_events
+             ORDER BY parcel_id, occurred_at DESC, event_id DESC
+        )
+        &quot;&quot;&quot;;
+
+    public long countDeliveries(Collection&lt;String&gt; statuses, String trackingPattern) {
+<span class="fc" id="L243">        MapSqlParameterSource params = new MapSqlParameterSource();</span>
+<span class="fc" id="L244">        Long total = jdbc.queryForObject(LATEST_EVENTS + &quot;SELECT count(*) FROM latest l&quot;</span>
+<span class="fc" id="L245">            + deliveryWhere(statuses, trackingPattern, params), params, Long.class);</span>
+<span class="pc bpc" id="L246" title="1 of 2 branches missed.">        return total == null ? 0 : total;</span>
+    }
+
+    public List&lt;DeliveryRow&gt; findDeliveries(Collection&lt;String&gt; statuses, String trackingPattern,
+            int limit, long offset) {
+<span class="fc" id="L251">        MapSqlParameterSource params = new MapSqlParameterSource()</span>
+<span class="fc" id="L252">            .addValue(&quot;limit&quot;, limit).addValue(&quot;offset&quot;, offset);</span>
+<span class="fc" id="L253">        return jdbc.query(LATEST_EVENTS + &quot;&quot;&quot;</span>
+            SELECT l.parcel_id, l.tracking_number, l.new_status, l.occurred_at,
+                   a.courier_profile_id, a.courier_name
+              FROM latest l
+              LEFT JOIN LATERAL (
+                  SELECT courier_profile_id, courier_name FROM dispatch_assignments a
+                   WHERE a.parcel_id::text = l.parcel_id
+                   ORDER BY a.assigned_at DESC, a.assignment_id DESC LIMIT 1
+              ) a ON true
+<span class="fc" id="L262">            &quot;&quot;&quot; + deliveryWhere(statuses, trackingPattern, params)</span>
+            + &quot; ORDER BY l.occurred_at DESC, l.parcel_id LIMIT :limit OFFSET :offset&quot;,
+<span class="fc" id="L264">            params, (rs, row) -&gt; new DeliveryRow(</span>
+<span class="fc" id="L265">                UUID.fromString(rs.getString(&quot;parcel_id&quot;)), rs.getString(&quot;tracking_number&quot;),</span>
+<span class="fc" id="L266">                rs.getString(&quot;new_status&quot;), (Long) rs.getObject(&quot;courier_profile_id&quot;, Long.class),</span>
+<span class="fc" id="L267">                rs.getString(&quot;courier_name&quot;), rs.getTimestamp(&quot;occurred_at&quot;).toInstant()));</span>
+    }
+
+    // ---------------------------------------------------------------- reports
+
+    public List&lt;DeliveryByDay&gt; summaryDeliveriesPerDay(LocalDate from, LocalDate toInclusive) {
+<span class="fc" id="L273">        return jdbc.query(&quot;&quot;&quot;</span>
+            SELECT (days.day AT TIME ZONE 'UTC')::date AS report_date,
+                   count(e.event_id) FILTER (WHERE e.new_status = 'DELIVERED') AS delivered,
+                   count(e.event_id) FILTER (WHERE e.new_status = 'FAILED') AS failed
+              FROM generate_series(
+                  CAST(CAST(:from AS date) AS timestamp) AT TIME ZONE 'UTC',
+                  CAST(CAST(:to AS date) AS timestamp) AT TIME ZONE 'UTC',
+                  interval '1 day') days(day)
+              LEFT JOIN dispatch_report_events e
+                ON e.occurred_at &gt;= days.day AND e.occurred_at &lt; days.day + interval '1 day'
+               AND e.new_status IN ('DELIVERED', 'FAILED')
+             GROUP BY days.day ORDER BY days.day
+<span class="fc" id="L285">            &quot;&quot;&quot;, new MapSqlParameterSource(&quot;from&quot;, from).addValue(&quot;to&quot;, toInclusive),</span>
+            (rs, row) -&gt; {
+<span class="fc" id="L287">                long delivered = rs.getLong(&quot;delivered&quot;);</span>
+<span class="fc" id="L288">                long failed = rs.getLong(&quot;failed&quot;);</span>
+<span class="fc" id="L289">                return new DeliveryByDay(rs.getDate(&quot;report_date&quot;).toLocalDate(), delivered, failed,</span>
+                    delivered + failed);
+            });
+    }
+
+    public List&lt;CountByStatus&gt; summaryCountsByStatus(Instant from, Instant to) {
+<span class="fc" id="L295">        return jdbc.query(&quot;&quot;&quot;</span>
+            SELECT new_status AS status, count(*) AS total
+              FROM dispatch_report_events
+             WHERE occurred_at &gt;= :from AND occurred_at &lt; :to
+             GROUP BY new_status ORDER BY new_status
+<span class="fc" id="L300">            &quot;&quot;&quot;, range(from, to), (rs, row) -&gt; new CountByStatus(</span>
+<span class="fc" id="L301">                rs.getString(&quot;status&quot;), rs.getLong(&quot;total&quot;)));</span>
+    }
+
+    /**
+     * Parcels whose latest status before {@code asOf} is PICKED_UP, IN_TRANSIT or
+     * OUT_FOR_DELIVERY, grouped by the courier named in that event.
+     */
+    public List&lt;ActiveDeliveriesByCourier&gt; summaryActiveByCourier(Instant asOf) {
+<span class="fc" id="L309">        return jdbc.query(&quot;&quot;&quot;</span>
+            WITH latest AS (
+                SELECT DISTINCT ON (parcel_id) parcel_id, courier_id, new_status
+                  FROM dispatch_report_events
+                 WHERE occurred_at &lt; :asOf
+                 ORDER BY parcel_id, occurred_at DESC, event_id DESC
+            ), active AS (
+                SELECT courier_id, count(*) AS total
+                  FROM latest
+                 WHERE courier_id IS NOT NULL
+                   AND new_status IN ('PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY')
+                 GROUP BY courier_id
+            )
+            SELECT active.courier_id, active.total, c.courier_profile_id, c.courier_name
+              FROM active
+              LEFT JOIN LATERAL (
+                  SELECT courier_profile_id, courier_name FROM dispatch_assignments a
+                   WHERE a.courier_user_id::text = active.courier_id
+                   ORDER BY a.assigned_at DESC LIMIT 1
+              ) c ON true
+             ORDER BY active.total DESC, active.courier_id
+<span class="fc" id="L330">            &quot;&quot;&quot;, Map.of(&quot;asOf&quot;, Timestamp.from(asOf)), (rs, row) -&gt; new ActiveDeliveriesByCourier(</span>
+<span class="fc" id="L331">                (Long) rs.getObject(&quot;courier_profile_id&quot;, Long.class), rs.getString(&quot;courier_id&quot;),</span>
+<span class="fc" id="L332">                rs.getString(&quot;courier_name&quot;), rs.getLong(&quot;total&quot;)));</span>
+    }
+
+    // ---------------------------------------------------------------- helpers
+
+<span class="fc" id="L337">    public record ActiveAssignment(UUID assignmentId, String trackingNumber, Long courierProfileId,</span>
+            Long courierUserId, String courierName, String assignedBy, Instant assignedAt) { }
+
+<span class="fc" id="L340">    public record CourierAssignmentRecord(UUID assignmentId, UUID parcelId, Long courierProfileId,</span>
+            Long courierUserId, String state, long version, Instant assignedAt, int attemptNo) {
+        public LocalDate deliveryDate() {
+<span class="fc" id="L343">            return assignedAt.atZone(ZoneOffset.UTC).toLocalDate();</span>
+        }
+    }
+
+    private static String assignmentWhere(String state, Long courierId, String trackingPattern,
+            MapSqlParameterSource params) {
+<span class="fc" id="L349">        StringBuilder where = new StringBuilder(&quot; WHERE 1=1&quot;);</span>
+<span class="pc bpc" id="L350" title="1 of 2 branches missed.">        if (state != null) {</span>
+<span class="fc" id="L351">            where.append(&quot; AND a.state = :state&quot;);</span>
+<span class="fc" id="L352">            params.addValue(&quot;state&quot;, state);</span>
+        }
+<span class="pc bpc" id="L354" title="1 of 2 branches missed.">        if (courierId != null) {</span>
+<span class="nc" id="L355">            where.append(&quot; AND a.courier_profile_id = :courierId&quot;);</span>
+<span class="nc" id="L356">            params.addValue(&quot;courierId&quot;, courierId);</span>
+        }
+<span class="pc bpc" id="L358" title="1 of 2 branches missed.">        if (trackingPattern != null) {</span>
+<span class="nc" id="L359">            where.append(&quot; AND a.tracking_number ILIKE :tracking ESCAPE '!'&quot;);</span>
+<span class="nc" id="L360">            params.addValue(&quot;tracking&quot;, trackingPattern);</span>
+        }
+<span class="fc" id="L362">        return where.toString();</span>
+    }
+
+    private static String deliveryWhere(Collection&lt;String&gt; statuses, String trackingPattern,
+            MapSqlParameterSource params) {
+<span class="fc" id="L367">        StringBuilder where = new StringBuilder(&quot; WHERE l.new_status IN (:statuses)&quot;);</span>
+<span class="fc" id="L368">        params.addValue(&quot;statuses&quot;, statuses);</span>
+<span class="fc bfc" id="L369" title="All 2 branches covered.">        if (trackingPattern != null) {</span>
+<span class="fc" id="L370">            where.append(&quot; AND l.tracking_number ILIKE :tracking ESCAPE '!'&quot;);</span>
+<span class="fc" id="L371">            params.addValue(&quot;tracking&quot;, trackingPattern);</span>
+        }
+<span class="fc" id="L373">        return where.toString();</span>
+    }
+
+    private static MapSqlParameterSource range(Instant from, Instant to) {
+<span class="fc" id="L377">        return new MapSqlParameterSource(&quot;from&quot;, Timestamp.from(from)).addValue(&quot;to&quot;, Timestamp.from(to));</span>
+    }
+
+    private static ActiveAssignment mapActive(ResultSet rs, int row) throws SQLException {
+<span class="fc" id="L381">        return new ActiveAssignment(rs.getObject(&quot;assignment_id&quot;, UUID.class), rs.getString(&quot;tracking_number&quot;),</span>
+<span class="fc" id="L382">            rs.getLong(&quot;courier_profile_id&quot;), rs.getLong(&quot;courier_user_id&quot;), rs.getString(&quot;courier_name&quot;),</span>
+<span class="fc" id="L383">            rs.getString(&quot;assigned_by&quot;), rs.getTimestamp(&quot;assigned_at&quot;).toInstant());</span>
+    }
+
+    private static AssignmentRow mapAssignmentRow(ResultSet rs, int row) throws SQLException {
+<span class="fc" id="L387">        return new AssignmentRow(rs.getObject(&quot;assignment_id&quot;, UUID.class), rs.getObject(&quot;parcel_id&quot;, UUID.class),</span>
+<span class="fc" id="L388">            rs.getString(&quot;tracking_number&quot;), rs.getLong(&quot;courier_profile_id&quot;), rs.getString(&quot;courier_name&quot;),</span>
+<span class="fc" id="L389">            rs.getString(&quot;assigned_by&quot;), rs.getTimestamp(&quot;assigned_at&quot;).toInstant(), rs.getString(&quot;state&quot;),</span>
+<span class="fc" id="L390">            rs.getString(&quot;parcel_status&quot;));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

@@ -1,0 +1,194 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CourierDeliveryEvents.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">courier-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.courier.event</a> &gt; <span class="el_source">CourierDeliveryEvents.java</span></div><h1>CourierDeliveryEvents.java</h1><pre class="source lang-java linenums">package com.swiftdrop.courier.event;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.swiftdrop.courier.config.CourierRabbitConfig;
+import java.math.BigDecimal;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.Set;
+import java.util.UUID;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
+
+/** Owner events are projected only into courier_db; no cross-database queries. */
+@Service
+public class CourierDeliveryEvents {
+<span class="fc" id="L21">    private static final Set&lt;String&gt; STATUSES = Set.of(&quot;CREATED&quot;, &quot;PICKED_UP&quot;, &quot;IN_TRANSIT&quot;, &quot;OUT_FOR_DELIVERY&quot;, &quot;DELIVERED&quot;, &quot;FAILED&quot;, &quot;CANCELLED&quot;);</span>
+    private final JdbcTemplate jdbc;
+    private final ObjectMapper mapper;
+
+<span class="fc" id="L25">    public CourierDeliveryEvents(JdbcTemplate jdbc, ObjectMapper mapper) {</span>
+<span class="fc" id="L26">        this.jdbc = jdbc;</span>
+<span class="fc" id="L27">        this.mapper = mapper;</span>
+<span class="fc" id="L28">    }</span>
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+<span class="fc" id="L31">    public record Assigned(UUID eventId, String eventType, Instant occurredAt, UUID parcelId,</span>
+        String trackingNumber, String courierId, String previousCourierId, String assignedBy,
+        UUID assignmentId, LocalDate deliveryDate, Integer attemptNo, Long version, AssignedParcel parcel, String courierUserId) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+<span class="fc" id="L36">    public record AssignedParcel(String pickupAddress,String deliveryAddress,String receiverName,</span>
+        String receiverPhone,BigDecimal weight,String size) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+<span class="fc" id="L40">    public record Status(UUID eventId, String eventType, Instant occurredAt, UUID parcelId,</span>
+        String trackingNumber, String oldStatus, String newStatus,String locationDescription,Integer attemptNo,String actorRole,String merchantId) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+<span class="fc" id="L44">    public record History(UUID id,String status,Instant recordedAt,String locationDescription,Integer attemptNo,String actorRole) {}</span>
+
+    /** Optional snapshot handoff. Existing Parcel outbox can carry demo snapshots unchanged. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+<span class="fc" id="L48">    public record Snapshot(UUID eventId, String eventType, Instant occurredAt, UUID parcelId,</span>
+        String trackingNumber, String pickupAddress, String deliveryAddress, String receiverName,
+        String receiverPhone, BigDecimal weight, String size, LocalDate deliveryDate,
+        String pickupContactName,String pickupContactPhone,String contentsDescription,
+        BigDecimal lengthCm,BigDecimal widthCm,BigDecimal heightCm,java.util.List&lt;History&gt; history,Long merchantUserId) {}
+
+    @RabbitListener(queues = CourierRabbitConfig.QUEUE)
+    @Transactional
+    public void receive(Message message) {
+<span class="fc" id="L57">        String route = message.getMessageProperties().getReceivedRoutingKey();</span>
+<span class="pc bpc" id="L58" title="1 of 4 branches missed.">        switch (route) {</span>
+<span class="fc" id="L59">            case CourierRabbitConfig.ASSIGNED -&gt; assigned(mapper.readValue(message.getBody(), Assigned.class));</span>
+<span class="fc" id="L60">            case CourierRabbitConfig.STATUS -&gt; status(mapper.readValue(message.getBody(), Status.class));</span>
+<span class="fc" id="L61">            case CourierRabbitConfig.SNAPSHOT -&gt; snapshot(mapper.readValue(message.getBody(), Snapshot.class));</span>
+<span class="nc" id="L62">            default -&gt; throw new IllegalArgumentException(&quot;Unsupported courier event route&quot;);</span>
+        }
+<span class="fc" id="L64">    }</span>
+
+    private boolean begin(UUID eventId, String type, String expected, Instant at, UUID parcelId, String tracking, String route) {
+<span class="pc bpc" id="L67" title="5 of 10 branches missed.">        if (eventId == null || !expected.equals(type) || at == null || parcelId == null</span>
+<span class="pc bpc" id="L68" title="2 of 4 branches missed.">                || tracking == null || tracking.isBlank() || tracking.length() &gt; 40) {</span>
+<span class="nc" id="L69">            throw new IllegalArgumentException(&quot;Invalid courier delivery event envelope&quot;);</span>
+        }
+<span class="fc bfc" id="L71" title="All 2 branches covered.">        if (jdbc.update(&quot;INSERT INTO courier_delivery_inbox(event_id,routing_key,occurred_at) VALUES (?,?,?) ON CONFLICT DO NOTHING&quot;,</span>
+<span class="fc" id="L72">                eventId, route, Timestamp.from(at)) == 0) return false;</span>
+<span class="fc" id="L73">        jdbc.update(&quot;INSERT INTO courier_delivery_parcels(parcel_id,tracking_number) VALUES (?,?) ON CONFLICT DO NOTHING&quot;, parcelId, tracking);</span>
+        // Serialize all event streams for a parcel, including concurrent first deliveries.
+<span class="fc" id="L75">        jdbc.queryForObject(&quot;SELECT parcel_id FROM courier_delivery_parcels WHERE parcel_id=? FOR UPDATE&quot;, UUID.class, parcelId);</span>
+<span class="fc" id="L76">        return true;</span>
+    }
+
+    private void assigned(Assigned event) {
+<span class="pc bpc" id="L80" title="4 of 6 branches missed.">        if (event.courierId() == null || event.attemptNo() != null &amp;&amp; event.attemptNo() &lt; 1</span>
+<span class="pc bpc" id="L81" title="3 of 4 branches missed.">                || event.version() != null &amp;&amp; event.version() &lt; 0) throw new IllegalArgumentException(&quot;Invalid assignment event&quot;);</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">        if (!begin(event.eventId(), event.eventType(), &quot;ParcelAssigned&quot;, event.occurredAt(), event.parcelId(), event.trackingNumber(), CourierRabbitConfig.ASSIGNED)) return;</span>
+<span class="fc" id="L83">        UUID courierReference=resolveCourier(event.courierId(),event.courierUserId());</span>
+<span class="fc" id="L84">        jdbc.update(&quot;&quot;&quot;</span>
+            INSERT INTO courier_delivery_assignments(parcel_id,projection_id,dispatch_assignment_id,dispatch_courier_id,
+                assigned_at,delivery_date,attempt_no,assignment_version) VALUES (?,?,?,?,?,?,?,?)
+            ON CONFLICT (parcel_id) DO UPDATE SET projection_id=excluded.projection_id,
+                dispatch_assignment_id=excluded.dispatch_assignment_id,dispatch_courier_id=excluded.dispatch_courier_id,
+                assigned_at=excluded.assigned_at,delivery_date=excluded.delivery_date,
+                attempt_no=CASE WHEN CAST(? AS BIGINT) IS NOT NULL THEN excluded.attempt_no
+                    WHEN (SELECT status FROM courier_delivery_parcels WHERE parcel_id=excluded.parcel_id)='FAILED'
+                    THEN courier_delivery_assignments.attempt_no+1 ELSE courier_delivery_assignments.attempt_no END,
+                assignment_version=CASE WHEN CAST(? AS BIGINT) IS NOT NULL THEN excluded.assignment_version
+                    ELSE courier_delivery_assignments.assignment_version+1 END,
+                managed_locally=false,active=true
+            WHERE courier_delivery_assignments.assigned_at &lt; excluded.assigned_at
+<span class="fc" id="L97">            &quot;&quot;&quot;, event.parcelId(), event.eventId(), event.assignmentId(), courierReference, Timestamp.from(event.occurredAt()),</span>
+<span class="pc bpc" id="L98" title="2 of 4 branches missed.">            event.deliveryDate(), event.attemptNo() == null ? 1 : event.attemptNo(), event.version() == null ? 0 : event.version(), event.attemptNo(),event.version());</span>
+        // Dispatch currently accepts assignment only while Parcel is CREATED.
+        // Preserve any later canonical Parcel status that has already arrived.
+<span class="fc" id="L101">        jdbc.update(&quot;&quot;&quot;</span>
+            UPDATE courier_delivery_parcels SET status='CREATED',status_at=?
+            WHERE parcel_id=? AND (status_at IS NULL OR status_at &lt; ?)
+<span class="fc" id="L104">            &quot;&quot;&quot;, Timestamp.from(event.occurredAt()), event.parcelId(), Timestamp.from(event.occurredAt()));</span>
+<span class="fc bfc" id="L105" title="All 2 branches covered.">        if (event.parcel()!=null) {</span>
+<span class="fc" id="L106">            var p=event.parcel();</span>
+<span class="fc" id="L107">            jdbc.update(&quot;&quot;&quot;</span>
+                UPDATE courier_delivery_parcels SET pickup_address=coalesce(?,pickup_address),delivery_address=coalesce(?,delivery_address),
+                    receiver_name=coalesce(?,receiver_name),receiver_phone=coalesce(?,receiver_phone),
+                    weight=coalesce(?,weight),size=coalesce(?,size),snapshot_at=?
+                WHERE parcel_id=? AND (snapshot_at IS NULL OR snapshot_at &lt; ?)
+<span class="fc" id="L112">                &quot;&quot;&quot;,p.pickupAddress(),p.deliveryAddress(),p.receiverName(),p.receiverPhone(),p.weight(),p.size(),</span>
+<span class="fc" id="L113">                Timestamp.from(event.occurredAt()),event.parcelId(),Timestamp.from(event.occurredAt()));</span>
+        }
+<span class="fc" id="L115">    }</span>
+
+    private void status(Status event) {
+<span class="pc bpc" id="L118" title="1 of 4 branches missed.">        if (!STATUSES.contains(event.newStatus() == null ? &quot;&quot; : event.newStatus())</span>
+<span class="pc bpc" id="L119" title="3 of 4 branches missed.">                || (&quot;CREATED&quot;.equals(event.newStatus()) ? event.oldStatus() != null</span>
+<span class="pc bpc" id="L120" title="2 of 4 branches missed.">                    : event.oldStatus() == null || event.oldStatus().isBlank())) throw new IllegalArgumentException(&quot;Invalid status event&quot;);</span>
+<span class="pc bpc" id="L121" title="1 of 2 branches missed.">        if (!begin(event.eventId(), event.eventType(), &quot;ParcelStatusChanged&quot;, event.occurredAt(), event.parcelId(), event.trackingNumber(), CourierRabbitConfig.STATUS)) return;</span>
+        // Parcel's existing merchantId is the numeric Identity user ID (verified
+        // from its creation contract), not a Merchant business-profile ID.
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">        if(event.merchantId()!=null) {</span>
+            try {
+<span class="nc" id="L126">                Long merchant=Long.valueOf(event.merchantId());</span>
+<span class="nc bnc" id="L127" title="All 4 branches missed.">                if(merchant&lt;=0||!merchant.toString().equals(event.merchantId()))throw new NumberFormatException();</span>
+<span class="nc" id="L128">                merchantOwner(event.parcelId(),merchant);</span>
+<span class="nc" id="L129">            } catch(NumberFormatException e) {throw new IllegalArgumentException(&quot;Invalid merchant identity in Parcel event&quot;);}</span>
+        }
+<span class="fc" id="L131">        saveHistory(event.parcelId(),new History(event.eventId(),event.newStatus(),event.occurredAt(),event.locationDescription(),event.attemptNo(),event.actorRole()));</span>
+<span class="fc" id="L132">        jdbc.update(&quot;&quot;&quot;</span>
+            UPDATE courier_delivery_parcels SET status=?,status_at=?
+            WHERE parcel_id=? AND (status_at IS NULL OR status_at &lt; ?)
+<span class="fc" id="L135">            &quot;&quot;&quot;, event.newStatus(), Timestamp.from(event.occurredAt()), event.parcelId(), Timestamp.from(event.occurredAt()));</span>
+<span class="fc" id="L136">    }</span>
+
+    private void snapshot(Snapshot event) {
+<span class="pc bpc" id="L139" title="1 of 4 branches missed.">        if (event.weight() != null &amp;&amp; event.weight().signum() &lt;= 0) throw new IllegalArgumentException(&quot;Invalid parcel weight&quot;);</span>
+<span class="pc bpc" id="L140" title="3 of 4 branches missed.">        if(event.merchantUserId()!=null&amp;&amp;event.merchantUserId()&lt;=0)throw new IllegalArgumentException(&quot;Invalid merchant user ID&quot;);</span>
+<span class="pc bpc" id="L141" title="1 of 2 branches missed.">        if (!begin(event.eventId(), event.eventType(), &quot;ParcelDeliverySnapshot&quot;, event.occurredAt(), event.parcelId(), event.trackingNumber(), CourierRabbitConfig.SNAPSHOT)) return;</span>
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">        if(event.merchantUserId()!=null)merchantOwner(event.parcelId(),event.merchantUserId());</span>
+<span class="fc" id="L143">        jdbc.update(&quot;&quot;&quot;</span>
+            UPDATE courier_delivery_parcels SET tracking_number=?,pickup_address=?,delivery_address=?,receiver_name=?,
+                receiver_phone=?,weight=?,size=?,delivery_date=?,snapshot_at=?,
+                pickup_contact_name=coalesce(?,pickup_contact_name),pickup_contact_phone=coalesce(?,pickup_contact_phone),
+                contents_description=coalesce(?,contents_description),length_cm=coalesce(?,length_cm),width_cm=coalesce(?,width_cm),height_cm=coalesce(?,height_cm)
+            WHERE parcel_id=? AND (snapshot_at IS NULL OR snapshot_at &lt; ?)
+<span class="fc" id="L149">            &quot;&quot;&quot;, event.trackingNumber(), event.pickupAddress(), event.deliveryAddress(), event.receiverName(), event.receiverPhone(),</span>
+<span class="fc" id="L150">            event.weight(), event.size(), event.deliveryDate(), Timestamp.from(event.occurredAt()),event.pickupContactName(),event.pickupContactPhone(),</span>
+<span class="fc" id="L151">            event.contentsDescription(),event.lengthCm(),event.widthCm(),event.heightCm(),event.parcelId(), Timestamp.from(event.occurredAt()));</span>
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">        if(event.history()!=null) {</span>
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">            if(event.history().size()&gt;500)throw new IllegalArgumentException(&quot;History snapshot is too large&quot;);</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">            for(var entry:event.history())saveHistory(event.parcelId(),entry);</span>
+        }
+<span class="fc" id="L156">    }</span>
+
+    /** Current Dispatch sends numeric profile and Identity IDs; UUID-only events are legacy. */
+    private UUID resolveCourier(String id,String userId) {
+<span class="fc bfc" id="L160" title="All 2 branches covered.">        if(id.matches(&quot;[1-9][0-9]*&quot;)) {</span>
+<span class="pc bpc" id="L161" title="2 of 4 branches missed.">            if(userId==null||!userId.matches(&quot;[1-9][0-9]*&quot;))</span>
+<span class="nc" id="L162">                throw new IllegalArgumentException(&quot;Dispatch assignment requires a courier Identity user ID&quot;);</span>
+            try {
+<span class="fc" id="L164">                var rows=jdbc.query(&quot;SELECT dispatch_courier_id FROM courier_profiles WHERE id=? AND user_id=?&quot;,</span>
+<span class="fc" id="L165">                    (rs,row)-&gt;rs.getObject(1,UUID.class),Long.valueOf(id),Long.valueOf(userId));</span>
+<span class="fc bfc" id="L166" title="All 2 branches covered.">                if(rows.isEmpty())throw new IllegalArgumentException(&quot;Dispatch courier profile and Identity do not match&quot;);</span>
+<span class="fc" id="L167">                return rows.getFirst();</span>
+<span class="nc" id="L168">            } catch(NumberFormatException e) {throw new IllegalArgumentException(&quot;Invalid numeric courier identity&quot;);}</span>
+        }
+<span class="pc bpc" id="L170" title="1 of 2 branches missed.">        if(userId!=null)throw new IllegalArgumentException(&quot;Invalid Dispatch courier profile ID&quot;);</span>
+<span class="fc" id="L171">        try {return UUID.fromString(id);}</span>
+<span class="nc" id="L172">        catch(IllegalArgumentException e) {throw new IllegalArgumentException(&quot;Invalid legacy courier reference&quot;);}</span>
+    }
+    private void merchantOwner(UUID parcelId,Long merchant) {
+<span class="nc" id="L175">        var current=jdbc.queryForObject(&quot;SELECT merchant_user_id FROM courier_delivery_parcels WHERE parcel_id=?&quot;,Long.class,parcelId);</span>
+<span class="nc bnc" id="L176" title="All 4 branches missed.">        if(current!=null&amp;&amp;!current.equals(merchant))throw new IllegalArgumentException(&quot;Conflicting merchant user identity&quot;);</span>
+<span class="nc" id="L177">        jdbc.update(&quot;UPDATE courier_delivery_parcels SET merchant_user_id=coalesce(merchant_user_id,?) WHERE parcel_id=?&quot;,merchant,parcelId);</span>
+<span class="nc" id="L178">    }</span>
+
+    private void saveHistory(UUID parcelId,History entry) {
+<span class="pc bpc" id="L181" title="4 of 10 branches missed.">        if(entry==null||entry.id()==null||entry.recordedAt()==null||!STATUSES.contains(entry.status()==null?&quot;&quot;:entry.status())</span>
+<span class="pc bpc" id="L182" title="1 of 4 branches missed.">                ||entry.attemptNo()!=null&amp;&amp;entry.attemptNo()&lt;1)throw new IllegalArgumentException(&quot;Invalid parcel history&quot;);</span>
+<span class="fc" id="L183">        jdbc.update(&quot;&quot;&quot;</span>
+            INSERT INTO courier_delivery_history(id,parcel_id,status,recorded_at,location_description,attempt_no,actor_role)
+            VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET
+                location_description=coalesce(courier_delivery_history.location_description,excluded.location_description),
+                attempt_no=coalesce(courier_delivery_history.attempt_no,excluded.attempt_no),
+                actor_role=coalesce(courier_delivery_history.actor_role,excluded.actor_role)
+            WHERE courier_delivery_history.parcel_id=excluded.parcel_id
+              AND courier_delivery_history.status=excluded.status AND courier_delivery_history.recorded_at=excluded.recorded_at
+<span class="fc" id="L191">            &quot;&quot;&quot;,entry.id(),parcelId,entry.status(),Timestamp.from(entry.recordedAt()),entry.locationDescription(),entry.attemptNo(),entry.actorRole());</span>
+<span class="fc" id="L192">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

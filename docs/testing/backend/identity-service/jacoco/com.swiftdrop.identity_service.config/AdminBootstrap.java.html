@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AdminBootstrap.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.identity_service.config</a> &gt; <span class="el_source">AdminBootstrap.java</span></div><h1>AdminBootstrap.java</h1><pre class="source lang-java linenums">package com.swiftdrop.identity_service.config;
+
+import com.swiftdrop.identity_service.entity.Role;
+import com.swiftdrop.identity_service.entity.User;
+import com.swiftdrop.identity_service.entity.UserStatus;
+import com.swiftdrop.identity_service.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+
+import java.util.Locale;
+
+/**
+ * Creates the first administrator from the environment, because no API can:
+ * there is no public way to become an ADMIN, and creating one through the API
+ * needs an existing ADMIN.
+ *
+ * &lt;p&gt;Runs only when both ADMIN_BOOTSTRAP_EMAIL and ADMIN_BOOTSTRAP_PASSWORD are
+ * set; startup fails if only one is, or if the password is too short. It never
+ * changes an existing account. An existing ADMIN is left untouched; an
+ * existing non-admin causes startup to fail because silently continuing would
+ * leave the installation without the administrator the operator configured.
+ * Remove the two variables once the administrator exists.
+ */
+@Component
+public class AdminBootstrap implements ApplicationRunner {
+
+    static final int PASSWORD_MIN = 12;
+    static final int PASSWORD_MAX = 72;
+
+<span class="fc" id="L37">    private static final Logger log = LoggerFactory.getLogger(AdminBootstrap.class);</span>
+
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final String email;
+    private final String password;
+    private final String name;
+
+    public AdminBootstrap(UserRepository userRepository, PasswordEncoder passwordEncoder,
+            @Value(&quot;${swiftdrop.admin.bootstrap-email:}&quot;) String email,
+            @Value(&quot;${swiftdrop.admin.bootstrap-password:}&quot;) String password,
+<span class="fc" id="L48">            @Value(&quot;${swiftdrop.admin.bootstrap-name:SwiftDrop Administrator}&quot;) String name) {</span>
+<span class="fc" id="L49">        this.userRepository = userRepository;</span>
+<span class="fc" id="L50">        this.passwordEncoder = passwordEncoder;</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        this.email = email == null ? &quot;&quot; : email.trim().toLowerCase(Locale.ROOT);</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">        this.password = password == null ? &quot;&quot; : password;</span>
+<span class="fc" id="L53">        this.name = name;</span>
+<span class="fc" id="L54">    }</span>
+
+    @Override
+    @Transactional
+    public void run(ApplicationArguments args) {
+<span class="fc" id="L59">        boolean hasEmail = StringUtils.hasText(email);</span>
+<span class="fc" id="L60">        boolean hasPassword = StringUtils.hasText(password);</span>
+<span class="fc bfc" id="L61" title="All 4 branches covered.">        if (!hasEmail &amp;&amp; !hasPassword) {</span>
+<span class="fc" id="L62">            return;</span>
+        }
+<span class="fc bfc" id="L64" title="All 4 branches covered.">        if (!hasEmail || !hasPassword) {</span>
+<span class="fc" id="L65">            throw new IllegalStateException(</span>
+                &quot;ADMIN_BOOTSTRAP_EMAIL and ADMIN_BOOTSTRAP_PASSWORD must be set together&quot;);
+        }
+<span class="pc bpc" id="L68" title="1 of 4 branches missed.">        if (!email.contains(&quot;@&quot;) || email.length() &gt; 255) {</span>
+<span class="fc" id="L69">            throw new IllegalStateException(&quot;ADMIN_BOOTSTRAP_EMAIL must be an email address&quot;);</span>
+        }
+<span class="pc bpc" id="L71" title="1 of 4 branches missed.">        if (password.length() &lt; PASSWORD_MIN || password.length() &gt; PASSWORD_MAX) {</span>
+<span class="fc" id="L72">            throw new IllegalStateException(&quot;ADMIN_BOOTSTRAP_PASSWORD must be &quot;</span>
+                + PASSWORD_MIN + &quot; to &quot; + PASSWORD_MAX + &quot; characters&quot;);
+        }
+
+<span class="fc" id="L76">        var existing = userRepository.findByEmail(email);</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">        if (existing.isPresent()) {</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">            if (existing.get().getRole() != Role.ADMIN) {</span>
+<span class="fc" id="L79">                throw new IllegalStateException(</span>
+                    &quot;Admin bootstrap failed: the bootstrap email belongs to an existing &quot;
+<span class="fc" id="L81">                    + &quot;non-admin account (role &quot; + existing.get().getRole()</span>
+                    + &quot;). Remove ADMIN_BOOTSTRAP_EMAIL or resolve the conflict.&quot;);
+            }
+<span class="fc" id="L84">            log.info(&quot;Admin bootstrap skipped: the administrator account already exists&quot;);</span>
+<span class="fc" id="L85">            return;</span>
+        }
+<span class="fc bfc" id="L87" title="All 2 branches covered.">        if (userRepository.existsByRole(Role.ADMIN)) {</span>
+<span class="fc" id="L88">            log.info(&quot;Admin bootstrap skipped: an administrator account already exists&quot;);</span>
+<span class="fc" id="L89">            return;</span>
+        }
+<span class="fc" id="L91">        userRepository.save(new User(name.trim(), email, passwordEncoder.encode(password),</span>
+            Role.ADMIN, UserStatus.ACTIVE));
+<span class="fc" id="L93">        log.info(&quot;Admin bootstrap: created the initial administrator account&quot;);</span>
+<span class="fc" id="L94">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

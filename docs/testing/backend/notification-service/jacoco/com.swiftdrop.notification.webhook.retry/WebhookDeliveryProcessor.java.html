@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhookDeliveryProcessor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">notification-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.notification.webhook.retry</a> &gt; <span class="el_source">WebhookDeliveryProcessor.java</span></div><h1>WebhookDeliveryProcessor.java</h1><pre class="source lang-java linenums">package com.swiftdrop.notification.webhook.retry;
+
+import com.swiftdrop.notification.webhook.delivery.WebhookHttpSender;
+import java.net.URI;
+import java.time.Clock;
+import java.time.Instant;
+import java.util.Locale;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+/** One bounded delivery attempt; persistence and scheduling are separate. */
+public final class WebhookDeliveryProcessor {
+    private final MerchantWebhookSettingsLookup settings;
+    private final WebhookHttpSender sender;
+    private final WebhookRetryPolicy retries;
+    private final Clock clock;
+    private final Set&lt;String&gt; allowedOrigins;
+<span class="fc" id="L18">    private static final tools.jackson.databind.ObjectMapper JSON = new tools.jackson.databind.ObjectMapper();</span>
+
+    public WebhookDeliveryProcessor(MerchantWebhookSettingsLookup settings,
+            WebhookHttpSender sender, WebhookRetryPolicy retries,
+<span class="fc" id="L22">            Clock clock, Set&lt;String&gt; allowedOrigins) {</span>
+<span class="fc" id="L23">        this.settings = settings;</span>
+<span class="fc" id="L24">        this.sender = sender;</span>
+<span class="fc" id="L25">        this.retries = retries;</span>
+<span class="fc" id="L26">        this.clock = clock;</span>
+<span class="fc" id="L27">        this.allowedOrigins = allowedOrigins.stream()</span>
+<span class="fc" id="L28">                .map(URI::create).map(WebhookDeliveryProcessor::origin)</span>
+<span class="fc" id="L29">                .collect(Collectors.toUnmodifiableSet());</span>
+<span class="pc bpc" id="L30" title="1 of 2 branches missed.">        if (this.allowedOrigins.isEmpty()) {</span>
+<span class="nc" id="L31">            throw new IllegalArgumentException(&quot;Explicit merchant origins are required&quot;);</span>
+        }
+<span class="fc" id="L33">    }</span>
+
+    public Outcome attempt(WebhookDelivery delivery) throws InterruptedException {
+<span class="fc" id="L36">        int attemptNumber = delivery.attemptCount() + 1;</span>
+<span class="fc" id="L37">        Instant attemptedAt = clock.instant();</span>
+        WebhookHttpSender.SendResult result;
+        try {
+<span class="fc" id="L40">            var found = settings.findForMerchant(delivery.merchantId());</span>
+<span class="pc bpc" id="L41" title="1 of 4 branches missed.">            if (found.isEmpty() || !found.get().enabled()) {</span>
+<span class="fc" id="L42">                return new Outcome(&quot;SKIPPED&quot;, attemptedAt, null, null, &quot;WEBHOOK_DISABLED&quot;);</span>
+            }
+<span class="fc" id="L44">            var config = found.get();</span>
+<span class="fc bfc" id="L45" title="All 2 branches covered.">            if (config.events() != null) {</span>
+<span class="fc" id="L46">                var payload = JSON.readTree(delivery.payload());</span>
+<span class="fc" id="L47">                boolean testEvent = &quot;WebhookTest&quot;.equals(payload.path(&quot;eventType&quot;).asText());</span>
+<span class="fc bfc" id="L48" title="All 4 branches covered.">                if (!testEvent &amp;&amp; !config.events().contains(payload.path(&quot;newStatus&quot;).asText())) {</span>
+<span class="fc" id="L49">                    return new Outcome(&quot;SKIPPED&quot;, attemptedAt, null, null, &quot;EVENT_NOT_SUBSCRIBED&quot;);</span>
+                }
+            }
+<span class="fc" id="L52">            URI endpoint = config.endpoint();</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">            if (!allowedOrigins.contains(origin(endpoint))) {</span>
+<span class="fc" id="L54">                return new Outcome(&quot;FAILED&quot;, attemptedAt, null, null, &quot;ENDPOINT_NOT_ALLOWED&quot;);</span>
+            }
+<span class="fc" id="L56">            result = sender.send(endpoint, config.signingSecret(),</span>
+<span class="fc" id="L57">                    delivery.eventId().toString(), delivery.payload());</span>
+<span class="nc" id="L58">        } catch (IllegalArgumentException exception) {</span>
+<span class="nc" id="L59">            return new Outcome(&quot;FAILED&quot;, attemptedAt, null, null, &quot;INVALID_SETTINGS&quot;);</span>
+<span class="fc" id="L60">        } catch (RuntimeException exception) {</span>
+            // Never persist/log exception text: internal responses may contain secrets.
+<span class="fc" id="L62">            result = new WebhookHttpSender.SendResult(false, null, &quot;DEPENDENCY_ERROR&quot;);</span>
+<span class="fc" id="L63">        }</span>
+<span class="fc bfc" id="L64" title="All 2 branches covered.">        if (result.successful()) {</span>
+<span class="fc" id="L65">            return new Outcome(&quot;DELIVERED&quot;, attemptedAt, null, result.httpStatus(), null);</span>
+        }
+<span class="fc bfc" id="L67" title="All 2 branches covered.">        if (retries.exhausted(attemptNumber)) {</span>
+<span class="fc" id="L68">            return new Outcome(&quot;FAILED&quot;, attemptedAt, null,</span>
+<span class="fc" id="L69">                    result.httpStatus(), result.failureCode());</span>
+        }
+<span class="fc" id="L71">        return new Outcome(&quot;RETRY_SCHEDULED&quot;, attemptedAt,</span>
+<span class="fc" id="L72">                clock.instant().plus(retries.delayAfter(attemptNumber)),</span>
+<span class="fc" id="L73">                result.httpStatus(), result.failureCode());</span>
+    }
+
+    private static String origin(URI uri) {
+<span class="pc bpc" id="L77" title="3 of 6 branches missed.">        if (uri == null || uri.getHost() == null || uri.getUserInfo() != null</span>
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">                || uri.getFragment() != null) {</span>
+<span class="nc" id="L79">            throw new IllegalArgumentException(&quot;Invalid webhook endpoint&quot;);</span>
+        }
+<span class="fc" id="L81">        String scheme = uri.getScheme().toLowerCase(Locale.ROOT);</span>
+<span class="fc" id="L82">        String host = uri.getHost().toLowerCase(Locale.ROOT);</span>
+<span class="fc bfc" id="L83" title="All 2 branches covered.">        boolean localDemo = scheme.equals(&quot;http&quot;)</span>
+<span class="pc bpc" id="L84" title="3 of 4 branches missed.">                &amp;&amp; (host.equals(&quot;127.0.0.1&quot;) || host.equals(&quot;localhost&quot;));</span>
+<span class="pc bpc" id="L85" title="1 of 4 branches missed.">        if (!scheme.equals(&quot;https&quot;) &amp;&amp; !localDemo) {</span>
+<span class="nc" id="L86">            throw new IllegalArgumentException(&quot;HTTPS is required except for local demos&quot;);</span>
+        }
+<span class="pc bpc" id="L88" title="1 of 4 branches missed.">        int port = uri.getPort() == -1 ? (scheme.equals(&quot;https&quot;) ? 443 : 80) : uri.getPort();</span>
+<span class="fc" id="L89">        return scheme + &quot;://&quot; + host + &quot;:&quot; + port;</span>
+    }
+
+<span class="fc" id="L92">    public record Outcome(String state, Instant attemptedAt, Instant nextAttemptAt,</span>
+                          Integer httpStatus, String failureCode) { }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GlobalExceptionHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.identity_service.exception</a> &gt; <span class="el_source">GlobalExceptionHandler.java</span></div><h1>GlobalExceptionHandler.java</h1><pre class="source lang-java linenums">package com.swiftdrop.identity_service.exception;
+
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import java.util.Map;
+
+@RestControllerAdvice
+<span class="fc" id="L14">public class GlobalExceptionHandler {</span>
+
+    @ExceptionHandler(DuplicateEmailException.class)
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; handleDuplicateEmail(
+            DuplicateEmailException ex) {
+<span class="fc" id="L19">        return ResponseEntity.status(HttpStatus.CONFLICT)</span>
+<span class="fc" id="L20">                .body(Map.of(&quot;error&quot;, ex.getMessage()));</span>
+    }
+
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; handleInvalidCredentials(
+            InvalidCredentialsException ex) {
+<span class="fc" id="L26">        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)</span>
+<span class="fc" id="L27">                .body(Map.of(&quot;error&quot;, ex.getMessage()));</span>
+    }
+
+    @ExceptionHandler(InvalidLoginCodeException.class)
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; handleInvalidLoginCode(
+            InvalidLoginCodeException ex) {
+<span class="fc" id="L33">        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)</span>
+<span class="fc" id="L34">                .body(Map.of(&quot;error&quot;, ex.getMessage()));</span>
+    }
+
+    @ExceptionHandler(InvalidRefreshTokenException.class)
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; handleInvalidRefreshToken(
+            InvalidRefreshTokenException ex) {
+<span class="fc" id="L40">        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)</span>
+<span class="fc" id="L41">                .body(Map.of(&quot;error&quot;, ex.getMessage()));</span>
+    }
+
+    @ExceptionHandler(AccountNotActiveException.class)
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; handleInactiveAccount(
+            AccountNotActiveException ex) {
+<span class="fc" id="L47">        return ResponseEntity.status(HttpStatus.FORBIDDEN)</span>
+<span class="fc" id="L48">                .body(Map.of(&quot;error&quot;, ex.getMessage()));</span>
+    }
+
+    @ExceptionHandler(UserNotFoundException.class)
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; handleUserNotFound(
+            UserNotFoundException ex) {
+<span class="fc" id="L54">        return ResponseEntity.status(HttpStatus.NOT_FOUND)</span>
+<span class="fc" id="L55">                .body(Map.of(&quot;error&quot;, ex.getMessage()));</span>
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; handleValidation(
+            MethodArgumentNotValidException ex) {
+<span class="fc" id="L61">        return ResponseEntity.badRequest()</span>
+<span class="fc" id="L62">                .body(Map.of(&quot;error&quot;, &quot;Invalid request data&quot;));</span>
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; handleDatabaseConflict(
+            DataIntegrityViolationException ex) {
+<span class="nc" id="L68">        return ResponseEntity.status(HttpStatus.CONFLICT)</span>
+<span class="nc" id="L69">                .body(Map.of(&quot;error&quot;, &quot;A conflicting record already exists&quot;));</span>
+    }
+
+    @ExceptionHandler(InvalidCurrentPasswordException.class)
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; handleInvalidCurrentPassword(
+            InvalidCurrentPasswordException ex) {
+<span class="fc" id="L75">        return ResponseEntity.badRequest()</span>
+<span class="fc" id="L76">                .body(Map.of(&quot;error&quot;, ex.getMessage()));</span>
+    }
+
+    @ExceptionHandler(PasswordMismatchException.class)
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; handlePasswordMismatch(
+            PasswordMismatchException ex) {
+<span class="nc" id="L82">        return ResponseEntity.badRequest()</span>
+<span class="nc" id="L83">                .body(Map.of(&quot;error&quot;, ex.getMessage()));</span>
+    }
+
+    @ExceptionHandler(SamePasswordException.class)
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; handleSamePassword(
+            SamePasswordException ex) {
+<span class="nc" id="L89">        return ResponseEntity.badRequest()</span>
+<span class="nc" id="L90">                .body(Map.of(&quot;error&quot;, ex.getMessage()));</span>
+    }
+
+    @ExceptionHandler(InvalidResetTokenException.class)
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; handleInvalidResetToken(
+            InvalidResetTokenException ex) {
+<span class="fc" id="L96">        return ResponseEntity.badRequest()</span>
+<span class="fc" id="L97">                .body(Map.of(&quot;error&quot;, ex.getMessage()));</span>
+    }
+
+    @ExceptionHandler(PasswordResetUnavailableException.class)
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; handlePasswordResetUnavailable(
+            PasswordResetUnavailableException ex) {
+<span class="fc" id="L103">        return ResponseEntity.status(HttpStatus.NOT_IMPLEMENTED)</span>
+<span class="fc" id="L104">                .body(Map.of(&quot;error&quot;, ex.getMessage()));</span>
+    }
+
+    @ExceptionHandler({RoleNotAllowedException.class, InvalidStatusChangeException.class, InvalidRoleChangeException.class})
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; handleRejectedAdminRequest(RuntimeException ex) {
+<span class="fc" id="L109">        return ResponseEntity.badRequest()</span>
+<span class="fc" id="L110">                .body(Map.of(&quot;error&quot;, ex.getMessage()));</span>
+    }
+
+    @ExceptionHandler(RateLimitExceededException.class)
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; handleRateLimit(RateLimitExceededException ex) {
+<span class="fc" id="L115">        return ResponseEntity.status(429)</span>
+<span class="fc" id="L116">            .body(Map.of(&quot;error&quot;, ex.getMessage()));</span>
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; handleUnreadableBody(
+            HttpMessageNotReadableException ex) {
+<span class="fc" id="L122">        return ResponseEntity.badRequest()</span>
+<span class="fc" id="L123">                .body(Map.of(&quot;error&quot;, &quot;Invalid request data&quot;));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

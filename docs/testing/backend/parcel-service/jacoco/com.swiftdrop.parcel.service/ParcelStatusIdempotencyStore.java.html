@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ParcelStatusIdempotencyStore.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">parcel-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.parcel.service</a> &gt; <span class="el_source">ParcelStatusIdempotencyStore.java</span></div><h1>ParcelStatusIdempotencyStore.java</h1><pre class="source lang-java linenums">package com.swiftdrop.parcel.service;
+
+import com.swiftdrop.parcel.entity.ParcelStatus;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.Optional;
+import java.util.UUID;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Component;
+
+@Component
+public class ParcelStatusIdempotencyStore {
+    private final JdbcTemplate jdbc;
+
+<span class="fc" id="L15">    public ParcelStatusIdempotencyStore(JdbcTemplate jdbc) {</span>
+<span class="fc" id="L16">        this.jdbc = jdbc;</span>
+<span class="fc" id="L17">    }</span>
+
+    public boolean claim(UUID key, UUID parcelId, Long actorId,
+                         ParcelStatus requestedStatus, String requestedNote) {
+<span class="fc bfc" id="L21" title="All 2 branches covered.">        return jdbc.update(&quot;&quot;&quot;</span>
+            INSERT INTO parcel_status_idempotency
+                (idempotency_key, parcel_id, actor_id, requested_status, requested_note)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT (idempotency_key) DO NOTHING
+<span class="fc" id="L26">            &quot;&quot;&quot;, key, parcelId, actorId, requestedStatus.name(), requestedNote) == 1;</span>
+    }
+
+    public Optional&lt;StoredResult&gt; find(UUID key) {
+<span class="fc" id="L30">        return jdbc.query(&quot;&quot;&quot;</span>
+            SELECT parcel_id, actor_id, requested_status, requested_note,
+                   previous_status, new_status, changed_at
+              FROM parcel_status_idempotency
+             WHERE idempotency_key = ?
+<span class="fc" id="L35">            &quot;&quot;&quot;, (rs, row) -&gt; new StoredResult(</span>
+<span class="fc" id="L36">                rs.getObject(&quot;parcel_id&quot;, UUID.class),</span>
+<span class="fc" id="L37">                rs.getLong(&quot;actor_id&quot;),</span>
+<span class="fc" id="L38">                ParcelStatus.valueOf(rs.getString(&quot;requested_status&quot;)),</span>
+<span class="fc" id="L39">                rs.getString(&quot;requested_note&quot;),</span>
+<span class="pc bpc" id="L40" title="1 of 2 branches missed.">                rs.getString(&quot;previous_status&quot;) == null ? null</span>
+<span class="fc" id="L41">                    : ParcelStatus.valueOf(rs.getString(&quot;previous_status&quot;)),</span>
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">                rs.getString(&quot;new_status&quot;) == null ? null</span>
+<span class="fc" id="L43">                    : ParcelStatus.valueOf(rs.getString(&quot;new_status&quot;)),</span>
+<span class="pc bpc" id="L44" title="1 of 2 branches missed.">                rs.getTimestamp(&quot;changed_at&quot;) == null ? null</span>
+<span class="fc" id="L45">                    : rs.getTimestamp(&quot;changed_at&quot;).toInstant()), key).stream().findFirst();</span>
+    }
+
+    public void complete(UUID key, ParcelStatus previousStatus,
+                         ParcelStatus newStatus, Instant changedAt) {
+<span class="fc" id="L50">        jdbc.update(&quot;&quot;&quot;</span>
+            UPDATE parcel_status_idempotency
+               SET previous_status = ?, new_status = ?, changed_at = ?
+             WHERE idempotency_key = ?
+<span class="fc" id="L54">            &quot;&quot;&quot;, previousStatus.name(), newStatus.name(), Timestamp.from(changedAt), key);</span>
+<span class="fc" id="L55">    }</span>
+
+<span class="fc" id="L57">    public record StoredResult(UUID parcelId, Long actorId,</span>
+                               ParcelStatus requestedStatus, String requestedNote,
+                               ParcelStatus previousStatus, ParcelStatus newStatus,
+                               Instant changedAt) { }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

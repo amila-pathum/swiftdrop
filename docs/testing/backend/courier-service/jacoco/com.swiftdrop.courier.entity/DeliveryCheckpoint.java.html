@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DeliveryCheckpoint.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">courier-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.courier.entity</a> &gt; <span class="el_source">DeliveryCheckpoint.java</span></div><h1>DeliveryCheckpoint.java</h1><pre class="source lang-java linenums">package com.swiftdrop.courier.entity;
+
+import jakarta.persistence.*;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.UUID;
+
+@Entity
+@Table(name = &quot;delivery_checkpoints&quot;)
+<span class="fc" id="L10">public class DeliveryCheckpoint {</span>
+    // The caller's submission UUID is also the stable remote idempotency key.
+    @Id public UUID id;
+    @Column(name = &quot;parcel_id&quot;, nullable = false) public UUID parcelId;
+    @ManyToOne(fetch = FetchType.EAGER, optional = false) @JoinColumn(name = &quot;courier_id&quot;, nullable = false)
+    public CourierProfile courier;
+    @Column(name = &quot;assignment_id&quot;, nullable = false) public UUID assignmentId;
+    @Column(name = &quot;assignment_version&quot;, nullable = false) public long assignmentVersion;
+    @Column(name = &quot;attempt_no&quot;, nullable = false) public int attemptNo;
+    @Enumerated(EnumType.STRING) @Column(nullable = false, length = 30) public DeliveryStatus status;
+<span class="fc" id="L20">    @Enumerated(EnumType.STRING) @Column(name = &quot;sync_status&quot;, nullable = false, length = 20)</span>
+    public SyncStatus syncStatus = SyncStatus.PENDING;
+    @Column(name = &quot;planned_address_snapshot&quot;, length = 1000) public String plannedAddressSnapshot;
+    @Column(name = &quot;location_description&quot;, length = 500) public String locationDescription;
+    @Column(precision = 9, scale = 6) public BigDecimal latitude;
+    @Column(precision = 9, scale = 6) public BigDecimal longitude;
+    @Column(name = &quot;accuracy_meters&quot;, precision = 10, scale = 2) public BigDecimal accuracyMeters;
+    @Column(name = &quot;captured_at&quot;) public Instant capturedAt;
+    @Column(name = &quot;recorded_at&quot;, nullable = false) public Instant recordedAt;
+    @Column(length = 1000) public String note;
+    @Column(nullable = false, length = 64) public String fingerprint;
+    @Column(name = &quot;lease_until&quot;) public Instant leaseUntil;
+    // Nullable version makes Spring Data persist a new caller-supplied UUID,
+    // rather than merging it into a concurrently created submission.
+    @Version public Long version;
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

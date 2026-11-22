@@ -1,0 +1,108 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhookHttpSender.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">notification-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.notification.webhook.delivery</a> &gt; <span class="el_source">WebhookHttpSender.java</span></div><h1>WebhookHttpSender.java</h1><pre class="source lang-java linenums">package com.swiftdrop.notification.webhook.delivery;
+
+import com.swiftdrop.notification.webhook.security.WebhookSignature;
+
+import java.io.IOException;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Clock;
+import java.time.Duration;
+import java.util.Objects;
+
+public class WebhookHttpSender {
+
+    private final HttpClient client;
+    private final Clock clock;
+    private final Duration requestTimeout;
+
+    public WebhookHttpSender(
+            Clock clock,
+            Duration connectTimeout,
+            Duration requestTimeout
+<span class="fc" id="L24">    ) {</span>
+<span class="fc" id="L25">        this.clock = Objects.requireNonNull(clock);</span>
+<span class="fc" id="L26">        this.requestTimeout = requirePositive(requestTimeout);</span>
+
+<span class="fc" id="L28">        this.client = HttpClient.newBuilder()</span>
+<span class="fc" id="L29">                .connectTimeout(requirePositive(connectTimeout))</span>
+<span class="fc" id="L30">                .followRedirects(HttpClient.Redirect.NEVER)</span>
+<span class="fc" id="L31">                .build();</span>
+<span class="fc" id="L32">    }</span>
+
+    public SendResult send(
+            URI endpoint,
+            String secret,
+            String eventId,
+            byte[] body
+    ) throws InterruptedException {
+
+<span class="fc" id="L41">        Objects.requireNonNull(endpoint);</span>
+<span class="fc" id="L42">        Objects.requireNonNull(body);</span>
+
+<span class="pc bpc" id="L44" title="2 of 4 branches missed.">        if (eventId == null || eventId.isBlank()) {</span>
+<span class="nc" id="L45">            throw new IllegalArgumentException(&quot;Event ID is required&quot;);</span>
+        }
+
+<span class="fc" id="L48">        long timestamp = clock.instant().getEpochSecond();</span>
+
+<span class="fc" id="L50">        String signature = WebhookSignature.sign(</span>
+                secret, timestamp, body
+        );
+
+<span class="fc" id="L54">        HttpRequest request = HttpRequest.newBuilder(endpoint)</span>
+<span class="fc" id="L55">                .timeout(requestTimeout)</span>
+<span class="fc" id="L56">                .header(&quot;Content-Type&quot;, &quot;application/json&quot;)</span>
+<span class="fc" id="L57">                .header(&quot;X-SwiftDrop-Event-Id&quot;, eventId)</span>
+<span class="fc" id="L58">                .header(</span>
+                        &quot;X-SwiftDrop-Timestamp&quot;,
+<span class="fc" id="L60">                        Long.toString(timestamp)</span>
+                )
+<span class="fc" id="L62">                .header(&quot;X-SwiftDrop-Signature&quot;, signature)</span>
+<span class="fc" id="L63">                .POST(HttpRequest.BodyPublishers.ofByteArray(body))</span>
+<span class="fc" id="L64">                .build();</span>
+
+        try {
+<span class="fc" id="L67">            HttpResponse&lt;Void&gt; response = client.send(</span>
+                    request,
+<span class="fc" id="L69">                    HttpResponse.BodyHandlers.discarding()</span>
+            );
+
+<span class="fc" id="L72">            int status = response.statusCode();</span>
+
+<span class="pc bpc" id="L74" title="1 of 4 branches missed.">            return new SendResult(</span>
+                    status &gt;= 200 &amp;&amp; status &lt; 300,
+<span class="fc" id="L76">                    status,</span>
+<span class="pc bpc" id="L77" title="1 of 4 branches missed.">                    status &gt;= 200 &amp;&amp; status &lt; 300</span>
+<span class="fc" id="L78">                            ? null</span>
+<span class="fc" id="L79">                            : &quot;HTTP_ERROR&quot;</span>
+            );
+
+<span class="nc" id="L82">        } catch (IOException exception) {</span>
+<span class="nc" id="L83">            return new SendResult(</span>
+                    false,
+                    null,
+                    &quot;NETWORK_ERROR&quot;
+            );
+        }
+    }
+
+    private static Duration requirePositive(Duration duration) {
+<span class="pc bpc" id="L92" title="3 of 6 branches missed.">        if (duration == null || duration.isZero() || duration.isNegative()) {</span>
+<span class="nc" id="L93">            throw new IllegalArgumentException(</span>
+                    &quot;Timeout must be positive&quot;
+            );
+        }
+
+<span class="fc" id="L98">        return duration;</span>
+    }
+
+<span class="fc" id="L101">    public record SendResult(</span>
+            boolean successful,
+            Integer httpStatus,
+            String failureCode
+    ) {
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

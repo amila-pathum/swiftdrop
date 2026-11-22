@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Parcel.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">parcel-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.parcel.entity</a> &gt; <span class="el_source">Parcel.java</span></div><h1>Parcel.java</h1><pre class="source lang-java linenums">package com.swiftdrop.parcel.entity;
+
+import jakarta.persistence.*;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.UUID;
+
+@Entity
+@Table(name = &quot;parcels&quot;, indexes = {
+    @Index(name = &quot;idx_parcels_sender&quot;, columnList = &quot;sender_id&quot;),
+    @Index(name = &quot;idx_parcels_merchant&quot;, columnList = &quot;merchant_id&quot;),
+    @Index(name = &quot;idx_parcels_status&quot;, columnList = &quot;status&quot;)
+})
+public class Parcel {
+    @Id
+        @GeneratedValue(strategy = GenerationType.UUID)
+        @Column(name = &quot;id&quot;, nullable = false, updatable = false)
+    private UUID id;
+
+    @Column(name = &quot;tracking_number&quot;, nullable = false, unique = true, length = 40)
+    private String trackingNumber;
+
+    @Column(name = &quot;sender_id&quot;, nullable = false)
+    private Long senderId;
+
+    @Column(name = &quot;receiver_name&quot;, nullable = false, length = 150)
+    private String receiverName;
+
+    @Column(name = &quot;receiver_phone&quot;, nullable = false, length = 30)
+    private String receiverPhone;
+
+    @Column(name = &quot;pickup_address&quot;, nullable = false, columnDefinition = &quot;text&quot;)
+    private String pickupAddress;
+
+    @Column(name = &quot;delivery_address&quot;, nullable = false, columnDefinition = &quot;text&quot;)
+    private String deliveryAddress;
+
+    @Column(name = &quot;weight&quot;, nullable = false, precision = 10, scale = 3)
+    private BigDecimal weight;
+
+    @Column(name = &quot;size&quot;, nullable = false, length = 30)
+    private String size;
+
+    @Column(name = &quot;parcel_type&quot;, nullable = false, length = 50)
+    private String parcelType;
+
+    @Column(name = &quot;charge&quot;, nullable = false, precision = 12, scale = 2)
+    private BigDecimal charge;
+
+    @Enumerated(EnumType.STRING)
+        @Column(name = &quot;status&quot;, nullable = false, length = 30)
+    private ParcelStatus status;
+
+    @Column(name = &quot;created_by&quot;, nullable = false)
+    private Long createdBy;
+
+    @Column(name = &quot;merchant_id&quot;)
+    private Long merchantId;
+
+    @Column(name = &quot;merchant_order_reference&quot;, length = 150)
+    private String merchantOrderReference;
+
+    @Column(name = &quot;assigned_courier_id&quot;)
+    private Long assignedCourierId;
+
+    // Preserved Courier Service profile identifier, not an Identity user ID.
+    @Column(name = &quot;legacy_assigned_courier_uuid&quot;, insertable = false, updatable = false)
+    private UUID legacyAssignedCourierUuid;
+
+    @Column(name = &quot;created_at&quot;, nullable = false, updatable = false)
+    private Instant createdAt;
+
+    @Column(name = &quot;updated_at&quot;, nullable = false)
+    private Instant updatedAt;
+
+<span class="fc" id="L76">    public Parcel() { }</span>
+
+    @PrePersist
+    void beforeInsert() {
+<span class="fc" id="L80">        Instant now = Instant.now();</span>
+<span class="fc bfc" id="L81" title="All 2 branches covered.">        if (createdAt == null) createdAt = now;</span>
+<span class="fc" id="L82">        updatedAt = now;</span>
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">        if (status == null) status = ParcelStatus.CREATED;</span>
+<span class="fc" id="L84">    }</span>
+
+    @PreUpdate
+<span class="fc" id="L87">    void beforeUpdate() { updatedAt = Instant.now(); }</span>
+
+<span class="fc" id="L89">    public UUID getId() { return id; }</span>
+<span class="fc" id="L90">    public void setId(UUID id) { this.id = id; }</span>
+
+<span class="fc" id="L92">    public String getTrackingNumber() { return trackingNumber; }</span>
+<span class="fc" id="L93">    public void setTrackingNumber(String trackingNumber) { this.trackingNumber = trackingNumber; }</span>
+
+<span class="fc" id="L95">    public Long getSenderId() { return senderId; }</span>
+<span class="fc" id="L96">    public void setSenderId(Long senderId) { this.senderId = senderId; }</span>
+
+<span class="fc" id="L98">    public String getReceiverName() { return receiverName; }</span>
+<span class="fc" id="L99">    public void setReceiverName(String receiverName) { this.receiverName = receiverName; }</span>
+
+<span class="fc" id="L101">    public String getReceiverPhone() { return receiverPhone; }</span>
+<span class="fc" id="L102">    public void setReceiverPhone(String receiverPhone) { this.receiverPhone = receiverPhone; }</span>
+
+<span class="fc" id="L104">    public String getPickupAddress() { return pickupAddress; }</span>
+<span class="fc" id="L105">    public void setPickupAddress(String pickupAddress) { this.pickupAddress = pickupAddress; }</span>
+
+<span class="fc" id="L107">    public String getDeliveryAddress() { return deliveryAddress; }</span>
+<span class="fc" id="L108">    public void setDeliveryAddress(String deliveryAddress) { this.deliveryAddress = deliveryAddress; }</span>
+
+<span class="fc" id="L110">    public BigDecimal getWeight() { return weight; }</span>
+<span class="fc" id="L111">    public void setWeight(BigDecimal weight) { this.weight = weight; }</span>
+
+<span class="fc" id="L113">    public String getSize() { return size; }</span>
+<span class="fc" id="L114">    public void setSize(String size) { this.size = size; }</span>
+
+<span class="fc" id="L116">    public String getParcelType() { return parcelType; }</span>
+<span class="fc" id="L117">    public void setParcelType(String parcelType) { this.parcelType = parcelType; }</span>
+
+<span class="fc" id="L119">    public BigDecimal getCharge() { return charge; }</span>
+<span class="fc" id="L120">    public void setCharge(BigDecimal charge) { this.charge = charge; }</span>
+
+<span class="fc" id="L122">    public ParcelStatus getStatus() { return status; }</span>
+<span class="fc" id="L123">    public void setStatus(ParcelStatus status) { this.status = status; }</span>
+
+<span class="fc" id="L125">    public Long getCreatedBy() { return createdBy; }</span>
+<span class="fc" id="L126">    public void setCreatedBy(Long createdBy) { this.createdBy = createdBy; }</span>
+
+<span class="fc" id="L128">    public Long getMerchantId() { return merchantId; }</span>
+<span class="fc" id="L129">    public void setMerchantId(Long merchantId) { this.merchantId = merchantId; }</span>
+
+<span class="fc" id="L131">    public String getMerchantOrderReference() { return merchantOrderReference; }</span>
+<span class="fc" id="L132">    public void setMerchantOrderReference(String merchantOrderReference) { this.merchantOrderReference = merchantOrderReference; }</span>
+
+<span class="fc" id="L134">    public UUID getLegacyAssignedCourierUuid() { return legacyAssignedCourierUuid; }</span>
+
+<span class="fc" id="L136">    public Long getAssignedCourierId() { return assignedCourierId; }</span>
+<span class="fc" id="L137">    public void setAssignedCourierId(Long assignedCourierId) { this.assignedCourierId = assignedCourierId; }</span>
+
+<span class="fc" id="L139">    public Instant getCreatedAt() { return createdAt; }</span>
+<span class="fc" id="L140">    public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }</span>
+
+<span class="fc" id="L142">    public Instant getUpdatedAt() { return updatedAt; }</span>
+<span class="fc" id="L143">    public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

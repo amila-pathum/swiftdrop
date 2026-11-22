@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CreateParcelRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">parcel-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.parcel.dto.request</a> &gt; <span class="el_source">CreateParcelRequest.java</span></div><h1>CreateParcelRequest.java</h1><pre class="source lang-java linenums">package com.swiftdrop.parcel.dto.request;
+
+import com.swiftdrop.parcel.service.SriLankaDistricts;
+import jakarta.validation.constraints.*;
+import java.math.BigDecimal;
+
+<span class="fc" id="L7">public record CreateParcelRequest(</span>
+    @NotBlank @Size(max = 150) String receiverName,
+    @NotBlank @Pattern(regexp = &quot;^(?=(?:[^0-9]*[0-9]){7})[+0-9 ()-]{7,30}$&quot;, message = &quot;Invalid receiver phone&quot;) String receiverPhone,
+    @NotBlank @Size(max = 255) String pickupAddressLine1,
+    @Size(max = 255) String pickupAddressLine2,
+    @NotBlank @Pattern(regexp = SriLankaDistricts.PATTERN, message = &quot;Unsupported pickup district&quot;) String pickupCity,
+    @NotBlank @Size(max = 255) String deliveryAddressLine1,
+    @Size(max = 255) String deliveryAddressLine2,
+    @NotBlank @Pattern(regexp = SriLankaDistricts.PATTERN, message = &quot;Unsupported delivery district&quot;) String deliveryCity,
+    @NotNull @DecimalMin(&quot;0.001&quot;) @Digits(integer = 7, fraction = 3) BigDecimal weight,
+    @NotBlank @Pattern(regexp = &quot;SMALL|MEDIUM|LARGE&quot;, message = &quot;Size must be SMALL, MEDIUM or LARGE&quot;) String size,
+    @NotBlank @Pattern(regexp = &quot;STANDARD|EXPRESS&quot;, message = &quot;Parcel type must be STANDARD or EXPRESS&quot;) String parcelType
+) {}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

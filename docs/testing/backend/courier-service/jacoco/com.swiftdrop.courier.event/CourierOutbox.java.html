@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CourierOutbox.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">courier-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.courier.event</a> &gt; <span class="el_source">CourierOutbox.java</span></div><h1>CourierOutbox.java</h1><pre class="source lang-java linenums">package com.swiftdrop.courier.event;
+
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.UUID;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
+import tools.jackson.databind.ObjectMapper;
+
+@Service
+public class CourierOutbox {
+    public static final String ASSIGNED=&quot;courier.delivery-assigned.v1&quot;;
+    public static final String CANCELLED=&quot;courier.delivery-assignment-cancelled.v1&quot;;
+    public static final String STATUS=&quot;courier.delivery-status-changed.v1&quot;;
+    public static final String AVAILABILITY=&quot;courier.availability-changed.v1&quot;;
+    private final JdbcTemplate jdbc;
+    private final ObjectMapper mapper;
+<span class="fc" id="L22">    public CourierOutbox(JdbcTemplate jdbc,ObjectMapper mapper) {this.jdbc=jdbc;this.mapper=mapper;}</span>
+
+    @Transactional(propagation=Propagation.MANDATORY)
+    public UUID save(String route,String type,String aggregate,Map&lt;String,?&gt; data) {
+<span class="fc" id="L26">        UUID id=UUID.randomUUID();Instant now=Instant.now();</span>
+<span class="fc" id="L27">        var event=new LinkedHashMap&lt;String,Object&gt;();</span>
+<span class="fc" id="L28">        event.put(&quot;eventId&quot;,id);event.put(&quot;eventType&quot;,type);event.put(&quot;schemaVersion&quot;,1);event.put(&quot;occurredAt&quot;,now);</span>
+<span class="fc" id="L29">        event.putAll(data);</span>
+<span class="fc" id="L30">        jdbc.update(&quot;INSERT INTO courier_event_outbox(event_id,aggregate_key,routing_key,payload,occurred_at) VALUES (?,?,?,?,?)&quot;,</span>
+<span class="fc" id="L31">            id,aggregate,route,mapper.writeValueAsString(event),Timestamp.from(now));</span>
+<span class="fc" id="L32">        return id;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

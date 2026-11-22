@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SecurityConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">stylecart</a> &gt; <a href="index.source.html" class="el_package">com.stylecart.config</a> &gt; <span class="el_source">SecurityConfig.java</span></div><h1>SecurityConfig.java</h1><pre class="source lang-java linenums">package com.stylecart.config;
+import com.stylecart.repo.UserRepository;
+import jakarta.servlet.DispatcherType;
+import org.springframework.context.annotation.*;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.core.userdetails.*;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.*;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.web.csrf.*;
+import org.springframework.security.web.context.*;
+
+@Configuration
+<span class="fc" id="L17">public class SecurityConfig {</span>
+<span class="fc" id="L18">    @Bean PasswordEncoder passwords(){return new BCryptPasswordEncoder();}</span>
+<span class="fc" id="L19">    @Bean UserDetailsService userDetails(UserRepository users){return email-&gt;users.findByEmailIgnoreCase(email.trim())</span>
+<span class="fc" id="L20">        .map(u-&gt;User.withUsername(u.email).password(u.passwordHash).roles(u.role).build())</span>
+<span class="pc" id="L21">        .orElseThrow(()-&gt;new UsernameNotFoundException(&quot;Account not found&quot;));}</span>
+    @Bean AuthenticationManager authenticationManager(UserDetailsService details,PasswordEncoder passwords){
+<span class="fc" id="L23">        var provider=new DaoAuthenticationProvider(details);provider.setPasswordEncoder(passwords);return new ProviderManager(provider);</span>
+    }
+<span class="fc" id="L25">    @Bean CookieCsrfTokenRepository csrfTokens(){return CookieCsrfTokenRepository.withHttpOnlyFalse();}</span>
+<span class="fc" id="L26">    @Bean SecurityContextRepository contexts(){return new HttpSessionSecurityContextRepository();}</span>
+    @Bean SecurityFilterChain security(HttpSecurity http,CookieCsrfTokenRepository csrf,SecurityContextRepository contexts) throws Exception {
+<span class="fc" id="L28">        return http.csrf(c-&gt;c.csrfTokenRepository(csrf).csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler()).ignoringRequestMatchers(&quot;/webhooks/swiftdrop&quot;))</span>
+<span class="fc" id="L29">            .securityContext(c-&gt;c.securityContextRepository(contexts))</span>
+<span class="fc" id="L30">            .httpBasic(b-&gt;b.disable()).formLogin(f-&gt;f.disable())</span>
+<span class="fc" id="L31">            .authorizeHttpRequests(a-&gt;a</span>
+                // An authenticated stream may finish after logout invalidates its session.
+                // Allow only its internal completion dispatch; new connections still require the role below.
+<span class="fc bfc" id="L34" title="All 2 branches covered.">                .requestMatchers(request-&gt;request.getDispatcherType()==DispatcherType.ASYNC</span>
+<span class="pc bpc" id="L35" title="1 of 2 branches missed.">                    &amp;&amp; (request.getRequestURI().equals(request.getContextPath()+&quot;/api/admin/live&quot;)</span>
+<span class="pc bpc" id="L36" title="1 of 2 branches missed.">                        || request.getRequestURI().equals(request.getContextPath()+&quot;/api/customer/live&quot;))).permitAll()</span>
+<span class="fc" id="L37">                .requestMatchers(&quot;/api/catalog&quot;,&quot;/api/auth/csrf&quot;,&quot;/api/auth/login&quot;,&quot;/api/auth/register&quot;,&quot;/webhooks/swiftdrop&quot;,&quot;/error&quot;).permitAll()</span>
+<span class="fc" id="L38">                .requestMatchers(&quot;/api/admin/**&quot;).hasRole(&quot;ADMIN&quot;).requestMatchers(&quot;/api/customer/**&quot;).hasRole(&quot;CUSTOMER&quot;).anyRequest().authenticated())</span>
+<span class="fc" id="L39">            .exceptionHandling(e-&gt;e.authenticationEntryPoint((q,r,x)-&gt;{r.setStatus(401);r.setContentType(&quot;application/json&quot;);r.getWriter().write(&quot;{\&quot;error\&quot;:\&quot;Please sign in.\&quot;}&quot;);})</span>
+<span class="fc" id="L40">                .accessDeniedHandler((q,r,x)-&gt;{r.setStatus(403);r.setContentType(&quot;application/json&quot;);r.getWriter().write(&quot;{\&quot;error\&quot;:\&quot;Access denied or session token expired. Refresh and try again.\&quot;}&quot;);}))</span>
+<span class="fc" id="L41">            .logout(l-&gt;l.logoutUrl(&quot;/api/auth/logout&quot;).invalidateHttpSession(true).deleteCookies(&quot;JSESSIONID&quot;).logoutSuccessHandler((q,r,a)-&gt;r.setStatus(204)))</span>
+<span class="fc" id="L42">            .build();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

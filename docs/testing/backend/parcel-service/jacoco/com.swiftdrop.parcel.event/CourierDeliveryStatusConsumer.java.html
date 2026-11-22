@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CourierDeliveryStatusConsumer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">parcel-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.parcel.event</a> &gt; <span class="el_source">CourierDeliveryStatusConsumer.java</span></div><h1>CourierDeliveryStatusConsumer.java</h1><pre class="source lang-java linenums">package com.swiftdrop.parcel.event;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.swiftdrop.parcel.config.ParcelRabbitConfig;
+import com.swiftdrop.parcel.entity.ParcelStatus;
+import com.swiftdrop.parcel.service.ParcelService;
+import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.amqp.AmqpRejectAndDontRequeueException;
+import org.springframework.amqp.core.Binding;
+import org.springframework.amqp.core.BindingBuilder;
+import org.springframework.amqp.core.Declarables;
+import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.QueueBuilder;
+import org.springframework.amqp.core.TopicExchange;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
+
+/**
+ * Applies the statuses a courier confirms in the Courier Service (picked up, in
+ * transit, out for delivery, delivered, failed) to the parcel. The Parcel Service
+ * owns the status, so its usual parcel.status-changed event then reaches the
+ * customer's notifications, merchant webhooks and the other services.
+ */
+@Configuration(proxyBeanMethods = false)
+@ConditionalOnProperty(name = &quot;swiftdrop.events.courier-status-consumer-enabled&quot;, havingValue = &quot;true&quot;, matchIfMissing = true)
+public class CourierDeliveryStatusConsumer {
+    public static final String ROUTING_KEY = &quot;courier.delivery-status-changed.v1&quot;;
+    public static final String QUEUE = &quot;parcel.courier-delivery-status-changed&quot;;
+<span class="fc" id="L35">    private static final Logger log = LoggerFactory.getLogger(CourierDeliveryStatusConsumer.class);</span>
+
+    private final ParcelService parcelService;
+    private final ObjectMapper objectMapper;
+
+<span class="fc" id="L40">    public CourierDeliveryStatusConsumer(ParcelService parcelService, ObjectMapper objectMapper) {</span>
+<span class="fc" id="L41">        this.parcelService = parcelService;</span>
+<span class="fc" id="L42">        this.objectMapper = objectMapper;</span>
+<span class="fc" id="L43">    }</span>
+
+    /** The fields of courier-service's CourierDeliveryStatusChanged event this service needs. */
+    @JsonIgnoreProperties(ignoreUnknown = true)
+<span class="fc" id="L47">    public record CourierDeliveryStatusChanged(UUID eventId, String eventType, UUID submissionId, UUID parcelId,</span>
+            String trackingNumber, Long courierUserId, String oldStatus, String newStatus) { }
+
+    @Bean
+    Declarables courierDeliveryStatusQueue() {
+<span class="fc" id="L52">        TopicExchange exchange = new TopicExchange(ParcelRabbitConfig.EXCHANGE, true, false);</span>
+<span class="fc" id="L53">        Queue queue = QueueBuilder.durable(QUEUE).build();</span>
+<span class="fc" id="L54">        Binding binding = BindingBuilder.bind(queue).to(exchange).with(ROUTING_KEY);</span>
+<span class="fc" id="L55">        return new Declarables(exchange, queue, binding);</span>
+    }
+
+    @RabbitListener(queues = QUEUE)
+    public void receive(byte[] body) {
+        CourierDeliveryStatusChanged event;
+        ParcelStatus status;
+        try {
+<span class="fc" id="L63">            event = objectMapper.readValue(body, CourierDeliveryStatusChanged.class);</span>
+<span class="fc" id="L64">            status = ParcelStatus.valueOf(String.valueOf(event.newStatus()));</span>
+<span class="nc" id="L65">        } catch (JacksonException | IllegalArgumentException invalid) {</span>
+<span class="nc" id="L66">            throw new AmqpRejectAndDontRequeueException(&quot;Invalid courier delivery status event&quot;, invalid);</span>
+<span class="fc" id="L67">        }</span>
+<span class="pc bpc" id="L68" title="3 of 6 branches missed.">        if (event.parcelId() == null || event.submissionId() == null || event.courierUserId() == null) {</span>
+<span class="nc" id="L69">            throw new AmqpRejectAndDontRequeueException(&quot;Courier delivery status event is missing identifiers&quot;);</span>
+        }
+<span class="fc" id="L71">        boolean applied = parcelService.applyCourierStatus(</span>
+<span class="fc" id="L72">            event.parcelId(), event.courierUserId(), status, event.submissionId());</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">        if (applied) {</span>
+<span class="fc" id="L74">            log.info(&quot;Applied courier status {} to parcel {} (submission {})&quot;,</span>
+<span class="fc" id="L75">                status, event.trackingNumber(), event.submissionId());</span>
+        } else {
+<span class="fc" id="L77">            log.warn(&quot;Courier status {} for parcel {} not applied: unknown parcel, other courier, &quot;</span>
+                + &quot;duplicate or transition not allowed (submission {})&quot;,
+<span class="fc" id="L79">                status, event.parcelId(), event.submissionId());</span>
+        }
+<span class="fc" id="L81">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

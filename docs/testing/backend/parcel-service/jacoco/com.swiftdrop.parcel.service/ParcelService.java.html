@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ParcelService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">parcel-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.parcel.service</a> &gt; <span class="el_source">ParcelService.java</span></div><h1>ParcelService.java</h1><pre class="source lang-java linenums">package com.swiftdrop.parcel.service;
+
+import com.swiftdrop.parcel.dto.response.ParcelReceipt;
+import com.swiftdrop.parcel.dto.response.PublicTrackingResponse;
+import com.swiftdrop.parcel.dto.response.PublicTrackingResponse.TrackingEntry;
+import org.springframework.transaction.annotation.Isolation;
+import com.swiftdrop.parcel.entity.Parcel;
+import com.swiftdrop.parcel.entity.ParcelStatus;
+import com.swiftdrop.parcel.entity.ParcelStatusHistory;
+import com.swiftdrop.parcel.repository.ParcelRepository;
+import com.swiftdrop.parcel.repository.ParcelStatusHistoryRepository;
+import com.swiftdrop.parcel.event.ParcelEventOutbox;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
+
+@Service
+public class ParcelService {
+    private final ParcelRepository parcels;
+    private final ParcelStatusHistoryRepository history;
+    private final ParcelStatusTransitionValidator transitions;
+    private final ParcelEventOutbox outbox;
+
+    public ParcelService(ParcelRepository parcels, ParcelStatusHistoryRepository history,
+                         ParcelStatusTransitionValidator transitions,
+<span class="fc" id="L33">                         ParcelEventOutbox outbox) {</span>
+<span class="fc" id="L34">        this.parcels = parcels;</span>
+<span class="fc" id="L35">        this.history = history;</span>
+<span class="fc" id="L36">        this.transitions = transitions;</span>
+<span class="fc" id="L37">        this.outbox = outbox;</span>
+<span class="fc" id="L38">    }</span>
+
+    @Transactional
+    public Parcel assignCourier(UUID parcelId, Long courierUserId) {
+<span class="pc bpc" id="L42" title="2 of 4 branches missed.">        if (courierUserId == null || courierUserId &lt;= 0) {</span>
+<span class="nc" id="L43">            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, &quot;Invalid courier user identifier&quot;);</span>
+        }
+<span class="fc" id="L45">        Parcel parcel = parcels.findForStatusUpdateById(parcelId)</span>
+<span class="pc" id="L46">            .orElseThrow(() -&gt; new ResponseStatusException(HttpStatus.NOT_FOUND, &quot;Parcel not found&quot;));</span>
+<span class="pc bpc" id="L47" title="1 of 4 branches missed.">        if (parcel.getStatus() == ParcelStatus.DELIVERED || parcel.getStatus() == ParcelStatus.CANCELLED) {</span>
+<span class="fc" id="L48">            throw new ResponseStatusException(HttpStatus.CONFLICT, &quot;Cannot assign a closed parcel&quot;);</span>
+        }
+<span class="fc" id="L50">        parcel.setAssignedCourierId(courierUserId);</span>
+        // The Courier Service keeps its own copy of the delivery details; without
+        // this the courier sees only the tracking number and status.
+<span class="fc" id="L53">        outbox.enqueueDeliverySnapshot(parcel, Instant.now());</span>
+<span class="fc" id="L54">        return parcel;</span>
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public PublicTrackingResponse track(String trackingNumber) {
+<span class="pc bpc" id="L59" title="1 of 4 branches missed.">        if (trackingNumber == null || !trackingNumber.matches(&quot;[A-Za-z0-9-]{6,40}&quot;)) {</span>
+<span class="fc" id="L60">            throw new ResponseStatusException(</span>
+                HttpStatus.NOT_FOUND, &quot;Parcel not found&quot;);
+        }
+<span class="fc" id="L63">        Parcel parcel = parcels.findByTrackingNumber(trackingNumber).orElseThrow(() -&gt;</span>
+<span class="fc" id="L64">            new ResponseStatusException(</span>
+                HttpStatus.NOT_FOUND, &quot;Parcel not found&quot;));
+<span class="fc" id="L66">        var entries = history.findByParcelIdOrderByChangedAtAsc(parcel.getId()).stream()</span>
+<span class="fc" id="L67">            .map(entry -&gt; new TrackingEntry(entry.getNewStatus(), entry.getChangedAt()))</span>
+<span class="fc" id="L68">            .toList();</span>
+<span class="fc" id="L69">        return new PublicTrackingResponse(</span>
+<span class="fc" id="L70">            parcel.getTrackingNumber(), parcel.getStatus(), parcel.getCreatedAt(),</span>
+<span class="fc" id="L71">            SriLankaDistricts.districtOf(parcel.getDeliveryAddress()).orElse(null), entries);</span>
+    }
+
+    /** Saves a new order and its initial history together. */
+    @Transactional
+    public Parcel createParcel(Parcel parcel) {
+<span class="fc" id="L77">        Objects.requireNonNull(parcel, &quot;parcel is required&quot;);</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">        if (parcel.getId() != null) {</span>
+<span class="fc" id="L79">            throw new IllegalArgumentException(&quot;A new parcel must not already have an ID&quot;);</span>
+        }
+<span class="fc" id="L81">        Objects.requireNonNull(parcel.getCreatedBy(), &quot;createdBy is required&quot;);</span>
+<span class="fc" id="L82">        parcel.setStatus(ParcelStatus.CREATED);</span>
+<span class="fc" id="L83">        Parcel saved = parcels.saveAndFlush(parcel);</span>
+<span class="fc" id="L84">        ParcelStatusHistory entry = new ParcelStatusHistory(saved, null,</span>
+<span class="fc" id="L85">                ParcelStatus.CREATED, saved.getCreatedBy(), &quot;Parcel created&quot;);</span>
+<span class="fc" id="L86">        history.save(entry);</span>
+<span class="fc" id="L87">        outbox.enqueueStatusChanged(saved, null, ParcelStatus.CREATED, entry.getChangedAt());</span>
+<span class="fc" id="L88">        return saved;</span>
+    }
+
+    public List&lt;Parcel&gt; listParcels(ParcelStatus status) {
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">        return status == null ? parcels.findAll()</span>
+<span class="fc" id="L93">                : parcels.findByStatusOrderByCreatedAtAsc(status);</span>
+    }
+
+    public Optional&lt;Parcel&gt; findParcel(UUID parcelId) {
+<span class="fc" id="L97">        return parcels.findById(parcelId);</span>
+    }
+
+    /** Returns all parcels created by the given customer, newest first. */
+    @Transactional(readOnly = true)
+    public List&lt;Parcel&gt; getMyParcels(Long senderId) {
+<span class="nc" id="L103">        Objects.requireNonNull(senderId, &quot;senderId is required&quot;);</span>
+<span class="nc" id="L104">        return parcels.findBySenderIdOrderByCreatedAtDesc(senderId);</span>
+    }
+
+    /**
+     * Cancels a parcel owned by the customer, if it is still in CREATED status.
+     */
+    @Transactional
+    public Parcel cancelParcel(UUID parcelId, Long customerId) {
+<span class="fc" id="L112">        Objects.requireNonNull(parcelId, &quot;parcelId is required&quot;);</span>
+<span class="fc" id="L113">        Objects.requireNonNull(customerId, &quot;customerId is required&quot;);</span>
+<span class="fc" id="L114">        Parcel parcel = parcels.findForStatusUpdateById(parcelId)</span>
+<span class="pc" id="L115">                .orElseThrow(() -&gt; new ResponseStatusException(HttpStatus.NOT_FOUND, &quot;Parcel not found&quot;));</span>
+
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        if (!customerId.equals(parcel.getSenderId())) {</span>
+<span class="fc" id="L118">            throw new ResponseStatusException(HttpStatus.FORBIDDEN, &quot;Access is denied&quot;);</span>
+        }
+
+        // The lifecycle rules decide whether a parcel can still be cancelled
+        // (today: only from CREATED); this flow does not keep its own copy.
+<span class="fc bfc" id="L123" title="All 2 branches covered.">        if (!transitions.isAllowed(parcel.getStatus(), ParcelStatus.CANCELLED)) {</span>
+<span class="fc" id="L124">            throw new ResponseStatusException(HttpStatus.CONFLICT,</span>
+                    &quot;Only parcels with CREATED status can be cancelled&quot;);
+        }
+
+<span class="fc" id="L128">        return changeStatus(parcelId, ParcelStatus.CANCELLED, customerId, &quot;Cancelled by customer&quot;);</span>
+    }
+
+    /**
+     * Generates a downloadable PDF receipt for a delivered parcel owned by the customer.
+     */
+    @Transactional(readOnly = true)
+    public ParcelReceipt generateReceipt(UUID parcelId, Long customerId) {
+<span class="fc" id="L136">        Objects.requireNonNull(parcelId, &quot;parcelId is required&quot;);</span>
+<span class="fc" id="L137">        Objects.requireNonNull(customerId, &quot;customerId is required&quot;);</span>
+
+<span class="fc" id="L139">        Parcel parcel = parcels.findById(parcelId)</span>
+<span class="pc" id="L140">                .orElseThrow(() -&gt; new ResponseStatusException(HttpStatus.NOT_FOUND, &quot;Parcel not found&quot;));</span>
+
+<span class="fc bfc" id="L142" title="All 2 branches covered.">        if (!customerId.equals(parcel.getSenderId())) {</span>
+<span class="fc" id="L143">            throw new ResponseStatusException(HttpStatus.FORBIDDEN, &quot;Access is denied&quot;);</span>
+        }
+
+<span class="fc bfc" id="L146" title="All 2 branches covered.">        if (parcel.getStatus() != ParcelStatus.DELIVERED) {</span>
+<span class="fc" id="L147">            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,</span>
+                    &quot;Receipt is only available for delivered parcels&quot;);
+        }
+
+<span class="fc" id="L151">        Instant deliveredAt = history.findByParcelIdOrderByChangedAtAsc(parcelId).stream()</span>
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">                .filter(h -&gt; h.getNewStatus() == ParcelStatus.DELIVERED)</span>
+<span class="fc" id="L153">                .map(ParcelStatusHistory::getChangedAt)</span>
+<span class="pc" id="L154">                .reduce((first, second) -&gt; second)</span>
+<span class="fc" id="L155">                .orElse(parcel.getUpdatedAt());</span>
+
+<span class="fc" id="L157">        byte[] pdfContent = PdfReceiptGenerator.generate(parcel, deliveredAt);</span>
+<span class="fc" id="L158">        String filename = &quot;receipt-&quot; + parcel.getTrackingNumber() + &quot;.pdf&quot;;</span>
+
+<span class="fc" id="L160">        return new ParcelReceipt(filename, pdfContent);</span>
+    }
+
+    /**
+     * Applies a status the assigned courier confirmed in the Courier Service
+     * (event courier.delivery-status-changed.v1). Returns false, changing nothing,
+     * when the parcel is unknown, assigned to someone else, already has this
+     * status (a redelivered event) or cannot move to it.
+     */
+    @Transactional
+    public boolean applyCourierStatus(UUID parcelId, Long courierUserId, ParcelStatus newStatus, UUID submissionId) {
+<span class="fc" id="L171">        Objects.requireNonNull(newStatus, &quot;newStatus is required&quot;);</span>
+<span class="fc" id="L172">        Parcel parcel = parcels.findForStatusUpdateById(parcelId).orElse(null);</span>
+<span class="pc bpc" id="L173" title="1 of 6 branches missed.">        if (parcel == null || courierUserId == null || !courierUserId.equals(parcel.getAssignedCourierId())) {</span>
+<span class="fc" id="L174">            return false;</span>
+        }
+<span class="fc bfc" id="L176" title="All 4 branches covered.">        if (parcel.getStatus() == newStatus || !transitions.isAllowed(parcel.getStatus(), newStatus)) {</span>
+<span class="fc" id="L177">            return false;</span>
+        }
+<span class="fc" id="L179">        changeStatus(parcelId, newStatus, courierUserId, &quot;Updated by courier&quot;, submissionId);</span>
+<span class="fc" id="L180">        return true;</span>
+    }
+
+    /** Records the old and new status in the same transaction as the update. */
+    @Transactional
+    public Parcel changeStatus(UUID parcelId, ParcelStatus newStatus, Long changedBy, String note) {
+<span class="fc" id="L186">        return changeStatus(parcelId, newStatus, changedBy, note, null);</span>
+    }
+
+    private Parcel changeStatus(UUID parcelId, ParcelStatus newStatus, Long changedBy, String note, UUID eventId) {
+<span class="fc" id="L190">        Objects.requireNonNull(changedBy, &quot;changedBy is required&quot;);</span>
+<span class="fc" id="L191">        Parcel parcel = parcels.findForStatusUpdateById(parcelId)</span>
+<span class="pc" id="L192">                .orElseThrow(() -&gt; new IllegalArgumentException(&quot;Parcel not found: &quot; + parcelId));</span>
+<span class="fc" id="L193">        ParcelStatus previousStatus = parcel.getStatus();</span>
+<span class="fc" id="L194">        transitions.validate(previousStatus, newStatus);</span>
+<span class="fc" id="L195">        parcel.setStatus(newStatus);</span>
+<span class="fc" id="L196">        ParcelStatusHistory entry = new ParcelStatusHistory(</span>
+            parcel, previousStatus, newStatus, changedBy, note);
+<span class="fc" id="L198">        history.save(entry);</span>
+<span class="fc bfc" id="L199" title="All 2 branches covered.">        if (eventId == null) {</span>
+<span class="fc" id="L200">            outbox.enqueueStatusChanged(parcel, previousStatus, newStatus, entry.getChangedAt());</span>
+        } else {
+<span class="fc" id="L202">            outbox.enqueueStatusChanged(eventId, parcel, previousStatus, newStatus, entry.getChangedAt());</span>
+        }
+<span class="fc" id="L204">        return parcel;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CourierDtos.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">courier-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.courier.dto</a> &gt; <span class="el_source">CourierDtos.java</span></div><h1>CourierDtos.java</h1><pre class="source lang-java linenums">package com.swiftdrop.courier.dto;
+
+import com.swiftdrop.courier.entity.*;
+import jakarta.validation.constraints.*;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+public final class CourierDtos {
+    private CourierDtos() {}
+<span class="fc" id="L12">    public record ProfileInput(</span>
+        @NotBlank @Size(max=100) String name,
+        @NotBlank @Pattern(regexp=&quot;[+0-9 ()-]{7,30}&quot;) String phone,
+        @NotNull VehicleType vehicleType,
+        @NotBlank @Size(max=30) String vehicleNumber,
+        @NotBlank @Size(max=100) String area) {}
+<span class="fc" id="L18">    public record ProvisionInput(@NotNull @Positive Long userId, @NotNull @jakarta.validation.Valid ProfileInput profile) {}</span>
+<span class="fc" id="L19">    public record AvailabilityInput(@NotNull Availability availability) {}</span>
+<span class="fc" id="L20">    public record ActiveInput(@NotNull Boolean active) {}</span>
+<span class="fc" id="L21">    public record Profile(Long id, Long userId, String name, String phone, VehicleType vehicleType,</span>
+                          String vehicleNumber, String area, Availability availability, boolean active,
+                          Instant createdAt, Instant updatedAt, long version) {
+        public static Profile from(CourierProfile p) {
+<span class="fc" id="L25">            return new Profile(p.id,p.userId,p.name,p.phone,p.vehicleType,p.vehicleNumber,p.area,</span>
+                p.availability,p.active,p.createdAt,p.updatedAt,p.version);
+        }
+    }
+<span class="fc" id="L29">    public record PageResult&lt;T&gt;(List&lt;T&gt; content, int page, int size, long totalElements, int totalPages) {}</span>
+<span class="fc" id="L30">    public record DeliveryInput(</span>
+        @NotNull UUID submissionId, @NotNull DeliveryStatus status,
+        @Size(max=150) String recipientName, FailureReason failureReason,
+        @Size(max=1000) String note, @Size(max=500) String locationDescription,
+        @DecimalMin(&quot;-90&quot;) @DecimalMax(&quot;90&quot;) @Digits(integer=3,fraction=6) BigDecimal latitude,
+        @DecimalMin(&quot;-180&quot;) @DecimalMax(&quot;180&quot;) @Digits(integer=3,fraction=6) BigDecimal longitude,
+        @DecimalMin(&quot;0&quot;) @Digits(integer=8,fraction=2) BigDecimal accuracyMeters,
+        @PastOrPresent Instant capturedAt) {}
+<span class="fc" id="L38">    public record Checkpoint(UUID id, UUID parcelId, int attemptNo, DeliveryStatus status,</span>
+        String plannedAddressSnapshot, String locationDescription, BigDecimal latitude,
+        BigDecimal longitude, BigDecimal accuracyMeters, Instant capturedAt, Instant recordedAt, String note) {
+        public static Checkpoint from(DeliveryCheckpoint c) {
+<span class="fc" id="L42">            return new Checkpoint(c.id,c.parcelId,c.attemptNo,c.status,c.plannedAddressSnapshot,</span>
+                c.locationDescription,c.latitude,c.longitude,c.accuracyMeters,c.capturedAt,c.recordedAt,c.note);
+        }
+    }
+<span class="fc" id="L46">    public record Proof(UUID id, UUID parcelId, int attemptNo, DeliveryStatus outcome, String recipientName,</span>
+        String photoUrl, FailureReason failureReason, String note, String collectionAddressSnapshot,
+        String deliveryAddressSnapshot, Checkpoint attemptLocation, Instant recordedAt) {
+        public static Proof from(DeliveryProof p) {
+<span class="pc bpc" id="L50" title="1 of 2 branches missed.">            String url = p.photoKey == null ? null : &quot;/api/couriers/me/deliveries/&quot;+p.parcelId+&quot;/proofs/&quot;+p.id+&quot;/photo&quot;;</span>
+<span class="fc" id="L51">            return new Proof(p.id,p.parcelId,p.attemptNo,p.outcome,p.recipientName,url,p.failureReason,</span>
+<span class="fc" id="L52">                p.note,p.collectionAddressSnapshot,p.deliveryAddressSnapshot,Checkpoint.from(p.checkpoint),p.recordedAt);</span>
+        }
+    }
+<span class="fc" id="L55">    public record Submission(UUID submissionId, UUID parcelId, SyncStatus syncStatus, String message) {}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

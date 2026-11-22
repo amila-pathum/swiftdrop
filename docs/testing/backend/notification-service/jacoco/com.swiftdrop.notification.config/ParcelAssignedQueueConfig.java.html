@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ParcelAssignedQueueConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">notification-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.notification.config</a> &gt; <span class="el_source">ParcelAssignedQueueConfig.java</span></div><h1>ParcelAssignedQueueConfig.java</h1><pre class="source lang-java linenums">package com.swiftdrop.notification.config;
+
+import org.springframework.amqp.core.Binding;
+import org.springframework.amqp.core.BindingBuilder;
+import org.springframework.amqp.core.Declarables;
+import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.QueueBuilder;
+import org.springframework.amqp.core.TopicExchange;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+/**
+ * Declares notification.parcel-assigned (also in infrastructure/docker/rabbitmq/definitions.json)
+ * so a broker started before the queue was added to the definitions still gets it.
+ * Arguments must match the definitions file exactly, or RabbitMQ refuses the declaration.
+ */
+@Configuration(proxyBeanMethods = false)
+@ConditionalOnProperty(name = &quot;swiftdrop.notifications.consumer-enabled&quot;, havingValue = &quot;true&quot;, matchIfMissing = true)
+<span class="fc" id="L20">public class ParcelAssignedQueueConfig {</span>
+
+    @Bean
+    Declarables parcelAssignedNotificationQueue() {
+<span class="fc" id="L24">        TopicExchange exchange = new TopicExchange(RabbitMQConfig.EXCHANGE, true, false);</span>
+<span class="fc" id="L25">        Queue queue = QueueBuilder.durable(RabbitMQConfig.ASSIGNED_QUEUE)</span>
+<span class="fc" id="L26">                .deadLetterExchange(RabbitMQConfig.DEAD_LETTER_EXCHANGE)</span>
+<span class="fc" id="L27">                .deadLetterRoutingKey(RabbitMQConfig.DEAD_LETTER_ROUTING_KEY)</span>
+<span class="fc" id="L28">                .build();</span>
+<span class="fc" id="L29">        Binding binding = BindingBuilder.bind(queue).to(exchange).with(RabbitMQConfig.ASSIGNED_ROUTING_KEY);</span>
+<span class="fc" id="L30">        return new Declarables(exchange, queue, binding);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>
