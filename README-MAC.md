@@ -8,6 +8,7 @@ source stylecart/backend/target/local-tls/swiftdrop-env.sh
 
 PATH="/opt/homebrew/bin:$PATH" DB_PROFILE=rds infrastructure/scripts/run-mac-all.sh
 
+
 ##Terminal 2 – StyleCart Backend
 
 cd "/path/to/SwiftDrop/stylecart/backend"
@@ -17,6 +18,7 @@ source ../.env
 set +a
 
 bash mvnw spring-boot:run
+
 
 ##Terminal 3 – StyleCart Frontend
 
