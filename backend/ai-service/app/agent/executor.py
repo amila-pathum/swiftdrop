@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.clients.parcel import ParcelClient
@@ -19,9 +21,11 @@ class EstimateFeeArgs(BaseModel):
         str_strip_whitespace=True,
     )
 
-    pickup_zone: str = Field(min_length=1)
-    dropoff_zone: str = Field(min_length=1)
-    weight_kg: float = Field(gt=0, allow_inf_nan=False)
+    pickup_city: str = Field(min_length=1)
+    delivery_city: str = Field(min_length=1)
+    weight: float = Field(gt=0, allow_inf_nan=False)
+    service_type: Literal["STANDARD", "EXPRESS"]
+    size: Literal["SMALL", "MEDIUM", "LARGE"]
 
 
 async def execute_tool(
@@ -44,9 +48,11 @@ async def execute_tool(
             args = EstimateFeeArgs.model_validate(arguments)
 
             request_data = {
-                "pickupZone": args.pickup_zone,
-                "dropoffZone": args.dropoff_zone,
-                "weightKg": args.weight_kg,
+                "pickupCity": args.pickup_city,
+                "deliveryCity": args.delivery_city,
+                "weight": args.weight,
+                "serviceType": args.service_type,
+                "size": args.size,
             }
 
             return await pricing_client.estimate_fee(

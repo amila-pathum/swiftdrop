@@ -19,31 +19,44 @@ TOOLS = [
     {
         "name": "estimate_fee",
         "description": (
-            "Estimate the delivery fee for a parcel "
-            "based on pickup zone, destination zone, "
-            "and weight in kilograms."
+            "Estimate a SwiftDrop delivery fee. You need the pickup city, "
+            "delivery city, parcel weight in kilograms, service type "
+            "(STANDARD or EXPRESS), and parcel size (SMALL, MEDIUM, or LARGE). "
+            "Ask the user for any missing information before estimating."
         ),
         "parameters": {
             "type": "object",
             "properties": {
-                "pickup_zone": {
+                "pickup_city": {
                     "type": "string",
-                    "description": "Parcel pickup zone",
+                    "description": "City where the parcel will be picked up",
                 },
-                "dropoff_zone": {
+                "delivery_city": {
                     "type": "string",
-                    "description": "Parcel destination zone",
+                    "description": "City where the parcel will be delivered",
                 },
-                "weight_kg": {
+                "weight": {
                     "type": "number",
                     "exclusiveMinimum": 0,
                     "description": "Parcel weight in kilograms",
                 },
+                "service_type": {
+                    "type": "string",
+                    "enum": ["STANDARD", "EXPRESS"],
+                    "description": "Delivery speed selected by the user",
+                },
+                "size": {
+                    "type": "string",
+                    "enum": ["SMALL", "MEDIUM", "LARGE"],
+                    "description": "Parcel size selected by the user",
+                },
             },
             "required": [
-                "pickup_zone",
-                "dropoff_zone",
-                "weight_kg",
+                "pickup_city",
+                "delivery_city",
+                "weight",
+                "service_type",
+                "size",
             ],
             "additionalProperties": False,
         },

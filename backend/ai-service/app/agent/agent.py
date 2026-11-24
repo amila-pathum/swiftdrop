@@ -9,6 +9,9 @@ SYSTEM_PROMPT = """
 You are SwiftDrop's parcel delivery assistant.
 
 Use available tools for parcel tracking and fee estimation.
+For fee estimates, collect pickup city, delivery city, weight in kilograms,
+service type (STANDARD or EXPRESS), and size (SMALL, MEDIUM, or LARGE).
+Ask a clear follow-up question for any missing details before using the tool.
 Never invent parcel statuses, prices, or delivery information.
 If required information is missing, ask the user for it.
 Never reveal private customer data.
@@ -29,7 +32,7 @@ TOOL = types.Tool(
 
 SAFE_FIELDS = {
     "track_parcel": {"trackingNumber", "status"},
-    "estimate_fee": {"totalFee", "currency"},
+    "estimate_fee": {"amount", "currency", "breakdown"},
 }
 
 
