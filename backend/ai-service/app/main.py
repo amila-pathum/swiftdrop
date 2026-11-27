@@ -10,7 +10,7 @@ from google.genai import errors
 from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.agent.agent import answer_message
+from app.agent.agent import ChatTurn, answer_message
 from app.clients.parcel import ParcelClient
 from app.clients.pricing import PricingClient
 from app.security import AuthenticatedUser, require_user
@@ -62,6 +62,7 @@ def health_check():
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
+    history: tuple[ChatTurn, ...] = Field(default=(), max_length=8)
 
 
 class ChatResponse(BaseModel):
@@ -85,6 +86,7 @@ async def chat(
             gemini_client=services.gemini,
             parcel_client=services.parcel,
             pricing_client=services.pricing,
+            history=payload.history,
         )
     except (errors.APIError, httpx.RequestError) as exc:
         raise HTTPException(status_code=503, detail="Assistant is unavailable") from exc
