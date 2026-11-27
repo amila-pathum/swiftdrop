@@ -1,5 +1,6 @@
 import base64
 from datetime import UTC, datetime, timedelta
+from unittest.mock import AsyncMock
 
 import jwt
 import pytest
@@ -67,13 +68,20 @@ def test_expired_token():
     assert response.status_code == 401
 
 
-def test_valid_token():
+def test_valid_token(monkeypatch):
     token = make_token()
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    agent = AsyncMock(return_value="What is your tracking number?")
+    monkeypatch.setattr("app.main.answer_message", agent)
 
-    response = client.post(
-        "/api/ai/chat",
-        json={"message": "Hello"},
-        headers={"Authorization": f"Bearer {token}"},
-    )
-    assert response.status_code == 501
-    assert response.json() == {"error": "AI chat is not implemented yet"}
+    with TestClient(app) as chat_client:
+        response = chat_client.post(
+            "/api/ai/chat",
+            json={"message": "Where is my parcel?"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert response.status_code == 200
+    assert response.json() == {"reply": "What is your tracking number?"}
+    agent.assert_awaited_once()
+    assert agent.await_args.kwargs["message"] == "Where is my parcel?"
+    assert agent.await_args.kwargs["access_token"] == token

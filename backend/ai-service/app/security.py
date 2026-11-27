@@ -1,7 +1,7 @@
 import base64
 import binascii
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Annotated
 
 import jwt
@@ -13,6 +13,7 @@ class AuthenticatedUser:
     user_id: int
     email: str
     role: str
+    access_token: str = field(repr=False)
 
 
 def require_user(
@@ -75,6 +76,7 @@ def require_user(
             user_id=user_id,
             email=email,
             role=role,
+            access_token=token,
         )
 
     except (jwt.PyJWTError, TypeError, ValueError) as exc:
