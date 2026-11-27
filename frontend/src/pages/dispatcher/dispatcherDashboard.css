@@ -1,0 +1,50 @@
+/* Dispatcher dashboard (builds on components/dashboard/dashboard.css and the .dispatch-* base styles). */
+.dispatch-dashboard.dispatch-page { gap: 20px; }
+.dispatch-dashboard .db-header-actions .button { gap: 6px; }
+
+/* Parcels card: tabs sit in the card header */
+.dd-work { overflow: hidden; }
+.dd-tabs { padding: 0 12px; margin: 0; border-bottom: 1px solid #e8eef6; background: #fbfcfe; }
+.dd-tabs button { padding: 14px 12px; font-weight: 600; }
+.dd-tab-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 16px 20px 6px; }
+.dd-tab-intro { margin: 0; color: #62738d; font-size: 13px; }
+
+.dd-filters.dispatch-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin: 0; padding: 12px; border: 1px solid #e8eef6; border-radius: 10px; background: #f8fafd; }
+.dd-filters label { flex: 1 1 120px; font-size: 12px; font-weight: 600; color: #47566c; }
+.dd-filters input, .dd-filters select { height: 36px; font-size: 13px; }
+.dd-filters .button { height: 36px; }
+
+.dispatch-dashboard .dispatch-table-wrap { position: relative; width: auto; margin: 0 -20px; }
+.dispatch-dashboard .dispatch-table th { padding: 10px 10px; background: #fbfcfe; font-size: 11px; letter-spacing: 0.04em; white-space: nowrap; }
+.dispatch-dashboard .dispatch-table td { padding: 12px 10px; vertical-align: middle; }
+.dispatch-dashboard .dispatch-table th:first-child, .dispatch-dashboard .dispatch-table td:first-child { padding-left: 20px; }
+.dispatch-dashboard .dispatch-table th:last-child, .dispatch-dashboard .dispatch-table td:last-child { padding-right: 20px; }
+.dispatch-dashboard .dispatch-table tbody tr:hover { background: #fafcff; }
+.dispatch-dashboard .dispatch-link-button { font-family: monospace; font-size: 13.5px; }
+.dd-route { font-size: 13.5px; }
+.dd-size { display: inline-block; padding: 1px 8px; border: 1px solid #dce5f1; border-radius: 6px; font-size: 12px; color: #47566c; }
+.dd-muted { color: #62738d; font-size: 13px; white-space: nowrap; }
+.dd-courier { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.dd-actions-cell { text-align: right; }
+.dd-actions-cell .dispatch-row-actions { justify-content: flex-end; }
+.dd-actions-cell .dispatch-hint { display: block; margin-top: 4px; }
+.dd-pagination.dispatch-pagination { margin: 0 -20px; padding: 12px 20px; border-top: 1px solid #e8eef6; }
+
+/* Courier workload list */
+.dd-workload-panel { position: sticky; top: 16px; }
+.dd-workload { margin: 0; padding: 0; list-style: none; max-height: 560px; overflow-y: auto; }
+.dd-workload li { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-top: 1px solid #edf2f8; }
+.dd-workload li:first-child { border-top: 0; }
+.dd-workload-main { flex: 1; display: grid; gap: 5px; min-width: 0; }
+.dd-workload-name { overflow: hidden; font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }
+.dd-workload-meta { display: flex; align-items: center; gap: 10px; }
+.dd-workload-meta .db-pill { flex: none; padding: 1px 8px; font-size: 11px; }
+.dd-load { flex: 1; height: 5px; border-radius: 99px; background: #eef3f9; overflow: hidden; }
+.dd-load span { display: block; height: 100%; border-radius: inherit; background: #1c5dfb; }
+.dd-load span.is-heavy { background: #f59e0b; }
+.dd-workload-count { flex: none; width: 46px; color: #62738d; font-size: 11px; line-height: 1.2; text-align: center; }
+.dd-workload-count strong { display: block; color: #161d2f; font-size: 17px; line-height: 1.1; }
+
+@media (max-width: 1100px) {
+  .dd-workload-panel { position: static; }
+}

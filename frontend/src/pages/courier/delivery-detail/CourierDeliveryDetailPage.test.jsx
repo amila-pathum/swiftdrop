@@ -93,4 +93,20 @@ describe('courier delivery detail', () => {
     expect(stages[1]).not.toHaveClass('is-reached')
     expect(screen.queryByRole('button', { name: 'Mark In Transit' })).not.toBeInTheDocument()
   })
+  it('opens history photos from a View photo button and shows evidence photos inline', () => {
+    const data = fixture()
+    data.tracking = [{ id: 't2', status: 'PICKED_UP', attemptNo: 1, recordedAt: '2026-11-14T08:17:00Z', photoUrl: 'https://bucket/pickup' }]
+    data.proofs = [{ id: 'proof', outcome: 'DELIVERED', recipientName: 'Nimal', recordedAt: '2026-11-14T09:00:00Z', photoUrl: 'https://bucket/delivered' }]
+    useCourierDelivery.mockReturnValue({ data, loading: false, error: null, reload: vi.fn() })
+    show()
+    const history = screen.getByRole('list', { name: 'Delivery history' })
+    expect(within(history).queryByRole('img')).not.toBeInTheDocument()
+    expect(within(history).getAllByRole('button', { name: 'View photo' })).toHaveLength(1)
+    expect(screen.getByRole('img', { name: 'Delivery evidence photo' })).toHaveAttribute('src', 'https://bucket/delivered')
+    fireEvent.click(within(history).getByRole('button', { name: 'View photo' }))
+    const viewer = screen.getByRole('dialog', { name: 'Picked up photo' })
+    expect(within(viewer).getByRole('img')).toHaveAttribute('src', 'https://bucket/pickup')
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
 })

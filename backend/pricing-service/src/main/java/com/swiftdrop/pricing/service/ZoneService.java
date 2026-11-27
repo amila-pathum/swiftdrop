@@ -4,6 +4,7 @@ import com.swiftdrop.pricing.dto.request.ZoneRequest;
 import com.swiftdrop.pricing.entity.Zone;
 import com.swiftdrop.pricing.exception.PricingConflictException;
 import com.swiftdrop.pricing.exception.ZoneNotFoundException;
+import com.swiftdrop.pricing.repository.RouteRateRepository;
 import com.swiftdrop.pricing.repository.ZoneRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,9 +21,11 @@ import java.util.UUID;
 public class ZoneService {
 
     private final ZoneRepository zoneRepository;
+    private final RouteRateRepository routeRateRepository;
 
-    public ZoneService(ZoneRepository zoneRepository) {
+    public ZoneService(ZoneRepository zoneRepository, RouteRateRepository routeRateRepository) {
         this.zoneRepository = zoneRepository;
+        this.routeRateRepository = routeRateRepository;
     }
 
     @Transactional(readOnly = true)
@@ -68,6 +71,20 @@ public class ZoneService {
         Zone zone = getZoneById(id);
         zone.setActive(false);
         return zoneRepository.save(zone);
+    }
+
+    /**
+     * Deletes a zone that no rate card has ever priced. Rate card versions are kept
+     * as history, so a zone they use can only be disabled.
+     */
+    public void deleteZone(UUID id) {
+        Zone zone = getZoneById(id);
+        if (routeRateRepository.existsForZone(id)) {
+            throw new PricingConflictException(zone.getName()
+                + " is used in a rate card, so it can't be deleted. Disable it instead to stop new bookings.");
+        }
+        zoneRepository.delete(zone);
+        zoneRepository.flush();
     }
 
     public Zone enableZone(UUID id) {

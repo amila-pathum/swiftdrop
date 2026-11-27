@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import CourierWorkloadPage from './CourierWorkloadPage'
 import { dispatchService } from '../../services/dispatchService'
@@ -22,16 +22,21 @@ describe('CourierWorkloadPage', () => {
     })
     render(<CourierWorkloadPage />)
 
-    expect(await screen.findByText('Amal')).toBeInTheDocument()
-    expect(screen.getByText('3')).toBeInTheDocument()
-    expect(screen.getByText('Available')).toBeInTheDocument()
-    expect(screen.getByText('Offline')).toBeInTheDocument()
+    const cards = within(await screen.findByRole('list', { name: 'Couriers' })).getAllByRole('listitem')
+    expect(cards[0]).toHaveTextContent('Amal')
+    expect(within(cards[0]).getByText('3')).toBeInTheDocument()
+    expect(within(cards[0]).getByText('Available')).toBeInTheDocument()
+    expect(within(cards[1]).getByText('Offline')).toBeInTheDocument()
+    expect(within(cards[1]).getByRole('button', { name: 'Show active parcels of Bimal' })).toBeDisabled()
+    const summary = within(screen.getByLabelText('Workload summary'))
+    expect(summary.getByText('Available now').parentElement).toHaveTextContent('1')
+    expect(summary.getByText('Busiest courier').parentElement).toHaveTextContent('3Amal')
 
     fireEvent.click(screen.getByRole('button', { name: 'Show active parcels of Amal' }))
 
     await waitFor(() => expect(dispatchService.getAssignments).toHaveBeenCalledWith(
       { state: 'ACTIVE', courierId: 7, pageSize: 100 }))
     expect(await screen.findByText('SD-0001')).toBeInTheDocument()
-    expect(screen.getByText('PICKED UP')).toBeInTheDocument()
+    expect(screen.getByText('Picked up')).toBeInTheDocument()
   })
 })

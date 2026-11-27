@@ -9,6 +9,9 @@ const paths = {
   arrow: 'm3 11 18-8-8 18-2-8Z M11 13 21 3',
   back: 'm12 5-7 7 7 7 M5 12h16',
   camera: 'M3 6h5l2-3h4l2 3h5v15H3Z M12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8',
+  clock: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20 M12 6v6l4 2',
+  alert: 'M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0 M12 9v4 M12 17h.01',
+  chart: 'M3 3v18h18 M7 16v-5 M12 16V8 M17 16v-9',
 }
 export default function CourierIcon({ name = 'box', size = 18, className = '' }) {
   return <svg width={size} height={size} className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d={paths[name] || paths.box} /></svg>

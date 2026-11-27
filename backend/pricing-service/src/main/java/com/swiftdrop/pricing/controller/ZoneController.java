@@ -55,6 +55,14 @@ public class ZoneController {
         return ZoneResponse.from(zoneService.disableZone(id));
     }
 
+    /** 204; 409 when a rate card uses the zone (disable it instead). */
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @PreAuthorize("hasRole('ADMIN')")
+    public void deleteZone(@PathVariable UUID id) {
+        zoneService.deleteZone(id);
+    }
+
     @PatchMapping("/{id}/enable")
     @PreAuthorize("hasRole('ADMIN')")
     public ZoneResponse enableZone(@PathVariable UUID id) {

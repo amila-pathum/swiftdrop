@@ -1,0 +1,42 @@
+/* Customer dashboard (builds on components/dashboard/dashboard.css). */
+.customer-dash .db-header-actions .button { gap: 6px; }
+.cd-state { display: grid; justify-items: center; gap: 10px; padding: 40px 20px; text-align: center; }
+.cd-state h2 { margin: 0; font-size: 17px; }
+.cd-state p { margin: 0; color: #62738d; }
+
+.cd-empty { display: grid; justify-items: center; align-content: center; gap: 10px; padding: 40px 24px; text-align: center; }
+.cd-empty h2 { margin: 6px 0 0; font-size: 18px; }
+.cd-empty p { margin: 0 0 8px; color: #62738d; max-width: 360px; }
+.cd-empty-icon { display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: #eef4ff; color: #1c5dfb; }
+.cd-empty .button { text-decoration: none; }
+
+.cd-side { display: grid; gap: 16px; align-content: start; }
+
+/* Recent deliveries list */
+.cd-recent { margin: 0; padding: 0; list-style: none; }
+.cd-recent li + li { border-top: 1px solid #edf2f8; }
+.cd-recent-row { display: flex; align-items: center; gap: 14px; padding: 14px 20px; color: inherit; text-decoration: none; transition: background 0.15s; }
+.cd-recent-row:hover { background: #fafcff; }
+.cd-recent-row:focus-visible { outline: 2px solid #1c5dfb; outline-offset: -2px; }
+.cd-recent-icon { display: grid; place-items: center; flex: none; width: 38px; height: 38px; border-radius: 10px; background: #f1f5f9; color: #47566c; }
+.cd-recent-main { flex: 1; display: grid; gap: 3px; min-width: 0; }
+.cd-recent-tracking { font-family: monospace; font-size: 14px; font-weight: 700; color: #161d2f; }
+.cd-recent-meta { overflow: hidden; color: #62738d; font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
+.cd-recent-side { display: grid; justify-items: end; gap: 4px; flex: none; }
+.cd-recent-fee { color: #47566c; font-size: 12.5px; font-weight: 600; }
+.cd-recent-arrow { flex: none; color: #94a3b8; }
+
+/* Status breakdown */
+.cd-stack { display: flex; height: 10px; overflow: hidden; border-radius: 99px; background: #eef3f9; }
+.cd-stack span { display: block; height: 100%; }
+.cd-stack span + span { border-left: 2px solid #fff; }
+.cd-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; margin: 16px 0 0; padding: 0; list-style: none; }
+.cd-legend li { display: flex; align-items: center; gap: 8px; color: #47566c; font-size: 13px; }
+.cd-legend strong { margin-left: auto; color: #161d2f; }
+.cd-dot { width: 9px; height: 9px; flex: none; border-radius: 3px; }
+
+@media (max-width: 560px) {
+  .cd-recent-row { padding: 12px 14px; gap: 10px; }
+  .cd-recent-icon, .cd-recent-arrow { display: none; }
+  .cd-legend { grid-template-columns: 1fr; }
+}

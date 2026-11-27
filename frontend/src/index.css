@@ -5567,6 +5567,11 @@ a.button {
     gap: 10px;
   }
 
+  /* In a column, flex: 1 would collapse the input's height. */
+  .tracking-search-card-input {
+    flex: none;
+  }
+
   .tracking-search-card-button {
     width: 100%;
   }
@@ -7054,4 +7059,241 @@ a.button {
 .dispatch-update-note {
   white-space: pre-line;
   overflow-wrap: anywhere;
+}
+
+/* "View photo" button and photo overlay (courier history). */
+.photo-view-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--color-primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.photo-view-button:hover {
+  border-color: var(--color-primary);
+  background: #f3f7ff;
+}
+
+.photo-view-button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.photo-viewer-backdrop {
+  position: fixed;
+  z-index: 40;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgb(15 23 42 / 70%);
+}
+
+.photo-viewer {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 900px);
+  max-height: calc(100vh - 48px);
+  margin: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 20px 50px rgb(15 23 42 / 30%);
+}
+
+.photo-viewer figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.photo-viewer-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.photo-viewer-actions a {
+  color: var(--color-primary);
+  font-size: 13px;
+}
+
+.photo-viewer-actions button {
+  border: 0;
+  background: none;
+  color: var(--color-text-secondary);
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.photo-viewer img {
+  display: block;
+  min-height: 0;
+  max-width: 100%;
+  max-height: calc(100vh - 110px);
+  margin: 0 auto;
+  object-fit: contain;
+  background: #0f172a;
+}
+
+.photo-viewer-error {
+  padding: 32px 20px;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+/* Courier photo picker. */
+.photo-field-label {
+  font-weight: 600;
+}
+
+.photo-field-label span {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
+.photo-field-drop,
+.photo-field-selected {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border-radius: 10px;
+}
+
+.photo-field-drop {
+  border: 1.5px dashed #c3d1e6;
+  background: #f8fafd;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.photo-field-drop.is-dragging {
+  border-color: var(--color-primary);
+  background: #eef4ff;
+}
+
+.photo-field-selected {
+  border: 1px solid var(--color-border);
+  background: #fff;
+}
+
+.photo-field-drop.has-error,
+.photo-field-selected.has-error {
+  border-color: var(--color-error);
+}
+
+.photo-field-icon,
+.photo-field-thumb-empty {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #e8f0ff;
+  color: var(--color-primary);
+}
+
+.photo-field-thumb {
+  flex: none;
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+}
+
+.photo-field-meta {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.photo-field-meta strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.photo-field-meta span {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.photo-field-choose,
+.photo-field-actions button {
+  flex: none;
+  padding: 7px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--color-text, #0f172a);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.photo-field-choose {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
+.photo-field-choose:hover:not(:disabled),
+.photo-field-actions button:hover:not(:disabled) {
+  background: #f3f7ff;
+}
+
+.photo-field-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.photo-field-actions .is-danger {
+  color: var(--color-error);
+}
+
+.photo-field-choose:focus-visible,
+.photo-field-actions button:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+}
+
+.photo-field-choose:disabled,
+.photo-field-actions button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+@media (max-width: 520px) {
+  .photo-field-drop,
+  .photo-field-selected {
+    flex-wrap: wrap;
+  }
+
+  .photo-field-choose,
+  .photo-field-actions {
+    width: 100%;
+  }
+
+  .photo-field-actions button {
+    flex: 1;
+  }
 }

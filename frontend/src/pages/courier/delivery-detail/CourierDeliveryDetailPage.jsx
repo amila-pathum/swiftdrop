@@ -6,6 +6,7 @@ import LoadingSpinner from '../../../components/LoadingSpinner'
 import CourierIcon from '../../../components/courier/CourierIcon'
 import DeliveryStatusBadge from '../../../components/courier/DeliveryStatusBadge'
 import DeliveryPhoto from '../../../components/DeliveryPhoto'
+import PhotoViewerButton from '../../../components/PhotoViewerButton'
 import { useCourierDelivery } from '../../../hooks/courier/useCourierDeliveries'
 import { activeDelivery, address, courierError, dateLabel, STATUS } from '../../../utils/courier/deliveryStatus'
 import DeliveryUpdateForm from './components/DeliveryUpdateForm'
@@ -99,9 +100,10 @@ export default function CourierDeliveryDetailPage() {
         {history.map((point) => <li key={point.id}>
           <time dateTime={point.recordedAt}>{when(point.recordedAt)}</time>
           <DeliveryStatusBadge status={point.status} label={HISTORY_LABELS[point.status]} />
-          <span className="detail-history-location">{point.locationDescription || 'Location not recorded'}</span>
-          <span className="detail-history-actor">{point.attemptNo != null ? `Attempt ${point.attemptNo}` : 'Attempt not recorded'} {'\u00b7'} by {roleLabel(point.actorRole)}</span>
-          {photoFor(point) && <DeliveryPhoto url={photoFor(point)} alt={`Photo for ${STATUS[point.status]?.label || point.status}`} />}
+          <span className="detail-history-actor">
+            {photoFor(point) && <PhotoViewerButton url={photoFor(point)} title={`${STATUS[point.status]?.label || point.status} photo`} />}
+            {point.attemptNo != null ? `Attempt ${point.attemptNo}` : 'Attempt not recorded'} {'\u00b7'} by {roleLabel(point.actorRole)}
+          </span>
         </li>)}
       </ol> : <p className="courier-help">No confirmed history is available yet.</p>}</Panel>
       {delivery.evidenceUnavailable && <Alert variant="warning">Some tracking or proof details could not be loaded.</Alert>}

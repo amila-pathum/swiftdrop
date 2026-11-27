@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import AdminDashboardPage from './AdminDashboardPage'
@@ -19,7 +19,7 @@ vi.mock('../../services/parcelService', () => ({
 }))
 
 const renderPage = () => render(<MemoryRouter><AdminDashboardPage /></MemoryRouter>)
-const kpi = (label) => screen.getByText(label).closest('article').querySelector('.admin-kpi-value')
+const kpi = (label) => within(screen.getByLabelText('Key operational statistics')).getByText(label).parentElement.querySelector('strong')
 
 describe('AdminDashboardPage', () => {
   beforeEach(() => {
@@ -41,9 +41,12 @@ describe('AdminDashboardPage', () => {
 
     expect(await screen.findByText('Active couriers')).toBeInTheDocument()
     expect(kpi('Active couriers')).toHaveTextContent('1')
-    expect(kpi('Pending merchant approvals')).toHaveTextContent('1')
-    expect(kpi('Deliveries today')).toHaveTextContent('1')
-    expect(screen.getByText('66.7%')).toBeInTheDocument()
+    expect(kpi('Parcels booked today')).toHaveTextContent('1')
+    expect(kpi('In progress')).toHaveTextContent('1')
+    expect(kpi('Failed, last 7 days')).toHaveTextContent('1')
+    expect(screen.getByText('1 merchant application is awaiting review')).toBeInTheDocument()
+    expect(screen.getByRole('img', { name: 'Success rate 66.7%' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Parcels by status' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Review' })).toHaveAttribute('href', '/admin/merchant-approvals')
   })
 

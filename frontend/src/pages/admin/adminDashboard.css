@@ -1,0 +1,43 @@
+/* Admin dashboard (builds on components/dashboard/dashboard.css and the .admin-* chart styles). */
+.admin-dash .db-header-actions .button { gap: 6px; }
+.ad-state { display: grid; justify-items: center; gap: 12px; padding: 40px 20px; text-align: center; }
+.admin-dash .db-attention .button { height: 34px; }
+
+/* Performance ring */
+.ad-performance { display: flex; align-items: center; gap: 24px; }
+.ad-ring { --value: 0%; display: grid; place-items: center; flex: none; width: 132px; height: 132px; border-radius: 50%;
+  background: conic-gradient(#16a34a var(--value), #fde2e0 0); }
+.ad-ring > div { display: grid; place-items: center; width: 102px; height: 102px; border-radius: 50%; background: var(--color-surface, #fff); text-align: center; }
+.ad-ring strong { font-size: 22px; line-height: 1.1; color: #161d2f; }
+.ad-ring span { color: #62738d; font-size: 11.5px; }
+.ad-figures { flex: 1; display: grid; gap: 12px; margin: 0; }
+.ad-figures > div { display: flex; align-items: center; justify-content: space-between; padding-bottom: 10px; border-bottom: 1px solid #edf2f8; }
+.ad-figures > div:last-child { border-bottom: 0; padding-bottom: 0; }
+.ad-figures dt { display: flex; align-items: center; gap: 8px; color: #47566c; font-size: 13.5px; }
+.ad-figures dd { margin: 0; font-size: 17px; font-weight: 700; color: #161d2f; }
+.ad-dot { width: 9px; height: 9px; border-radius: 3px; background: #94a3b8; }
+.ad-dot.is-success { background: #16a34a; }
+.ad-dot.is-danger { background: #dc2626; }
+.ad-dot.is-info { background: #1c5dfb; }
+.ad-split { margin-top: 20px; }
+.ad-caption { margin: 8px 0 0; color: #8193ab; font-size: 12px; }
+
+/* Parcels by status */
+.ad-pipeline { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.ad-pipeline li { display: grid; grid-template-columns: 130px minmax(0, 1fr) 44px; align-items: center; gap: 12px; }
+.ad-pipeline-label { color: #47566c; font-size: 13px; }
+.ad-pipeline-bar { height: 8px; border-radius: 99px; background: #eef3f9; overflow: hidden; }
+.ad-pipeline-bar span { display: block; height: 100%; border-radius: inherit; min-width: 4px; }
+.ad-pipeline strong { text-align: right; font-size: 14px; color: #161d2f; }
+
+/* Courier availability */
+.ad-availability { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.ad-availability li { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border: 1px solid #e8eef6; border-radius: 10px; background: #fbfcfe; }
+.ad-availability strong { font-size: 20px; color: #161d2f; }
+.ad-quick { display: flex; gap: 18px; margin-top: 16px; padding-top: 14px; border-top: 1px solid #edf2f8; }
+
+@media (max-width: 560px) {
+  .ad-performance { flex-direction: column; align-items: stretch; }
+  .ad-ring { align-self: center; }
+  .ad-pipeline li { grid-template-columns: 100px minmax(0, 1fr) 36px; }
+}

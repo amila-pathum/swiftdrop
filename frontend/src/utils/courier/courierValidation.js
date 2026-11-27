@@ -3,6 +3,7 @@ export const VEHICLES = [
   { value: 'THREE_WHEELER', label: 'Three-wheeler' }, { value: 'CAR', label: 'Car' },
   { value: 'VAN', label: 'Van' }, { value: 'TRUCK', label: 'Truck' },
 ]
+export const vehicleLabel = (type) => VEHICLES.find(({ value }) => value === type)?.label || type || 'Not provided'
 export const FAILURE_REASONS = [
   { value: 'RECIPIENT_ABSENT', label: 'Recipient absent' }, { value: 'WRONG_ADDRESS', label: 'Wrong address' },
   { value: 'REFUSED', label: 'Delivery refused' }, { value: 'INACCESSIBLE_LOCATION', label: 'Location inaccessible' },

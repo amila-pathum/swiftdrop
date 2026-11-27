@@ -252,6 +252,14 @@ export const ENDPOINTS = Object.freeze({
     auth: true,
     // Admin only. -> Zone
   },
+  deleteZone: {
+    method: 'DELETE',
+    path: '/api/zones/:id',
+    available: true,
+    auth: true,
+    // Admin only. -> 204. 409 when a rate card (current or past) uses the zone;
+    // such zones can only be disabled.
+  },
   getRateCard: {
     method: 'GET',
     path: '/api/pricing/rates',
