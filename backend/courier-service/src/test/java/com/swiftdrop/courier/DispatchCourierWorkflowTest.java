@@ -78,7 +78,7 @@ class DispatchCourierWorkflowTest {
     }
     DeliveryInput update(DeliveryStatus status) {
         return new DeliveryInput(UUID.randomUUID(),status,status==DeliveryStatus.DELIVERED?"Recipient":null,
-            status==DeliveryStatus.FAILED?FailureReason.RECIPIENT_ABSENT:null,null,"Reception desk",null,null,null,null);
+            status==DeliveryStatus.FAILED?FailureReason.RECIPIENT_ABSENT:null,null,"Reception desk",null,null,null,null,null);
     }
     void progress(long user,DeliveryInput input) throws Exception {
         var route=input.status()==DeliveryStatus.IN_TRANSIT?patch("/api/couriers/me/deliveries/"+parcel+"/status"):post("/api/couriers/me/deliveries/"+parcel+"/status");
@@ -138,6 +138,11 @@ class DispatchCourierWorkflowTest {
             .andExpect(status().isOk()).andExpect(jsonPath("$.totalElements").value(1));
         mvc.perform(get("/api/couriers/me/deliveries/"+parcel).with(actor("COURIER",43))).andExpect(status().isForbidden());
         var picked=update(DeliveryStatus.PICKED_UP);progress(42,picked);progress(42,picked);
+        // Without COURIER_PHOTO_BUCKET, photo uploads are refused but updates without one still work.
+        mvc.perform(post("/api/couriers/me/deliveries/"+parcel+"/photo-uploads").with(actor("COURIER",42)).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"contentType\":\"image/png\",\"sizeBytes\":100}")).andExpect(status().isServiceUnavailable());
+        mvc.perform(post("/api/couriers/me/deliveries/"+parcel+"/photo-uploads").with(actor("COURIER",43)).contentType(MediaType.APPLICATION_JSON)
+            .content("{\"contentType\":\"image/png\",\"sizeBytes\":100}")).andExpect(status().isForbidden());
         assertThat(count("courier_event_outbox")).isEqualTo(1);
         mvc.perform(post("/api/couriers/me/deliveries/"+parcel+"/status").with(actor("COURIER",42)).contentType(MediaType.APPLICATION_JSON)
             .content(mapper.writeValueAsString(update(DeliveryStatus.DELIVERED)))).andExpect(status().isConflict());
@@ -147,6 +152,13 @@ class DispatchCourierWorkflowTest {
         mvc.perform(get("/api/couriers/me/deliveries/"+parcel+"/history").with(actor("COURIER",42)))
             .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(5));
         assertThat(count("delivery_proofs")).isEqualTo(1);assertThat(count("courier_event_outbox")).isEqualTo(4);
+        mvc.perform(get("/api/couriers/dispatch/parcels/"+parcel+"/updates").with(actor("DISPATCHER",7)))
+            .andExpect(status().isOk()).andExpect(jsonPath("$.length()").value(4))
+            .andExpect(jsonPath("$[0].status").value("PICKED_UP")).andExpect(jsonPath("$[0].courierId").value(10))
+            .andExpect(jsonPath("$[3].status").value("DELIVERED")).andExpect(jsonPath("$[3].recipientName").value("Recipient"))
+            .andExpect(jsonPath("$[3].photoUrl").doesNotExist());
+        for(String role:List.of("COURIER","MERCHANT","CUSTOMER"))
+            mvc.perform(get("/api/couriers/dispatch/parcels/"+parcel+"/updates").with(actor(role,42))).andExpect(status().isForbidden());
         new CourierOutboxPublisher(jdbc,rabbit,manager).publishDue();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM courier_event_outbox WHERE published_at IS NOT NULL",Long.class)).isEqualTo(4);
         for(int i=0;i<4;i++) {

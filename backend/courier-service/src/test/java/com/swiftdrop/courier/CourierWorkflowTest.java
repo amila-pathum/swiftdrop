@@ -39,17 +39,17 @@ class CourierWorkflowTest {
         var courier=create(42L);UUID parcelId=UUID.randomUUID();
         when(dispatch.assignments(courier.id(),"token")).thenReturn(List.of(new Assignment(UUID.randomUUID(),parcelId,courier.id(),1,true,0,LocalDate.now(),Instant.now())));
         when(parcels.parcel(parcelId,"token")).thenReturn(new ParcelDetails(parcelId,"SD1","OUT_FOR_DELIVERY","Pickup address","Delivery address","Recipient","0771234567"));
-        var pickup=new DeliveryInput(UUID.randomUUID(),DeliveryStatus.PICKED_UP,null,null,null,"Collected at front desk",null,null,null,null);
-        assertThat(deliveries.submit(42L,parcelId,pickup,null,"token").syncStatus()).isEqualTo(SyncStatus.CONFIRMED);
-        var failed=new DeliveryInput(UUID.randomUUID(),DeliveryStatus.FAILED,null,FailureReason.RECIPIENT_ABSENT,null,"Destination gate",null,null,null,null);
-        deliveries.submit(42L,parcelId,failed,null,"token");
+        var pickup=new DeliveryInput(UUID.randomUUID(),DeliveryStatus.PICKED_UP,null,null,null,"Collected at front desk",null,null,null,null,null);
+        assertThat(deliveries.submit(42L,parcelId,pickup,"token").syncStatus()).isEqualTo(SyncStatus.CONFIRMED);
+        var failed=new DeliveryInput(UUID.randomUUID(),DeliveryStatus.FAILED,null,FailureReason.RECIPIENT_ABSENT,null,"Destination gate",null,null,null,null,null);
+        deliveries.submit(42L,parcelId,failed,"token");
         when(dispatch.assignments(courier.id(),"token")).thenReturn(List.of(new Assignment(UUID.randomUUID(),parcelId,courier.id(),2,true,0,LocalDate.now(),Instant.now())));
-        var success=new DeliveryInput(UUID.randomUUID(),DeliveryStatus.DELIVERED,"Recipient",null,null,"Reception",null,null,null,null);
-        deliveries.submit(42L,parcelId,success,null,"token");
+        var success=new DeliveryInput(UUID.randomUUID(),DeliveryStatus.DELIVERED,"Recipient",null,null,"Reception",null,null,null,null,null);
+        deliveries.submit(42L,parcelId,success,"token");
         assertThat(deliveries.proofs(42L,parcelId,"token")).extracting(Proof::outcome).containsExactly(DeliveryStatus.FAILED,DeliveryStatus.DELIVERED);
         assertThat(deliveries.tracking(42L,parcelId,"token")).hasSize(3);
         assertThat(deliveries.proofs(42L,parcelId,"token").get(1).collectionAddressSnapshot()).isEqualTo("Pickup address");
-        assertThat(deliveries.submit(42L,parcelId,success,null,"token").syncStatus()).isEqualTo(SyncStatus.CONFIRMED);
+        assertThat(deliveries.submit(42L,parcelId,success,"token").syncStatus()).isEqualTo(SyncStatus.CONFIRMED);
         verify(parcels,times(3)).update(eq(parcelId),any(),eq("token"));
     }
     @Test void anotherCourierCannotReadTrackingProofsOrSubmission() {
@@ -57,8 +57,8 @@ class CourierWorkflowTest {
         when(dispatch.assignments(owner.id(),"token")).thenReturn(List.of(new Assignment(UUID.randomUUID(),parcelId,owner.id(),1,true,0,LocalDate.now(),Instant.now())));
         when(dispatch.assignments(other.id(),"token")).thenReturn(List.of());
         when(parcels.parcel(parcelId,"token")).thenReturn(new ParcelDetails(parcelId,"SD1","OUT_FOR_DELIVERY","Pickup","Destination","Recipient","0771234567"));
-        var request=new DeliveryInput(UUID.randomUUID(),DeliveryStatus.DELIVERED,"Recipient",null,null,"Reception",null,null,null,null);
-        deliveries.submit(42L,parcelId,request,null,"token");
+        var request=new DeliveryInput(UUID.randomUUID(),DeliveryStatus.DELIVERED,"Recipient",null,null,"Reception",null,null,null,null,null);
+        deliveries.submit(42L,parcelId,request,"token");
         assertThatThrownBy(()->deliveries.tracking(43L,parcelId,"token")).hasMessageContaining("not assigned");
         assertThatThrownBy(()->deliveries.proofs(43L,parcelId,"token")).hasMessageContaining("not assigned");
         assertThatThrownBy(()->deliveries.submission(43L,request.submissionId())).hasMessageContaining("another courier");

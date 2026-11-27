@@ -557,6 +557,39 @@ Flow (OpenID Connect authorization code with PKCE; no token ever appears in a UR
 
 Google sign-in creates an `ACTIVE` `CUSTOMER` without a password and requires a Google-verified email. It never links to an existing SwiftDrop account: if the email is already registered, the user is sent back with `account_exists` and must sign in with their password.
 
+## Delivery photos (AWS S3)
+
+Couriers can attach one optional JPG or PNG photo (up to 5 MB) to any status
+update. Dispatchers see it in **Ongoing deliveries** by selecting a tracking number.
+Photos live in a private S3 bucket, and the browser talks to S3 directly:
+
+1. The courier's browser asks Courier Service for an upload ticket
+   (`POST /api/couriers/me/deliveries/{parcelId}/photo-uploads`). The service
+   checks that the parcel is assigned to that courier and returns a `photoKey` and
+   a signed PUT URL. The URL is valid for 5 minutes and only accepts the declared
+   type and size.
+2. The browser PUTs the file to that URL.
+3. The status update carries the `photoKey`. Courier Service checks that the key
+   belongs to this courier and parcel and hasn't been used, then downloads the file
+   once to confirm it is a real image. If it isn't, the file is deleted.
+
+Responses carry `photoUrl`, a signed GET URL valid for 5 minutes. Reloading the
+page gets a fresh one. A photo whose update is rejected is deleted. Photos that
+were uploaded but never attached to an update are deleted after 24 hours.
+
+Setup:
+
+- Set `AWS_REGION`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` and
+  `COURIER_PHOTO_BUCKET` in the root `.env` (see `.env.example`).
+  `run-service.sh` loads them for both local and RDS runs. Without
+  `COURIER_PHOTO_BUCKET`, the upload endpoint answers 503 and updates without a
+  photo still work.
+- Bucket: block all public access and use default encryption (SSE-S3).
+- CORS: allow `PUT` and `GET` from the frontend origin (`http://localhost:3000`,
+  plus the deployed origin), with the `Content-Type` header allowed.
+- IAM user policy: `s3:PutObject`, `s3:GetObject` and `s3:DeleteObject` on
+  `arn:aws:s3:::<bucket>/proofs/*` only.
+
 ## Database migrations
 
 Each service's database schema is managed by Flyway (`src/main/resources/db/migration` in that service), and Hibernate only validates it (`ddl-auto=validate`). Add a new `V<n>__<description>.sql` file for every schema change; never edit a migration that has already been merged.

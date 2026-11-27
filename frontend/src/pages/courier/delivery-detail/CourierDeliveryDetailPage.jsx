@@ -5,7 +5,7 @@ import Alert from '../../../components/Alert'
 import LoadingSpinner from '../../../components/LoadingSpinner'
 import CourierIcon from '../../../components/courier/CourierIcon'
 import DeliveryStatusBadge from '../../../components/courier/DeliveryStatusBadge'
-import ProofPhoto from '../../../components/courier/ProofPhoto'
+import DeliveryPhoto from '../../../components/DeliveryPhoto'
 import { useCourierDelivery } from '../../../hooks/courier/useCourierDeliveries'
 import { activeDelivery, address, courierError, dateLabel, STATUS } from '../../../utils/courier/deliveryStatus'
 import DeliveryUpdateForm from './components/DeliveryUpdateForm'
@@ -56,6 +56,10 @@ export default function CourierDeliveryDetailPage() {
   const parcel = delivery?.parcel
   const history = [...(Array.isArray(parcel?.history) && parcel.history.length ? parcel.history : Array.isArray(delivery?.tracking) ? delivery.tracking : [])]
     .sort((a, b) => new Date(b.recordedAt) - new Date(a.recordedAt))
+  // Parcel-service history carries no photos; take them from this courier's own confirmed updates.
+  const photos = new Map((Array.isArray(delivery?.tracking) ? delivery.tracking : []).filter((point) => point.photoUrl)
+    .map((point) => [`${point.status}:${point.attemptNo}`, point.photoUrl]))
+  const photoFor = (point) => point.photoUrl || photos.get(`${point.status}:${point.attemptNo}`)
   const dimensions = [parcel?.lengthCm, parcel?.widthCm, parcel?.heightCm]
   const dimensionText = dimensions.every((value) => value != null && Number.isFinite(Number(value)) && Number(value) > 0)
     ? `${dimensions.map(number).join(' \u00d7 ')} cm` : null
@@ -97,12 +101,13 @@ export default function CourierDeliveryDetailPage() {
           <DeliveryStatusBadge status={point.status} label={HISTORY_LABELS[point.status]} />
           <span className="detail-history-location">{point.locationDescription || 'Location not recorded'}</span>
           <span className="detail-history-actor">{point.attemptNo != null ? `Attempt ${point.attemptNo}` : 'Attempt not recorded'} {'\u00b7'} by {roleLabel(point.actorRole)}</span>
+          {photoFor(point) && <DeliveryPhoto url={photoFor(point)} alt={`Photo for ${STATUS[point.status]?.label || point.status}`} />}
         </li>)}
       </ol> : <p className="courier-help">No confirmed history is available yet.</p>}</Panel>
       {delivery.evidenceUnavailable && <Alert variant="warning">Some tracking or proof details could not be loaded.</Alert>}
       {delivery.proofs?.length > 0 && <Panel title="Delivery evidence">{delivery.proofs.map((proof) => <article key={proof.id} className="courier-proof">
         <h3>{STATUS[proof.outcome]?.label || proof.outcome}</h3><p>{proof.recipientName || proof.failureReason}</p>{proof.note && <p>{proof.note}</p>}
-        <p className="courier-help">{when(proof.recordedAt)}</p>{proof.photoUrl && <ProofPhoto parcelId={parcelId} proofId={proof.id} />}
+        <p className="courier-help">{when(proof.recordedAt)}</p><DeliveryPhoto url={proof.photoUrl} alt="Delivery evidence photo" />
       </article>)}</Panel>}
       {activeDelivery(delivery) && ACTIONS[parcel.status] ? <div className="courier-panel detail-actions">
         {editingParcel === `${parcelId}:${parcel.status}` ? <>

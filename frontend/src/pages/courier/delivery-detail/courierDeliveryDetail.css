@@ -46,3 +46,4 @@
 .detail-actions>.courier-panel{margin-top:8px}
 @media(max-width:950px){.detail-history li{grid-template-columns:140px 1fr;gap:6px 12px}.detail-history-actor{text-align:left}}
 @media(max-width:600px){.detail-contact-grid{grid-template-columns:1fr}.detail-parcel-facts{grid-template-columns:85px minmax(0,1fr)}.courier-delivery-detail .detail-panel .courier-panel-body{padding:16px}.detail-history li{grid-template-columns:1fr auto}.detail-history-location{grid-column:1}.detail-history-actor{grid-column:1 / -1}.courier-delivery-detail{padding-bottom:20px}}
+.detail-history .delivery-photo{grid-column:1 / -1;justify-self:start;margin-top:0}

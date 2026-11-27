@@ -2,11 +2,12 @@ import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { courierService } from '../../services/courierService'
 import { useDeliverySubmission } from './useDeliverySubmission'
-vi.mock('../../services/courierService', () => ({ courierService: { submit: vi.fn(), getSubmission: vi.fn() } }))
+vi.mock('../../services/courierService', () => ({ courierService: { submit: vi.fn(), getSubmission: vi.fn(), uploadPhoto: vi.fn() } }))
 describe('delivery confirmation', () => {
   beforeEach(() => vi.clearAllMocks())
-  it('keeps pending updates locked and retries with the same submission and photo', async () => {
+  it('uploads the photo once, keeps pending updates locked and retries with the same submission and photo key', async () => {
     courierService.submit.mockResolvedValue({ syncStatus: 'UNKNOWN' })
+    courierService.uploadPhoto.mockResolvedValue('proofs/parcel/pod.jpg')
     const done = vi.fn()
     const { result } = renderHook(() => useDeliverySubmission('parcel', done))
     const photo = new File(['photo'], 'pod.jpg', { type: 'image/jpeg' })
@@ -15,6 +16,8 @@ describe('delivery confirmation', () => {
     expect(done).not.toHaveBeenCalled()
     await act(() => result.current.retry())
     expect(courierService.submit.mock.calls[1]).toEqual(courierService.submit.mock.calls[0])
+    expect(courierService.uploadPhoto).toHaveBeenCalledOnce()
+    expect(courierService.submit.mock.calls[0][1]).toMatchObject({ status: 'DELIVERED', photoKey: 'proofs/parcel/pod.jpg' })
     courierService.getSubmission.mockResolvedValue({ syncStatus: 'CONFIRMED' })
     await act(() => result.current.check())
     expect(done).toHaveBeenCalledOnce()
@@ -28,6 +31,15 @@ describe('delivery confirmation', () => {
     courierService.submit.mockRejectedValue(Object.assign(new Error('Invalid location'), { status: 400 }))
     await act(() => result.current.retry())
     expect(result.current.phase).toBe('error')
+    expect(result.current.locked).toBe(false)
+  })
+  it('does not send the update when the photo upload fails', async () => {
+    courierService.uploadPhoto.mockRejectedValue(new Error('The photo could not be uploaded. Try again.'))
+    const { result } = renderHook(() => useDeliverySubmission('parcel', vi.fn()))
+    await act(() => result.current.submit({ status: 'IN_TRANSIT' }, new File(['x'], 'a.png', { type: 'image/png' })))
+    expect(courierService.submit).not.toHaveBeenCalled()
+    expect(result.current.phase).toBe('error')
+    expect(result.current.message).toBe('The photo could not be uploaded. Try again.')
     expect(result.current.locked).toBe(false)
   })
 })

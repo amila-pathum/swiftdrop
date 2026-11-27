@@ -26,7 +26,19 @@ export function useDeliverySubmission(parcelId, onConfirmed) {
     busy.current = true
     setState({ phase: 'submitting', message: 'Sending your delivery update...' })
     const op = operation.current
-    try { receive(await courierService.submit(parcelId, op.data, op.photo)) }
+    if (op.photo && !op.data.photoKey) {
+      // Upload once; retries of the same update reuse the stored photo key.
+      setState({ phase: 'submitting', message: 'Uploading the photo...' })
+      try { op.data = { ...op.data, photoKey: await courierService.uploadPhoto(parcelId, op.photo) } }
+      catch (error) {
+        operation.current = null
+        busy.current = false
+        if (mounted.current) setState({ phase: 'error', message: error.message || 'The photo could not be uploaded.' })
+        return
+      }
+      setState({ phase: 'submitting', message: 'Sending your delivery update...' })
+    }
+    try { receive(await courierService.submit(parcelId, op.data)) }
     catch (error) {
       if (!mounted.current) return
       const definite = [400, 401, 403, 404, 409, 413, 415, 422].includes(error.status)

@@ -5,13 +5,11 @@ import com.swiftdrop.courier.entity.SyncStatus;
 import com.swiftdrop.courier.service.CourierDeliveryService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
-import org.springframework.core.io.Resource;
 import org.springframework.http.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 import java.util.*;
 
 @RestController
@@ -31,12 +29,13 @@ public class CourierDeliveryController {
     public CourierDeliveryService.Delivery detail(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID parcelId){return deliveries.detail(CourierController.userId(jwt),parcelId,jwt.getTokenValue());}
     @RequestMapping(value="/deliveries/{parcelId}/status",method={RequestMethod.POST,RequestMethod.PATCH},consumes=MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> status(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID parcelId,@Valid @RequestBody DeliveryInput input) {
-        return result(deliveries.submit(CourierController.userId(jwt),parcelId,input,null,jwt.getTokenValue()));
+        return result(deliveries.submit(CourierController.userId(jwt),parcelId,input,jwt.getTokenValue()));
     }
-    @PostMapping(value="/deliveries/{parcelId}/status",consumes=MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ResponseEntity<?> statusWithPhoto(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID parcelId,
-        @Valid @RequestPart("data") DeliveryInput input,@RequestPart(value="photo",required=false) MultipartFile photo) {
-        return result(deliveries.submit(CourierController.userId(jwt),parcelId,input,photo,jwt.getTokenValue()));
+    /** Step one of an optional photo: a signed URL the browser PUTs the file to, then sends {@code photoKey} with the status. */
+    @PostMapping(value="/deliveries/{parcelId}/photo-uploads",consumes=MediaType.APPLICATION_JSON_VALUE)
+    public com.swiftdrop.courier.photo.DeliveryPhotoService.Ticket photoUpload(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID parcelId,
+        @Valid @RequestBody PhotoUploadInput input) {
+        return deliveries.photoUpload(CourierController.userId(jwt),parcelId,input,jwt.getTokenValue());
     }
     private ResponseEntity<?> result(Submission result) {
         if(result.syncStatus()==SyncStatus.REJECTED)return ResponseEntity.status(409).body(Map.of("error",result.message(),"submission",result));
@@ -55,13 +54,5 @@ public class CourierDeliveryController {
     @GetMapping("/deliveries/{parcelId}/history")
     public List<com.swiftdrop.courier.client.CourierIntegrations.ParcelHistory> history(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID parcelId) {
         return deliveries.detail(CourierController.userId(jwt),parcelId,jwt.getTokenValue()).parcel().history();
-    }
-    @GetMapping("/deliveries/{parcelId}/proofs/{proofId}/photo")
-    public ResponseEntity<Resource> photo(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID parcelId,@PathVariable UUID proofId) {
-        Resource resource=deliveries.photo(CourierController.userId(jwt),parcelId,proofId,jwt.getTokenValue());
-        boolean png=Objects.requireNonNull(resource.getFilename()).endsWith(".png");
-        return ResponseEntity.ok().contentType(png?MediaType.IMAGE_PNG:MediaType.IMAGE_JPEG)
-            .cacheControl(CacheControl.noStore()).header("X-Content-Type-Options","nosniff")
-            .header(HttpHeaders.CONTENT_DISPOSITION,ContentDisposition.inline().filename(png?"delivery-proof.png":"delivery-proof.jpg").build().toString()).body(resource);
     }
 }
