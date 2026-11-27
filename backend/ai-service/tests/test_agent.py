@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, Mock
 from google.genai import types
 
 from app.agent.agent import answer_message
+from app.agent.tools import TOOLS
 
 
 def test_gemini_selects_parcel_tool():
@@ -47,6 +48,7 @@ def test_gemini_selects_parcel_tool():
         answer_message(
             message="Where is my parcel SD123?",
             access_token="user-jwt",
+            role="CUSTOMER",
             gemini_client=gemini,
             parcel_client=parcel,
             pricing_client=pricing,
@@ -71,3 +73,24 @@ def test_gemini_selects_parcel_tool():
             "status": "IN_TRANSIT",
         }
     }
+
+
+def test_model_cannot_invoke_tool_excluded_for_role(monkeypatch):
+    # Exercise a narrower tool policy without changing the shared pricing policy.
+    quote = next(tool for tool in TOOLS if tool["name"] == "estimate_fee")
+    monkeypatch.setitem(quote, "roles", {"MERCHANT"})
+    gemini = Mock()
+    gemini.aio.models.generate_content = AsyncMock(return_value=Mock(
+        function_calls=[types.FunctionCall(name="estimate_fee", args={
+            "pickup_city": "Colombo", "delivery_city": "Kandy", "weight": 2,
+            "service_type": "STANDARD", "size": "SMALL",
+        })]
+    ))
+    pricing = AsyncMock()
+    answer = asyncio.run(answer_message(
+        "Estimate this fee", "user-jwt", gemini, AsyncMock(), pricing, role="COURIER",
+    ))
+    offered = gemini.aio.models.generate_content.await_args.kwargs["config"].tools[0]
+    assert [tool.name for tool in offered.function_declarations] == ["track_parcel"]
+    assert answer == "I cannot perform that operation."
+    pricing.estimate_fee.assert_not_awaited()

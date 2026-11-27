@@ -7,6 +7,7 @@ from typing import Annotated
 import jwt
 from fastapi import Header, HTTPException
 
+from app.agent.tools import DASHBOARD_ROLES
 
 @dataclass(frozen=True)
 class AuthenticatedUser:
@@ -71,6 +72,10 @@ def require_user(
             or not role.strip()
         ):
             raise ValueError("Invalid identity claims")
+
+        # The gateway also accepts older signed tokens issued before the status claim.
+        if claims.get("status", "ACTIVE") != "ACTIVE" or role not in DASHBOARD_ROLES:
+            raise HTTPException(status_code=403, detail="Access is denied")
 
         return AuthenticatedUser(
             user_id=user_id,

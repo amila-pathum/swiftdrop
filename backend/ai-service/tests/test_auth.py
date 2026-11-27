@@ -21,14 +21,15 @@ def configure_jwt_secret(monkeypatch):
     )
 
 
-def make_token(*, expired=False, signing_key=TEST_KEY):
+def make_token(*, expired=False, signing_key=TEST_KEY, role="CUSTOMER", status="ACTIVE"):
     now = datetime.now(UTC)
 
     return jwt.encode(
         {
             "sub": "123",
             "email": "student@example.com",
-            "role": "CUSTOMER",
+            "role": role,
+            **({"status": status} if status is not None else {}),
             "iat": now,
             "exp": (
                 now - timedelta(minutes=1) if expired else now + timedelta(minutes=10)
@@ -69,8 +70,20 @@ def test_expired_token():
     assert response.status_code == 401
 
 
-def test_valid_token(monkeypatch):
-    token = make_token()
+@pytest.mark.parametrize("role,status", [
+    ("COURIER", "PENDING_APPROVAL"), ("CUSTOMER", "SUSPENDED"), ("UNKNOWN", "ACTIVE"),
+])
+def test_chat_denies_ineligible_accounts(role, status):
+    response = client.post(
+        "/api/ai/chat", json={"message": "Hello", "role": "ADMIN"},
+        headers={"Authorization": f"Bearer {make_token(role=role, status=status)}"},
+    )
+    assert response.status_code == 403
+
+
+@pytest.mark.parametrize("status", ["ACTIVE", None])
+def test_valid_token(monkeypatch, status):
+    token = make_token(status=status)
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     agent = AsyncMock(return_value="What is your tracking number?")
     monkeypatch.setattr("app.main.answer_message", agent)
@@ -86,6 +99,7 @@ def test_valid_token(monkeypatch):
     agent.assert_awaited_once()
     assert agent.await_args.kwargs["message"] == "Where is my parcel?"
     assert agent.await_args.kwargs["access_token"] == token
+    assert agent.await_args.kwargs["role"] == "CUSTOMER"
     assert agent.await_args.kwargs["history"] == ()
 
 

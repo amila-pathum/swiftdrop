@@ -23,17 +23,6 @@ Use tool results only to answer the user's question.
 Keep responses clear and concise.
 """
 
-TOOL = types.Tool(
-    function_declarations=[
-        types.FunctionDeclaration(
-            name=tool["name"],
-            description=tool["description"],
-            parameters_json_schema=tool["parameters"],
-        )
-        for tool in TOOLS
-    ]
-)
-
 SAFE_FIELDS = {
     "track_parcel": {"trackingNumber", "status"},
     "estimate_fee": {"amount", "currency", "breakdown"},
@@ -56,11 +45,23 @@ async def answer_message(
     pricing_client,
     model="gemini-3.5-flash-lite",
     *,
+    role: str,
     history: tuple[ChatTurn, ...] = (),
 ):
+    declarations = {
+        tool["name"]: types.FunctionDeclaration(
+            name=tool["name"],
+            description=tool["description"],
+            parameters_json_schema=tool["parameters"],
+        )
+        for tool in TOOLS if role in tool["roles"]
+    }
+    if not declarations:
+        return "No delivery tools are available for your role."
+    tools = [types.Tool(function_declarations=list(declarations.values()))]
     config = types.GenerateContentConfig(
         system_instruction=SYSTEM_PROMPT,
-        tools=[TOOL],
+        tools=tools,
         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
     )
 
@@ -92,7 +93,7 @@ async def answer_message(
 
     call = calls[0]
 
-    if call.name not in SAFE_FIELDS:
+    if call.name not in declarations or call.name not in SAFE_FIELDS:
         return "I cannot perform that operation."
 
     # 2. Execute the selected tool using the user's JWT.
@@ -135,7 +136,7 @@ async def answer_message(
         ],
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_PROMPT,
-            tools=[TOOL],
+            tools=tools,
             tool_config=types.ToolConfig(
                 function_calling_config=types.FunctionCallingConfig(mode="NONE")
             ),

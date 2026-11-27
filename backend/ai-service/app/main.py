@@ -83,6 +83,7 @@ async def chat(
         reply = await answer_message(
             message=payload.message,
             access_token=user.access_token,
+            role=user.role,
             gemini_client=services.gemini,
             parcel_client=services.parcel,
             pricing_client=services.pricing,

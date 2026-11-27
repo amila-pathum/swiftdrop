@@ -1,6 +1,10 @@
+# Public tracking and price quotes are available to all five dashboard roles.
+DASHBOARD_ROLES = frozenset({"CUSTOMER", "MERCHANT", "COURIER", "DISPATCHER", "ADMIN"})
+
 TOOLS = [
     {
         "name": "track_parcel",
+        "roles": DASHBOARD_ROLES,
         "description": (
             "Get the current delivery status of a parcel using its tracking number."
         ),
@@ -18,6 +22,7 @@ TOOLS = [
     },
     {
         "name": "estimate_fee",
+        "roles": DASHBOARD_ROLES,
         "description": (
             "Estimate a SwiftDrop delivery fee. You need the pickup city, "
             "delivery city, parcel weight in kilograms, service type "
