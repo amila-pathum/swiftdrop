@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import AssistantChat from '../../components/AssistantChat'
 import { ButtonLink } from '../../components/Button'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import { parcelService } from '../../services/parcelService'
@@ -138,7 +139,6 @@ export default function DeliveryHistoryPage() {
   const [downloading, setDownloading] = useState({})
   const [actionSuccess, setActionSuccess] = useState('')
   const [actionError, setActionError] = useState(null)
-  const [assistantMessage, setAssistantMessage] = useState(false)
 
   const [totalPages, setTotalPages] = useState(1)
   const [totalElements, setTotalElements] = useState(0)
@@ -524,54 +524,7 @@ export default function DeliveryHistoryPage() {
         </div>
       )}
 
-      {/* Floating Ask Assistant Pill */}
-      <button
-        type="button"
-        className="delivery-floating-assistant"
-        onClick={() => setAssistantMessage((prev) => !prev)}
-        aria-label="Ask assistant"
-      >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2563eb" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
-        <span>Ask assistant</span>
-      </button>
-
-      {assistantMessage && (
-        <div
-          role="dialog"
-          aria-label="Assistant helper"
-          style={{
-            position: 'fixed',
-            bottom: '76px',
-            right: '28px',
-            zIndex: 51,
-            background: '#ffffff',
-            border: '1px solid #e2e8f0',
-            borderRadius: '12px',
-            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
-            padding: '16px 20px',
-            width: '280px',
-            fontSize: '13px',
-            color: '#334155',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <strong style={{ color: '#0f172a' }}>SwiftDrop Assistant</strong>
-            <button
-              type="button"
-              onClick={() => setAssistantMessage(false)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', fontSize: '16px' }}
-              aria-label="Close assistant"
-            >
-              ✕
-            </button>
-          </div>
-          <p style={{ margin: 0, lineHeight: 1.4 }}>
-            Need help tracking a package or booking a new delivery? I'm here to assist you anytime!
-          </p>
-        </div>
-      )}
+      <AssistantChat />
     </div>
   )
 }
