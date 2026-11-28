@@ -11,7 +11,9 @@ def make_clients():
     pricing = Mock()
 
     parcel.track_parcel = AsyncMock(return_value={"status": "IN_TRANSIT"})
-    pricing.estimate_fee = AsyncMock(return_value={"totalFee": 450, "currency": "LKR"})
+    pricing.estimate_fee = AsyncMock(
+        return_value={"amount": 450, "currency": "LKR", "breakdown": {}}
+    )
 
     return parcel, pricing
 
@@ -44,9 +46,11 @@ def test_estimate_fee_execution():
         execute_tool(
             "estimate_fee",
             {
-                "pickup_zone": "COLOMBO",
-                "dropoff_zone": "KANDY",
-                "weight_kg": 2.0,
+                "pickup_city": "Colombo",
+                "delivery_city": "Kandy",
+                "weight": 2.0,
+                "service_type": "EXPRESS",
+                "size": "MEDIUM",
             },
             "user-jwt",
             parcel,
@@ -54,12 +58,14 @@ def test_estimate_fee_execution():
         )
     )
 
-    assert result["totalFee"] == 450
+    assert result["amount"] == 450
     pricing.estimate_fee.assert_awaited_once_with(
         request_data={
-            "pickupZone": "COLOMBO",
-            "dropoffZone": "KANDY",
-            "weightKg": 2.0,
+            "pickupCity": "Colombo",
+            "deliveryCity": "Kandy",
+            "weight": 2.0,
+            "serviceType": "EXPRESS",
+            "size": "MEDIUM",
         },
         access_token="user-jwt",
     )
@@ -73,7 +79,13 @@ def test_invalid_arguments_are_rejected():
         asyncio.run(
             execute_tool(
                 "estimate_fee",
-                {"weight_kg": -2},
+                {
+                    "pickup_city": "Colombo",
+                    "delivery_city": "Kandy",
+                    "weight": -2,
+                    "service_type": "STANDARD",
+                    "size": "SMALL",
+                },
                 "user-jwt",
                 parcel,
                 pricing,

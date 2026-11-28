@@ -18,5 +18,8 @@ def test_tool_parameters_are_required():
         parameters = tool["parameters"]
 
         assert parameters["type"] == "object"
-        assert parameters["required"]
+        if tool["name"] == "estimate_fee":
+            assert not parameters.get("required")
+        else:
+            assert parameters["required"]
         assert parameters["additionalProperties"] is False

@@ -1,10 +1,77 @@
 import asyncio
 from unittest.mock import AsyncMock, Mock
 
+import httpx
+import pytest
 from google.genai import types
 
 from app.agent.agent import answer_message
 from app.agent.tools import TOOLS
+
+
+@pytest.mark.parametrize(("role", "menu"), [
+    ("CUSTOMER", "Confirm Delivery"),
+    ("MERCHANT", "Generate New API Key"),
+    ("COURIER", "Open Delivery"),
+    ("DISPATCHER", "Waiting parcels"),
+    ("ADMIN", "Merchant Approvals"),
+])
+def test_site_help_supplies_the_signed_in_roles_guide(role, menu):
+    gemini = Mock()
+    gemini.aio.models.generate_content = AsyncMock(return_value=Mock(
+        function_calls=[], text=f"Select {menu}.",
+    ))
+    parcel, pricing = AsyncMock(), AsyncMock()
+    reply = asyncio.run(answer_message(
+        "Can I know how to make a new delivery in this site?", "jwt", gemini,
+        parcel, pricing, role=role,
+    ))
+    gemini.aio.models.generate_content.assert_awaited_once()
+    prompt = gemini.aio.models.generate_content.await_args.kwargs["config"].system_instruction
+    assert menu in prompt
+    assert ("Confirm Delivery" in prompt) == (role == "CUSTOMER")
+    assert ("Merchant Approvals" in prompt) == (role == "ADMIN")
+    assert reply == f"Select {menu}."
+    parcel.track_parcel.assert_not_awaited()
+    pricing.estimate_fee.assert_not_awaited()
+
+
+def test_quote_survives_failure_to_generate_final_reply():
+    call = types.FunctionCall(name="estimate_fee", args={
+        "pickup_city": "Kandy", "delivery_city": "Colombo", "weight": 1,
+        "service_type": "STANDARD", "size": "SMALL",
+    })
+    selection = types.Content(role="model", parts=[types.Part(function_call=call)])
+    gemini = Mock()
+    gemini.aio.models.generate_content = AsyncMock(side_effect=[
+        Mock(function_calls=[call], candidates=[Mock(content=selection)]),
+        httpx.ReadTimeout("Model unavailable"),
+    ])
+    pricing = AsyncMock()
+    pricing.estimate_fee.return_value = {"currency": "LKR", "amount": 700}
+    reply = asyncio.run(answer_message(
+        "kandy,colombo,1kg,standard,small", "user-jwt", gemini, AsyncMock(), pricing,
+        role="CUSTOMER",
+    ))
+    assert reply == "Estimated delivery fee: LKR 700.00."
+    pricing.estimate_fee.assert_awaited_once()
+
+
+def test_route_only_quote_asks_for_details_before_contacting_pricing():
+    model = Mock()
+    model.aio.models.generate_content = AsyncMock(return_value=Mock(
+        function_calls=[types.FunctionCall(name="estimate_fee", args={
+            "pickup_city": "Colombo", "delivery_city": "Kandy",
+        })]
+    ))
+    pricing = AsyncMock()
+    reply = asyncio.run(answer_message(
+        "How much from Colombo to Kandy?", "user-jwt", model, AsyncMock(), pricing,
+        role="CUSTOMER",
+    ))
+    assert "weight" in reply and "service type" in reply and "size" in reply
+    assert "city" not in reply
+    pricing.estimate_fee.assert_not_awaited()
 
 
 def test_gemini_selects_parcel_tool():

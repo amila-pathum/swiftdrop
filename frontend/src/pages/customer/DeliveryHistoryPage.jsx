@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import AssistantChat from '../../components/AssistantChat'
 import { ButtonLink } from '../../components/Button'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import { parcelService } from '../../services/parcelService'
@@ -524,7 +523,6 @@ export default function DeliveryHistoryPage() {
         </div>
       )}
 
-      <AssistantChat />
     </div>
   )
 }

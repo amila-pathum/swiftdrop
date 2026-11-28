@@ -276,6 +276,21 @@ describe('App routing', () => {
       expect(screen.getByRole('link', { name: 'Reports' })).toHaveAttribute('href', '/reports')
     })
 
+    it.each([
+      ['CUSTOMER', '/customer/deliveries'],
+      ['CUSTOMER', '/customer/create-delivery'],
+      ['MERCHANT', '/merchant/orders'],
+      ['COURIER', '/courier/deliveries'],
+      ['DISPATCHER', '/dispatch'],
+      ['ADMIN', '/admin/users'],
+      ['CUSTOMER', '/profile'],
+    ])('shows one assistant for %s on %s', (role, path) => {
+      authenticatedAs(role)
+      renderAt(path)
+      expect(currentPath()).toBe(path)
+      expect(screen.getByRole('button', { name: 'Ask assistant' })).toBeInTheDocument()
+    })
+
     it('allows admins to open reports and redirects other roles away', async () => {
       authenticatedAs('ADMIN')
       renderAt('/reports')

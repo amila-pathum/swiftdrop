@@ -27,7 +27,8 @@ TOOLS = [
             "Estimate a SwiftDrop delivery fee. You need the pickup city, "
             "delivery city, parcel weight in kilograms, service type "
             "(STANDARD or EXPRESS), and parcel size (SMALL, MEDIUM, or LARGE). "
-            "Ask the user for any missing information before estimating."
+            "Supply only details given by the user in this conversation. Omit "
+            "unknown fields so the assistant can ask for them. Never assume defaults."
         ),
         "parameters": {
             "type": "object",
@@ -56,13 +57,6 @@ TOOLS = [
                     "description": "Parcel size selected by the user",
                 },
             },
-            "required": [
-                "pickup_city",
-                "delivery_city",
-                "weight",
-                "service_type",
-                "size",
-            ],
             "additionalProperties": False,
         },
     },
