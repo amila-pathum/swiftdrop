@@ -2,6 +2,7 @@ import base64
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, Mock
 
+import httpx
 import jwt
 import pytest
 from fastapi.testclient import TestClient
@@ -103,7 +104,33 @@ def test_valid_token(monkeypatch, status):
     assert agent.await_args.kwargs["history"] == ()
 
 
-def test_fee_followup_uses_prior_turn_for_quote(monkeypatch):
+@pytest.mark.parametrize("role", ["ADMIN", "CUSTOMER"])
+def test_dashboard_count_uses_signed_role_and_forwards_user_token(monkeypatch, role):
+    monkeypatch.setenv("GEMINI_API_KEY", "test-key")
+    token = make_token(role=role)
+    selection = types.FunctionCall(name="get_account_count", args={"status": "ACTIVE"})
+    generate = AsyncMock(return_value=Mock(function_calls=[selection]))
+    request = httpx.Request("GET", "http://gateway/api/admin/users")
+    get = AsyncMock(return_value=httpx.Response(200, request=request, json={"totalElements": 37}))
+    with TestClient(app) as chat_client:
+        monkeypatch.setattr(app.state.gemini.aio.models, "generate_content", generate)
+        monkeypatch.setattr(app.state.operations.http, "get", get)
+        response = chat_client.post(
+            "/api/ai/chat", json={"message": "How many active accounts?", "role": "ADMIN"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert response.status_code == 200
+    if role == "CUSTOMER":
+        get.assert_not_awaited()
+        assert "cannot perform" in response.json()["reply"]
+    else:
+        get.assert_awaited_once()
+        assert get.await_args.kwargs["headers"] == {"Authorization": f"Bearer {token}"}
+        assert "37 matching accounts" in response.json()["reply"]
+
+
+@pytest.mark.parametrize("role", ["CUSTOMER", "ADMIN"])
+def test_fee_followup_uses_prior_turn_for_quote(monkeypatch, role):
     monkeypatch.setenv("GEMINI_API_KEY", "test-key")
     question = "How much from Colombo to Kandy, Express, medium parcel?"
     prompt = "How much does it weigh?"
@@ -117,7 +144,7 @@ def test_fee_followup_uses_prior_turn_for_quote(monkeypatch):
         Mock(text="The estimate is LKR 450."),
     ])
     quote = AsyncMock(return_value={"amount": 450, "currency": "LKR"})
-    token = make_token()
+    token = make_token(role=role)
     with TestClient(app) as chat_client:
         monkeypatch.setattr(app.state.gemini.aio.models, "generate_content", generate)
         monkeypatch.setattr(app.state.pricing, "estimate_fee", quote)

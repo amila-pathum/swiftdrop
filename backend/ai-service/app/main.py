@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.agent.agent import ChatTurn, answer_message
+from app.clients.operations import OperationsClient
 from app.clients.parcel import ParcelClient
 from app.clients.pricing import PricingClient
 from app.security import AuthenticatedUser, require_user
@@ -27,6 +28,9 @@ async def lifespan(app: FastAPI):
         ))
         app.state.parcel = ParcelClient(parcel_http, "/api/parcels/track/{tracking_number}")
         app.state.pricing = PricingClient(pricing_http, "/api/pricing/quote")
+        gateway_url = os.getenv("SWIFTDROP_GATEWAY_URL") or f"http://localhost:{os.getenv('GATEWAY_PORT', '8080')}"
+        gateway_http = await resources.enter_async_context(httpx.AsyncClient(base_url=gateway_url))
+        app.state.operations = OperationsClient(gateway_http)
         app.state.gemini = None
         if api_key := os.getenv("GEMINI_API_KEY"):
             gemini = resources.enter_context(genai.Client(api_key=api_key))
@@ -87,6 +91,7 @@ async def chat(
             gemini_client=services.gemini,
             parcel_client=services.parcel,
             pricing_client=services.pricing,
+            operations_client=services.operations,
             history=payload.history,
         )
     except (errors.APIError, httpx.RequestError) as exc:

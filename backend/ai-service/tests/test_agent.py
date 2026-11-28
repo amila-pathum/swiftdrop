@@ -6,7 +6,22 @@ import pytest
 from google.genai import types
 
 from app.agent.agent import answer_message
+from app.agent.operations import OPERATIONS
 from app.agent.tools import TOOLS
+
+
+@pytest.mark.parametrize("role", ["ADMIN", "DISPATCHER", "CUSTOMER", "MERCHANT", "COURIER"])
+def test_role_introduction_is_grounded_in_permitted_lookups(role):
+    gemini = Mock()
+    gemini.aio.models.generate_content = AsyncMock(return_value=Mock(function_calls=[], text="Overview"))
+    asyncio.run(answer_message(
+        "for that role, what i can know about you?", "jwt", gemini, AsyncMock(), AsyncMock(), role=role,
+    ))
+    gemini.aio.models.generate_content.assert_awaited_once()
+    prompt = gemini.aio.models.generate_content.await_args.kwargs["config"].system_instruction
+    assert f"Website guide for {role}" in prompt
+    for tool in OPERATIONS.values():
+        assert (tool.description in prompt) == (role in tool.roles)
 
 
 @pytest.mark.parametrize(("role", "menu"), [

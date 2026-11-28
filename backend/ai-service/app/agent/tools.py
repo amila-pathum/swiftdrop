@@ -1,3 +1,5 @@
+from app.agent.operations import OPERATIONS
+
 # Public tracking and price quotes are available to all five dashboard roles.
 DASHBOARD_ROLES = frozenset({"CUSTOMER", "MERCHANT", "COURIER", "DISPATCHER", "ADMIN"})
 
@@ -61,3 +63,10 @@ TOOLS = [
         },
     },
 ]
+
+TOOLS.extend({
+    "name": name,
+    "roles": tool.roles,
+    "description": tool.description,
+    "parameters": tool.arguments.model_json_schema(),
+} for name, tool in OPERATIONS.items())

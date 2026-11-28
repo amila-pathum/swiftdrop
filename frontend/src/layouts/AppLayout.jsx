@@ -26,7 +26,7 @@ export default function AppLayout({ children }) {
           {children ?? <Outlet />}
         </main>
       </div>
-      {isActive(user) && isKnownRole(user.role) && <AssistantChat key={`${user.id}:${user.role}`} />}
+      {isActive(user) && isKnownRole(user.role) && <AssistantChat key={`${user.id}:${user.role}`} role={user.role} />}
     </div>
   )
 }

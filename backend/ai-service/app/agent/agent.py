@@ -1,17 +1,29 @@
 import math
+from datetime import UTC, datetime
 
 import httpx
 from google.genai import errors, types
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.agent.executor import QuoteDetailsNeeded, execute_tool
+from app.agent.operations import OPERATIONS
 from app.agent.site_guide import ROLE_GUIDES
 from app.agent.tools import TOOLS
+from app.clients.operations import OperationsClient, OperationsUnavailable
 from app.clients.parcel import ParcelServiceError
 from app.clients.pricing import PricingServiceError
 
 SYSTEM_PROMPT = """
 You are SwiftDrop's parcel delivery assistant.
+
+When asked about yourself or what the user can ask in their role (for example,
+"for that role, what i can know about you?"), give a short introduction for the
+signed-in role. Start with the role's live dashboard lookups listed below, if
+any, and summarize their scope in ordinary language. Use the role's website
+guide for tasks you can walk them through. Briefly mention shared tracking and
+fee estimates, and finish with one concrete question they could ask for their
+role. A capability overview needs no live data or tool call. Only include
+contact details when asked about contacting SwiftDrop.
 
 For questions about how or where to do something on the site, answer directly
 from the signed-in role's website guide below. Give short steps using the UI
@@ -64,6 +76,7 @@ async def answer_message(
     model="gemini-3.5-flash-lite",
     *,
     role: str,
+    operations_client: OperationsClient | None = None,
     history: tuple[ChatTurn, ...] = (),
 ):
     declarations = {
@@ -78,6 +91,17 @@ async def answer_message(
         return "No delivery tools are available for your role."
     tools = [types.Tool(function_declarations=list(declarations.values()))]
     system_instruction = f"{SYSTEM_PROMPT}\nWebsite guide for {role}:\n{ROLE_GUIDES[role]}"
+    dashboard_lookups = [tool.description for name, tool in declarations.items() if name in OPERATIONS]
+    if dashboard_lookups:
+        system_instruction += "\nLive dashboard lookups for this role:\n" + "\n".join(dashboard_lookups)
+    if "get_delivery_report" in declarations:
+        today = datetime.now(UTC).date()
+        system_instruction += (
+            f"\nToday is {today} UTC. For live dashboard data use the offered read-only tools. "
+            "Interpret relative report dates in UTC. "
+            "Ask for the period if unclear. Guide users to the dashboard for changes. "
+            "For a shipment price use estimate_fee, including for admins."
+        )
     config = types.GenerateContentConfig(
         system_instruction=system_instruction,
         tools=tools,
@@ -112,7 +136,20 @@ async def answer_message(
 
     call = calls[0]
 
-    if call.name not in declarations or call.name not in SAFE_FIELDS:
+    if call.name not in declarations:
+        return "I cannot perform that operation."
+
+    if call.name in OPERATIONS and operations_client is not None:
+        tool = OPERATIONS[call.name]
+        try:
+            args = tool.arguments.model_validate(call.args or {})
+            return await tool.read(operations_client, access_token, **args.model_dump())
+        except ValidationError:
+            return "Please check the filters or details for this dashboard request."
+        except OperationsUnavailable:
+            return "The dashboard service could not provide that information right now."
+
+    if call.name not in SAFE_FIELDS:
         return "I cannot perform that operation."
 
     # 2. Execute the selected tool using the user's JWT.

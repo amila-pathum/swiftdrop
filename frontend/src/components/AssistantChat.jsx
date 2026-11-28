@@ -2,10 +2,34 @@ import { Fragment, useEffect, useId, useRef, useState } from 'react'
 import { apiClient } from '../services/apiClient'
 import './AssistantChat.css'
 
-const defaultSuggestions = [
-  { label: 'Track a parcel', message: 'Help me track a parcel.' },
-  { label: 'Estimate delivery fee', message: 'Help me estimate a delivery fee.' },
-]
+const estimateFee = { label: 'Estimate delivery fee', message: 'Help me estimate a delivery fee.' }
+const weeklyReport = { label: 'Weekly delivery report', message: 'How many deliveries succeeded or failed in the last 7 days?' }
+const roleSuggestions = {
+  CUSTOMER: [
+    { label: 'Track a parcel', message: 'Help me track a parcel.' },
+    estimateFee,
+    { label: 'Book a delivery', message: 'How do I book a new delivery on the site?' },
+  ],
+  MERCHANT: [
+    { label: 'Find an order', message: 'How do I find an order in my merchant dashboard?' },
+    { label: 'Generate an API key', message: 'How do I generate a merchant API key?' },
+    estimateFee,
+  ],
+  COURIER: [
+    { label: 'Today’s deliveries', message: 'Where can I see my assigned deliveries for today?' },
+    { label: 'Update delivery status', message: 'How do I update the status of an assigned delivery?' },
+  ],
+  DISPATCHER: [
+    { label: 'Check courier workload', message: 'How many parcels are waiting and how many active deliveries does each courier have?' },
+    { label: 'Assign a courier', message: 'How do I assign a waiting parcel to a courier?' },
+    weeklyReport,
+  ],
+  ADMIN: [
+    { label: 'Check pending approvals', message: 'How many merchant and courier applications are pending approval?' },
+    weeklyReport,
+    estimateFee,
+  ],
+}
 
 function BotMark() {
   return (
@@ -20,7 +44,7 @@ function BotMark() {
   )
 }
 
-export default function AssistantChat({ suggestions = defaultSuggestions }) {
+export default function AssistantChat({ role = 'CUSTOMER', suggestions = roleSuggestions[role] }) {
   const [open, setOpen] = useState(false)
   const [turns, setTurns] = useState([])
   const [draft, setDraft] = useState('')
@@ -89,7 +113,7 @@ export default function AssistantChat({ suggestions = defaultSuggestions }) {
             </button>
           </header>
           <div className="assistant-log" role="log" aria-label="Conversation" ref={log}>
-            <p className="assistant-bubble">How can I help with your delivery?</p>
+            <p className="assistant-bubble">How can I help?</p>
             {turns.length === 0 && pending === null && (
               <div className="assistant-suggestions">
                 {suggestions.map(({ label, message }) => (
@@ -108,7 +132,7 @@ export default function AssistantChat({ suggestions = defaultSuggestions }) {
             {error && <p className="assistant-error">{error} <button type="button" onClick={() => send(pending)}>Try again</button></p>}
           </div>
           <form className="assistant-form" onSubmit={event => { event.preventDefault(); send(draft) }}>
-            <input aria-label="Message SwiftDrop Assistant" placeholder="Ask about your delivery…"
+            <input aria-label="Message SwiftDrop Assistant" placeholder="Ask SwiftDrop Assistant…"
               maxLength={2000} value={draft} onChange={event => setDraft(event.target.value)} />
             <button type="submit" disabled={busy || !draft.trim()} aria-label="Send message">
               <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor"

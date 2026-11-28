@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react'
+import { fireEvent, render, screen, within } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router-dom'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App from './App'
@@ -277,18 +277,21 @@ describe('App routing', () => {
     })
 
     it.each([
-      ['CUSTOMER', '/customer/deliveries'],
-      ['CUSTOMER', '/customer/create-delivery'],
-      ['MERCHANT', '/merchant/orders'],
-      ['COURIER', '/courier/deliveries'],
-      ['DISPATCHER', '/dispatch'],
-      ['ADMIN', '/admin/users'],
-      ['CUSTOMER', '/profile'],
-    ])('shows one assistant for %s on %s', (role, path) => {
+      ['CUSTOMER', '/customer/deliveries', 'Track a parcel'],
+      ['CUSTOMER', '/customer/create-delivery', 'Book a delivery'],
+      ['MERCHANT', '/merchant/orders', 'Find an order'],
+      ['COURIER', '/courier/deliveries', 'Today’s deliveries'],
+      ['DISPATCHER', '/dispatch', 'Check courier workload'],
+      ['ADMIN', '/admin/users', 'Check pending approvals'],
+      ['CUSTOMER', '/profile', 'Estimate delivery fee'],
+    ])('shows one assistant for %s on %s', (role, path, suggestion) => {
       authenticatedAs(role)
       renderAt(path)
       expect(currentPath()).toBe(path)
-      expect(screen.getByRole('button', { name: 'Ask assistant' })).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Ask assistant' }))
+      const chat = within(screen.getByRole('dialog', { name: 'SwiftDrop Assistant' }))
+      expect(chat.getByRole('button', { name: suggestion })).toBeInTheDocument()
+      if (role !== 'ADMIN') expect(chat.queryByRole('button', { name: 'Check pending approvals' })).toBeNull()
     })
 
     it('allows admins to open reports and redirects other roles away', async () => {
