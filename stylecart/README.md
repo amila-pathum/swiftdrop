@@ -42,7 +42,9 @@ source stylecart/backend/target/local-tls/swiftdrop-env.sh
 DB_PROFILE=rds bash infrastructure/scripts/run-all.sh
 ```
 
-If SwiftDrop is already running, stop it in its terminal first and restart with these exports. They allow the exact StyleCart HTTPS origin and trust its localhost certificate using a separate truststore. If other local webhook origins or JVM options are required, include those too. These commands do not edit SwiftDrop's `.env` or `.env.rds`.
+Both lines must run in the same terminal. To avoid the `source` step, put the values in SwiftDrop's `.env` instead: add `https://localhost:8090` to `SWIFTDROP_WEBHOOKS_ALLOWED_ORIGINS` (comma-separated) and copy the `JAVA_TOOL_OPTIONS` value into `NOTIFICATION_JAVA_TOOL_OPTIONS`; `run-service.sh` applies it to notification-service only.
+
+If SwiftDrop is already running, stop it in its terminal first and restart with these exports. They allow the exact StyleCart HTTPS origin and trust its localhost certificate using a separate truststore. If other local webhook origins or JVM options are required, include those too. These commands do not edit SwiftDrop's `.env`.
 
 1. In SwiftDrop (port 3000), use an approved merchant account and obtain its merchant API key.
 2. In StyleCart admin, open Integration. Enter gateway `http://localhost:8080`, the merchant API key and pickup details. Save and check the connection.

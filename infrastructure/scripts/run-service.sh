@@ -82,6 +82,18 @@ shell_has() {
 	return 1
 }
 
+# Extra JVM options for notification-service only, from .env, e.g. a truststore
+# that trusts a local HTTPS webhook receiver such as StyleCart's
+# (stylecart/backend/target/local-tls/swiftdrop-env.sh prints the value).
+# A JAVA_TOOL_OPTIONS exported in your shell still wins.
+apply_service_jvm_options() {
+	if [[ "$service" == notification-service && -n "${NOTIFICATION_JAVA_TOOL_OPTIONS:-}" && -z "${JAVA_TOOL_OPTIONS:-}" ]]; then
+		export JAVA_TOOL_OPTIONS="$NOTIFICATION_JAVA_TOOL_OPTIONS"
+		echo "run-service.sh: JAVA_TOOL_OPTIONS set from NOTIFICATION_JAVA_TOOL_OPTIONS"
+	fi
+	unset NOTIFICATION_JAVA_TOOL_OPTIONS
+}
+
 validate_jwt_secret() {
     [[ -n "${JWT_SECRET:-}" ]] || fail "JWT_SECRET must be configured in $root/.env before starting services."
     local key_bytes
@@ -111,6 +123,7 @@ so the database settings come from the RDS_* variables, and unset SPRING_PROFILE
 	for name in $(compgen -e | grep '^RDS_' || true); do unset "$name"; done
 	echo "run-service.sh: $service with the local Docker PostgreSQL (settings from .env)"
 	[[ "${DRY_RUN:-}" == 1 ]] && exit 0
+	apply_service_jvm_options
 	cd "$dir"
 	exec ./mvnw spring-boot:run
 fi
@@ -205,5 +218,6 @@ run-service.sh: $service against AWS RDS (Spring profile '$SPRING_PROFILES_ACTIV
   settings: $settings_source
 EOF
 [[ "${DRY_RUN:-}" == 1 ]] && exit 0
+apply_service_jvm_options
 cd "$dir"
 exec ./mvnw spring-boot:run
