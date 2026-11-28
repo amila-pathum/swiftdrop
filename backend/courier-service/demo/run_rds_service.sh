@@ -18,9 +18,13 @@ unset RABBITMQ_VHOST SPRING_RABBITMQ_VIRTUAL_HOST
 case "$service" in
 api-gateway) export DB_PROFILE=local ;;
 identity-service|parcel-service|courier-service|dispatch-service)
-    set -a
-    source .env.rds
-    set +a
+    if [[ -z "${RDS_DB_HOST:-}" && -f .env.rds ]]; then
+        set -a
+        source .env.rds
+        set +a
+        RDS_DB_HOST="$DB_HOST" RDS_DB_PORT="${DB_PORT:-5432}"
+    fi
+    DB_HOST="${RDS_DB_HOST:?Set RDS_DB_HOST in .env}" DB_PORT="${RDS_DB_PORT:-5432}"
     export DB_PROFILE=rds
     database="${service%-service}_db"
     export SPRING_DATASOURCE_URL="jdbc:postgresql://${DB_HOST}:${DB_PORT:-5432}/${database}?sslmode=require&connectTimeout=8&socketTimeout=20"

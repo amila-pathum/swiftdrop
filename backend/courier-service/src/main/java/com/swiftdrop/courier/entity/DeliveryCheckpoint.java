@@ -27,6 +27,8 @@ public class DeliveryCheckpoint {
     @Column(name = "captured_at") public Instant capturedAt;
     @Column(name = "recorded_at", nullable = false) public Instant recordedAt;
     @Column(length = 1000) public String note;
+    // Private S3 key of the optional photo; responses carry a short-lived signed URL instead.
+    @Column(name = "photo_key", length = 200) public String photoKey;
     @Column(nullable = false, length = 64) public String fingerprint;
     @Column(name = "lease_until") public Instant leaseUntil;
     // Nullable version makes Spring Data persist a new caller-supplied UUID,

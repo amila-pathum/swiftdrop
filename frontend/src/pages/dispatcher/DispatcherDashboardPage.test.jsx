@@ -45,15 +45,16 @@ describe('DispatcherDashboardPage', () => {
 
   afterEach(() => vi.resetAllMocks())
 
-  it('lists waiting parcels and courier workload', async () => {
+  it('lists waiting parcels with every column, without a courier workload panel', async () => {
     render(<DispatcherDashboardPage />)
 
     expect(await screen.findByRole('button', { name: 'SD-0001' })).toBeInTheDocument()
-    expect(screen.getByText('Colombo → Kandy')).toBeInTheDocument()
+    expect(screen.getByLabelText('Colombo to Kandy')).toHaveTextContent('FromColomboToKandy')
+    expect(screen.getAllByRole('columnheader').map((cell) => cell.textContent))
+      .toEqual(['Tracking number', 'Route', 'Size', 'Created', 'Actions'])
     expect(dispatchService.getAssignments).toHaveBeenCalledWith(expect.objectContaining({ state: 'ACTIVE' }))
-    const workload = screen.getByRole('heading', { name: 'Courier workload' }).closest('section')
-    expect(within(workload).getByText('Amal')).toBeInTheDocument()
-    expect(within(workload).getByText('Busy')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Courier workload' })).not.toBeInTheDocument()
+    expect(within(screen.getByLabelText('Dispatch summary')).getByText('Couriers available')).toBeInTheDocument()
   })
 
   it('assigns a waiting parcel to the chosen courier; unavailable couriers cannot be picked', async () => {

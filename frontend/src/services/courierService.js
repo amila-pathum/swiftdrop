@@ -38,14 +38,22 @@ export const courierService = {
   getTracking: (parcelId, { signal } = {}) => get('courierTracking', { parcelId }, signal),
   getProofs: (parcelId, { signal } = {}) => get('courierProofs', { parcelId }, signal),
   getSubmission: (id, { signal } = {}) => get('courierSubmission', { id }, signal),
-  submit: (parcelId, data, photo) => {
-    let body = data
-    if (photo) {
-      body = new FormData()
-      body.append('data', new Blob([JSON.stringify(data)], { type: 'application/json' }))
-      body.append('photo', photo)
+  submit: (parcelId, data) => request(endpoint('courierStatus', { parcelId }), { method: 'POST', auth: true, body: data }),
+  // Sends the file straight to private S3 storage and returns the key for the status update.
+  uploadPhoto: async (parcelId, photo) => {
+    const ticket = await request(endpoint('courierPhotoUpload', { parcelId }), {
+      method: 'POST', auth: true, body: { contentType: photo.type, sizeBytes: photo.size },
+    })
+    if (!ticket?.photoKey || !ticket?.uploadUrl) {
+      throw new ApiError('The photo upload could not be prepared.', { kind: ApiErrorKind.INVALID_RESPONSE })
     }
-    return request(endpoint('courierStatus', { parcelId }), { method: 'POST', auth: true, body })
+    let response
+    try {
+      response = await fetch(ticket.uploadUrl, { method: 'PUT', headers: ticket.headers || {}, body: photo })
+    } catch {
+      throw new ApiError('The photo could not be uploaded. Check your connection and try again.', { kind: ApiErrorKind.NETWORK })
+    }
+    if (!response.ok) throw new ApiError('The photo could not be uploaded. Try again.', { status: response.status })
+    return ticket.photoKey
   },
-  getPhoto: (parcelId, proofId, { signal } = {}) => request(endpoint('courierPhoto', { parcelId, proofId }), { auth: true, signal, responseType: 'blob' }),
 }

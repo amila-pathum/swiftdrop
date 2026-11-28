@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuth } from '../../context/AuthContext'
@@ -12,7 +12,6 @@ vi.mock('../../services/parcelService', () => ({
 }))
 
 const renderPage = () => render(<MemoryRouter><CustomerDashboardPage /></MemoryRouter>)
-const statValue = (label) => screen.getByText(label).parentElement.querySelector('.stat-value')
 
 describe('CustomerDashboardPage', () => {
   beforeEach(() => {
@@ -35,10 +34,13 @@ describe('CustomerDashboardPage', () => {
     renderPage()
 
     expect(await screen.findByText('SDRECENT01')).toBeInTheDocument()
-    expect(statValue('Total Shipments')).toHaveTextContent('240')
-    expect(statValue('Active Deliveries')).toHaveTextContent('8')
-    expect(statValue('Delivered')).toHaveTextContent('200')
-    expect(statValue('Pending Bookings')).toHaveTextContent('12')
+    const stats = within(screen.getByLabelText('Delivery statistics'))
+    expect(stats.getByText('Total shipments').parentElement.querySelector('strong')).toHaveTextContent('240')
+    expect(stats.getByText('On the way').parentElement.querySelector('strong')).toHaveTextContent('8')
+    expect(stats.getByText('Delivered').parentElement.querySelector('strong')).toHaveTextContent('200')
+    expect(stats.getByText('Awaiting pickup').parentElement.querySelector('strong')).toHaveTextContent('12')
+    expect(stats.getByText('98% delivered successfully')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Welcome back, Kasun' })).toBeInTheDocument()
     expect(parcelService.getMyParcels).toHaveBeenCalledWith(0, 5, expect.any(AbortSignal))
   })
 

@@ -72,6 +72,22 @@ class AuthServiceTest {
     }
 
     @Test
+    void registerRequestsAWelcomeEmailWhenEmailIsConfigured() {
+        var emails = mock(com.swiftdrop.identity_service.notification.NotificationEmailClient.class);
+        authService.setEmails(emails);
+        when(repository.existsByEmail("new@example.com")).thenReturn(false);
+        when(encoder.encode("password123")).thenReturn("encoded");
+        when(repository.save(any(User.class))).thenAnswer(call -> call.getArgument(0));
+
+        authService.registerCourier(new RegisterRequest("Rider", "new@example.com", "password123"));
+
+        ArgumentCaptor<User> welcomed = ArgumentCaptor.forClass(User.class);
+        verify(emails).sendWelcome(welcomed.capture());
+        assertThat(welcomed.getValue().getRole()).isEqualTo(Role.COURIER);
+        assertThat(welcomed.getValue().getStatus()).isEqualTo(UserStatus.PENDING_APPROVAL);
+    }
+
+    @Test
     void registerRejectsDuplicateEmail() {
         when(repository.existsByEmail("user@example.com")).thenReturn(true);
 

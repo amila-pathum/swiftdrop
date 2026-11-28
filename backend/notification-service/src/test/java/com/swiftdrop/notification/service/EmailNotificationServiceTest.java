@@ -39,8 +39,6 @@ class EmailNotificationServiceTest {
                 identityServiceClient,
                 "smtp.gmail.com",
                 587,
-                "swiftdrop.notifications@gmail.com",
-                "fallback@example.com",
                 "swiftdrop.notifications@gmail.com"
         );
     }
@@ -71,9 +69,9 @@ class EmailNotificationServiceTest {
         assertThat(message.getTo()).containsExactly("customer@example.com");
         assertThat(message.getSubject()).isEqualTo("SwiftDrop – Parcel In Transit");
         assertThat(message.getText()).contains("Dear Customer,");
-        assertThat(message.getText()).contains("Your parcel **SD-123** is on the way to the delivery location as of November 14, 2026, at 8:22 PM (Sri Lanka time).");
+        assertThat(message.getText()).contains("Your parcel SD-123 is on the way to the delivery location as of November 14, 2026, at 8:22 PM (Sri Lanka time).");
         assertThat(message.getText()).contains("Thank you for choosing SwiftDrop. We appreciate your trust in our service.");
-        assertThat(message.getText()).contains("Best regards,\n**SwiftDrop Team**");
+        assertThat(message.getText()).contains("Best regards,\nSwiftDrop Team");
         assertThat(message.getText()).doesNotContain("ORDERED");
         assertThat(message.getText()).doesNotContain("from ORDERED to IN_TRANSIT");
     }
@@ -105,47 +103,57 @@ class EmailNotificationServiceTest {
         SimpleMailMessage message = captor.getValue();
         assertThat(message.getTo()).containsExactly("alice@swiftdrop.com");
         assertThat(message.getSubject()).isEqualTo("SwiftDrop – Parcel Picked Up");
-        assertThat(message.getText()).contains("Your parcel **SD-999** has been picked up by the courier");
+        assertThat(message.getText()).contains("Your parcel SD-999 has been picked up by the courier");
         assertThat(message.getText()).contains("(Sri Lanka time)");
         assertThat(message.getText()).doesNotContain("CREATED");
     }
 
     @Test
-    void sendParcelUpdateEmail_withUnresolvedCustomerId_fallsBackToConfiguredRecipient() {
+    void sendParcelUpdateEmail_withUnresolvedCustomerId_sendsNothingRatherThanToSomeoneElse() {
         when(identityServiceClient.findEmailByCustomerId("unknown-cust"))
                 .thenReturn(Optional.empty());
-
-        Instant fixedInstant = Instant.parse("2026-11-14T14:52:00Z"); // 8:22 PM in Sri Lanka (UTC+5:30)
         ParcelStatusChangedEvent event = new ParcelStatusChangedEvent(
-                UUID.randomUUID(),
-                "parcel.status-changed",
-                fixedInstant,
-                "SD-456",
-                "p-2",
-                null,
-                null,
-                "unknown-cust",
-                null,
-                "IN_TRANSIT",
-                "DELIVERED"
-        );
+                UUID.randomUUID(), "parcel.status-changed", Instant.parse("2026-11-14T14:52:00Z"),
+                "SD-456", "p-2", null, null, "unknown-cust", null, "IN_TRANSIT", "DELIVERED");
 
         emailService.sendParcelUpdateEmail(event);
 
+        verify(mailSender, never()).send(any(SimpleMailMessage.class));
+    }
+
+    @Test
+    void sendPasswordResetEmail_containsTheLinkAndSriLankaExpiry() {
+        boolean sent = emailService.sendPasswordResetEmail("kasun@example.com", "Kasun",
+                "http://localhost:3000/reset-password#token=abc", Instant.parse("2026-11-14T15:22:00Z"));
+
         ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
         verify(mailSender).send(captor.capture());
+        assertThat(sent).isTrue();
+        assertThat(captor.getValue().getTo()).containsExactly("kasun@example.com");
+        assertThat(captor.getValue().getSubject()).isEqualTo("SwiftDrop – Reset your password");
+        assertThat(captor.getValue().getText()).startsWith("Dear Kasun,")
+                .contains("http://localhost:3000/reset-password#token=abc")
+                .contains("8:52 PM on November 14, 2026 (Sri Lanka time)");
+    }
 
-        SimpleMailMessage message = captor.getValue();
-        assertThat(message.getTo()).containsExactly("fallback@example.com");
-        assertThat(message.getSubject()).isEqualTo("SwiftDrop – Parcel Successfully Delivered");
-        assertThat(message.getText()).isEqualTo(
-                "Dear Customer,\n\n" +
-                "Your parcel **SD-456** has been successfully delivered on November 14, 2026, at 8:22 PM (Sri Lanka time).\n\n" +
-                "Thank you for choosing SwiftDrop. We appreciate your trust in our service.\n\n" +
-                "Best regards,\n" +
-                "**SwiftDrop Team**"
-        );
-        assertThat(message.getText()).doesNotContain("IN_TRANSIT");
+    @Test
+    void sendWelcomeEmail_customerIsWelcomedAndApplicantsAreToldAboutReview() {
+        emailService.sendWelcomeEmail("c@example.com", "Nimal", "CUSTOMER", "ACTIVE", "http://localhost:3000/login");
+        emailService.sendWelcomeEmail("m@example.com", "Shop", "MERCHANT", "PENDING_APPROVAL", "http://localhost:3000/login");
+
+        ArgumentCaptor<SimpleMailMessage> captor = ArgumentCaptor.forClass(SimpleMailMessage.class);
+        verify(mailSender, times(2)).send(captor.capture());
+        assertThat(captor.getAllValues().get(0).getSubject()).isEqualTo("Welcome to SwiftDrop");
+        assertThat(captor.getAllValues().get(0).getText()).contains("http://localhost:3000/login");
+        assertThat(captor.getAllValues().get(1).getSubject()).isEqualTo("SwiftDrop – We received your merchant application");
+        assertThat(captor.getAllValues().get(1).getText()).contains("being reviewed");
+    }
+
+    @Test
+    void send_reportsFailureInsteadOfThrowing() {
+        doThrow(new MailSendException("SMTP down")).when(mailSender).send(any(SimpleMailMessage.class));
+        assertThat(emailService.send("x@example.com", "Subject", "Body")).isFalse();
+        assertThat(emailService.send("not-an-address", "Subject", "Body")).isFalse();
     }
 
     @Test
@@ -202,10 +210,10 @@ class EmailNotificationServiceTest {
 
         assertThat(body).isEqualTo(
                 "Dear Customer,\n\n" +
-                "Your parcel **SD-2026-9003** has been successfully delivered on November 15, 2026, at 8:00 AM (Sri Lanka time).\n\n" +
+                "Your parcel SD-2026-9003 has been successfully delivered on November 15, 2026, at 8:00 AM (Sri Lanka time).\n\n" +
                 "Thank you for choosing SwiftDrop. We appreciate your trust in our service.\n\n" +
                 "Best regards,\n" +
-                "**SwiftDrop Team**"
+                "SwiftDrop Team"
         );
     }
 
@@ -216,8 +224,8 @@ class EmailNotificationServiceTest {
 
         String body = EmailNotificationService.resolveEmailBody("OUT_FOR_DELIVERY", "SD-9001", utcInstant);
 
-        assertThat(body).contains("Your parcel **SD-9001** is out for delivery as of November 15, 2026, at 1:30 AM (Sri Lanka time) and will arrive soon.");
+        assertThat(body).contains("Your parcel SD-9001 is out for delivery as of November 15, 2026, at 1:30 AM (Sri Lanka time) and will arrive soon.");
         assertThat(body).contains("Dear Customer,");
-        assertThat(body).contains("**SwiftDrop Team**");
+        assertThat(body).contains("SwiftDrop Team");
     }
 }

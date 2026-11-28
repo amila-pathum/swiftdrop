@@ -33,33 +33,24 @@ public class EmailNotificationService {
     private final String mailHost;
     private final int mailPort;
     private final String mailFrom;
-    private final String testRecipient;
-    private final String mailUsername;
 
     public EmailNotificationService(
             @Autowired(required = false) JavaMailSender mailSender,
             @Autowired(required = false) IdentityServiceClient identityServiceClient,
-            @Value("${notification.mail.host:localhost}") String mailHost,
-            @Value("${notification.mail.port:587}") int mailPort,
-            @Value("${notification.mail.from:notifications@swiftdrop.com}") String mailFrom,
-            @Value("${notification.mail.test-recipient:}") String testRecipient,
-            @Value("${spring.mail.username:}") String mailUsername) {
+            @Value("${spring.mail.host:localhost}") String mailHost,
+            @Value("${spring.mail.port:587}") int mailPort,
+            @Value("${notification.mail.from:notifications@swiftdrop.com}") String mailFrom) {
         this.mailSender = mailSender;
         this.identityServiceClient = identityServiceClient;
         this.mailHost = mailHost;
         this.mailPort = mailPort;
         this.mailFrom = mailFrom;
-        this.testRecipient = testRecipient;
-        this.mailUsername = mailUsername;
     }
 
     /**
-     * Resolves the target email address for a given customerId.
-     * 1. If customerId is already an email address (e.g. test events or OAuth
-     * logins), uses it directly.
-     * 2. Queries identity-service to resolve the user's registered email address.
-     * 3. Otherwise falls back to configured test recipient or MAIL_USERNAME for
-     * local development testing.
+     * The customer's email: the customerId itself when it is an address, otherwise
+     * the address registered in Identity Service. Null when it cannot be found;
+     * the email is then skipped rather than sent to anyone else.
      */
     public String resolveCustomerEmail(String customerId) {
         if (!StringUtils.hasText(customerId)) {
@@ -79,16 +70,6 @@ public class EmailNotificationService {
                         emailOpt.get(), customerId);
                 return emailOpt.get();
             }
-        }
-
-        // 3. Fallback for testing / dev environment
-        if (StringUtils.hasText(testRecipient) && testRecipient.contains("@")) {
-            log.info("Using configured test-recipient '{}' for customerId '{}'", testRecipient, customerId);
-            return testRecipient.trim();
-        }
-        if (StringUtils.hasText(mailUsername) && mailUsername.contains("@")) {
-            log.info("Using MAIL_USERNAME '{}' as recipient for customerId '{}'", mailUsername, customerId);
-            return mailUsername.trim();
         }
 
         return null;
@@ -248,6 +229,67 @@ public class EmailNotificationService {
         } catch (Exception ex) {
             log.error("Failed to send email to {} for parcel {}: {}",
                     recipientEmail, event.trackingNumber(), ex.getMessage(), ex);
+        }
+    }
+
+    /** Welcome email after sign-up. Merchants and couriers are told their application is being reviewed. */
+    public boolean sendWelcomeEmail(String to, String name, String role, String status, String signInUrl) {
+        String greeting = "Dear " + (StringUtils.hasText(name) ? name.trim() : "there") + ",\n\n";
+        boolean pending = "PENDING_APPROVAL".equalsIgnoreCase(status);
+        String roleWord = "MERCHANT".equalsIgnoreCase(role) ? "merchant" : "COURIER".equalsIgnoreCase(role) ? "courier" : null;
+        String subject;
+        String middle;
+        if (pending && roleWord != null) {
+            subject = "SwiftDrop – We received your " + roleWord + " application";
+            middle = "Thank you for signing up as a SwiftDrop " + roleWord + ". Your application is now being reviewed "
+                    + "by our team. We will let you know as soon as it has been approved.\n\n"
+                    + "You can sign in at any time to check the status of your application:\n" + signInUrl + "\n\n";
+        } else {
+            subject = "Welcome to SwiftDrop";
+            middle = "Your SwiftDrop account is ready. You can now book deliveries and track your parcels "
+                    + "from pickup to delivery.\n\nSign in here:\n" + signInUrl + "\n\n";
+        }
+        return send(to, subject, greeting + middle
+                + "If you did not create this account, please ignore this email.\n\n"
+                + "Best regards,\nSwiftDrop Team");
+    }
+
+    /** The password reset link. It expires at {@code expiresAt} and works once. */
+    public boolean sendPasswordResetEmail(String to, String name, String resetUrl, Instant expiresAt) {
+        ZonedDateTime expires = (expiresAt != null ? expiresAt : Instant.now()).atZone(SRI_LANKA_ZONE);
+        String body = "Dear " + (StringUtils.hasText(name) ? name.trim() : "there") + ",\n\n"
+                + "We received a request to reset the password for your SwiftDrop account. "
+                + "Use the link below to choose a new password:\n\n"
+                + resetUrl + "\n\n"
+                + "The link works once and expires at " + TIME_FORMATTER.format(expires) + " on "
+                + DATE_FORMATTER.format(expires) + " (Sri Lanka time).\n\n"
+                + "If you did not ask to reset your password, you can ignore this email; your password stays the same.\n\n"
+                + "Best regards,\nSwiftDrop Team";
+        return send(to, "SwiftDrop – Reset your password", body);
+    }
+
+    /** Sends a plain-text email. False (and logged) when it could not be sent. */
+    public boolean send(String to, String subject, String body) {
+        if (!StringUtils.hasText(to) || !to.contains("@")) {
+            log.warn("Skipping email '{}': no valid recipient", subject);
+            return false;
+        }
+        if (mailSender == null) {
+            log.warn("JavaMailSender is not configured. Email '{}' to {} was not sent.", subject, to);
+            return false;
+        }
+        try {
+            SimpleMailMessage message = new SimpleMailMessage();
+            message.setFrom(mailFrom);
+            message.setTo(to.trim());
+            message.setSubject(subject);
+            message.setText(body);
+            mailSender.send(message);
+            log.info("Email '{}' sent to {}", subject, to);
+            return true;
+        } catch (Exception ex) {
+            log.error("Failed to send email '{}' to {}: {}", subject, to, ex.getMessage(), ex);
+            return false;
         }
     }
 }

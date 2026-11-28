@@ -45,6 +45,10 @@ export const dispatchService = {
       auth: true,
     }),
 
+  // Courier-recorded updates (notes, recipient, failure reason, photo) from the Courier Service.
+  getCourierUpdates: (parcelId) =>
+    request(`/api/couriers/dispatch/parcels/${encodeURIComponent(parcelId)}/updates`, { auth: true }),
+
   getDeliveries: (params = {}) =>
     request(`/api/dispatch/deliveries${queryString(params)}`, { auth: true }),
 

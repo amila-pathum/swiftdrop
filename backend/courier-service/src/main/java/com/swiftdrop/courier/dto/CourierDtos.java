@@ -34,23 +34,29 @@ public final class CourierDtos {
         @DecimalMin("-90") @DecimalMax("90") @Digits(integer=3,fraction=6) BigDecimal latitude,
         @DecimalMin("-180") @DecimalMax("180") @Digits(integer=3,fraction=6) BigDecimal longitude,
         @DecimalMin("0") @Digits(integer=8,fraction=2) BigDecimal accuracyMeters,
-        @PastOrPresent Instant capturedAt) {}
+        @PastOrPresent Instant capturedAt,
+        @Size(max=200) String photoKey) {}
+    /** Asks for a signed upload URL before the status update is sent. */
+    public record PhotoUploadInput(@NotBlank @Size(max=20) String contentType, @Positive long sizeBytes) {}
     public record Checkpoint(UUID id, UUID parcelId, int attemptNo, DeliveryStatus status,
         String plannedAddressSnapshot, String locationDescription, BigDecimal latitude,
-        BigDecimal longitude, BigDecimal accuracyMeters, Instant capturedAt, Instant recordedAt, String note) {
-        public static Checkpoint from(DeliveryCheckpoint c) {
+        BigDecimal longitude, BigDecimal accuracyMeters, Instant capturedAt, Instant recordedAt, String note, String photoUrl) {
+        public static Checkpoint from(DeliveryCheckpoint c, String photoUrl) {
             return new Checkpoint(c.id,c.parcelId,c.attemptNo,c.status,c.plannedAddressSnapshot,
-                c.locationDescription,c.latitude,c.longitude,c.accuracyMeters,c.capturedAt,c.recordedAt,c.note);
+                c.locationDescription,c.latitude,c.longitude,c.accuracyMeters,c.capturedAt,c.recordedAt,c.note,photoUrl);
         }
     }
     public record Proof(UUID id, UUID parcelId, int attemptNo, DeliveryStatus outcome, String recipientName,
         String photoUrl, FailureReason failureReason, String note, String collectionAddressSnapshot,
         String deliveryAddressSnapshot, Checkpoint attemptLocation, Instant recordedAt) {
-        public static Proof from(DeliveryProof p) {
-            String url = p.photoKey == null ? null : "/api/couriers/me/deliveries/"+p.parcelId+"/proofs/"+p.id+"/photo";
-            return new Proof(p.id,p.parcelId,p.attemptNo,p.outcome,p.recipientName,url,p.failureReason,
-                p.note,p.collectionAddressSnapshot,p.deliveryAddressSnapshot,Checkpoint.from(p.checkpoint),p.recordedAt);
+        /** {@code photoUrl} is the signed URL of the checkpoint's photo, or null. */
+        public static Proof from(DeliveryProof p, String photoUrl) {
+            return new Proof(p.id,p.parcelId,p.attemptNo,p.outcome,p.recipientName,photoUrl,p.failureReason,
+                p.note,p.collectionAddressSnapshot,p.deliveryAddressSnapshot,Checkpoint.from(p.checkpoint,photoUrl),p.recordedAt);
         }
     }
+    /** One confirmed courier update on a parcel, as dispatchers see it. */
+    public record DispatchUpdate(UUID id, DeliveryStatus status, int attemptNo, Instant recordedAt, Long courierId,
+        String courierName, String note, String recipientName, FailureReason failureReason, String photoUrl) {}
     public record Submission(UUID submissionId, UUID parcelId, SyncStatus syncStatus, String message) {}
 }

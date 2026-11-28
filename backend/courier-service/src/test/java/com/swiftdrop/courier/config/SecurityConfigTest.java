@@ -51,6 +51,7 @@ class SecurityConfigTest {
     @org.springframework.test.context.bean.override.mockito.MockitoBean
     com.swiftdrop.courier.service.CourierDeliveryService courierDeliveries;
     @MockitoBean com.swiftdrop.courier.service.CourierWorkflowService workflow;
+    @MockitoBean com.swiftdrop.courier.photo.DeliveryPhotoService deliveryPhotos;
 
     private static final byte[] KEY = bytes(32);
     private static final byte[] OTHER_KEY = bytes(32, 100);

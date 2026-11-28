@@ -14,7 +14,7 @@ This creates a localhost certificate and copies the JDK's default CA truststore 
 
 ## Start SwiftDrop
 
-Your ignored `.env` / `.env.rds` must have matching `WEBHOOK_ENCRYPTION_KEY`, `INTERNAL_WEBHOOK_TOKEN`, and `MERCHANT_ORDER_SERVICE_TOKEN`. All developers sharing the same encrypted webhook settings must use the same encryption key; exchange it privately, never in Git.
+Your ignored `.env` must have matching `WEBHOOK_ENCRYPTION_KEY`, `INTERNAL_WEBHOOK_TOKEN`, and `MERCHANT_ORDER_SERVICE_TOKEN`. All developers sharing the same encrypted webhook settings must use the same encryption key; exchange it privately, never in Git.
 
 In Git Bash, repository root:
 

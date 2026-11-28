@@ -54,6 +54,9 @@ export const pricingService = {
   disableZone: (id, options) =>
     callEndpoint(ENDPOINTS.disableZone, { ...options, params: { id } }),
 
+  deleteZone: (id, options) =>
+    callEndpoint(ENDPOINTS.deleteZone, { ...options, params: { id } }),
+
   // Rates
   getRateCard: (options) =>
     callEndpoint(ENDPOINTS.getRateCard, options),

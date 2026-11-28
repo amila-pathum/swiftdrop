@@ -252,3 +252,13 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Zone row actions and delete confirmation */
+.pricing-row-buttons { display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.pricing-delete-button { color: var(--color-error, #c81e1e); }
+.pricing-delete-button:hover:not(:disabled) { background: #fff2f0; color: var(--color-error, #c81e1e); }
+.pricing-delete-dialog { max-width: 480px; }
+.pricing-delete-dialog .modal-body p { margin: 0; line-height: 1.55; }
+.pricing-delete-hint { margin-top: 10px !important; color: var(--color-text-muted, #62738d); font-size: 13px; }
+.pricing-delete-confirm.button-primary { background: var(--color-error, #c81e1e); border-color: var(--color-error, #c81e1e); }
+.pricing-delete-confirm.button-primary:hover:not(:disabled) { background: #a51717; border-color: #a51717; }

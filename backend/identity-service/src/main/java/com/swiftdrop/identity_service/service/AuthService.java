@@ -17,6 +17,8 @@ import com.swiftdrop.identity_service.exception.UserNotFoundException;
 import com.swiftdrop.identity_service.security.JwtService;
 import com.swiftdrop.identity_service.security.RateLimiter;
 
+import com.swiftdrop.identity_service.notification.NotificationEmailClient;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -36,6 +38,7 @@ public class AuthService {
     private final OAuthLoginCodeService loginCodes;
     private final RateLimiter rateLimiter;
     private final RefreshTokenService refreshTokens;
+    private NotificationEmailClient emails;
 
     public AuthService(
             UserRepository userRepository,
@@ -50,6 +53,12 @@ public class AuthService {
         this.loginCodes = loginCodes;
         this.rateLimiter = rateLimiter;
         this.refreshTokens = refreshTokens;
+    }
+
+    /** Optional: present only when email delivery is configured. */
+    @Autowired(required = false)
+    void setEmails(NotificationEmailClient emails) {
+        this.emails = emails;
     }
 
     /** Customer sign-up: an ACTIVE CUSTOMER that can be used straight away. */
@@ -95,7 +104,11 @@ public class AuthService {
         user.updateProfile(user.getName(), blankToNull(request.phone()),
             blankToNull(request.address()));
 
-        return UserResponse.from(userRepository.save(user));
+        User saved = userRepository.save(user);
+        if (emails != null) {
+            emails.sendWelcome(saved);
+        }
+        return UserResponse.from(saved);
     }
 
     @Transactional

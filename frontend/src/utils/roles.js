@@ -82,7 +82,7 @@ const ROLE_LINKS = {
 export function navigationFor(user) {
   if (!user) return []
   if (user.role === Roles.COURIER && isActive(user)) return [
-    { to: '/courier/dashboard', label: 'Today' },
+    { to: '/courier/dashboard', label: 'Dashboard' },
     { to: '/courier/deliveries', label: 'Deliveries' },
     { to: '/courier/profile', label: 'Profile' },
   ]

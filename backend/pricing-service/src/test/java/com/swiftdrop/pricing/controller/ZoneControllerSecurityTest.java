@@ -30,6 +30,7 @@ class ZoneControllerSecurityTest {
         mvc.perform(put("/api/zones/" + WESTERN_ID).contentType("application/json").content(BODY)).andExpect(status().isForbidden());
         mvc.perform(patch("/api/zones/" + WESTERN_ID + "/disable")).andExpect(status().isForbidden());
         mvc.perform(patch("/api/zones/" + WESTERN_ID + "/enable")).andExpect(status().isForbidden());
+        mvc.perform(delete("/api/zones/" + WESTERN_ID)).andExpect(status().isForbidden());
         mvc.perform(get("/api/zones?includeInactive=true")).andExpect(status().isForbidden());
         verifyNoInteractions(service);
     }
@@ -43,6 +44,15 @@ class ZoneControllerSecurityTest {
             .andExpect(jsonPath("$.localities[1]").value("Dehiwala"));
         mvc.perform(put("/api/zones/" + WESTERN_ID).contentType("application/json").content(BODY)).andExpect(status().isOk());
         mvc.perform(patch("/api/zones/" + WESTERN_ID + "/disable")).andExpect(status().isOk());
+    }
+    @Test @WithMockUser(roles = "ADMIN")
+    void adminCanDeleteAnUnusedZoneButNotOneARateCardUses() throws Exception {
+        mvc.perform(delete("/api/zones/" + WESTERN_ID)).andExpect(status().isNoContent());
+        verify(service).deleteZone(WESTERN_ID);
+        doThrow(new com.swiftdrop.pricing.exception.PricingConflictException("Western is used in a rate card"))
+            .when(service).deleteZone(WESTERN_ID);
+        mvc.perform(delete("/api/zones/" + WESTERN_ID)).andExpect(status().isConflict())
+            .andExpect(jsonPath("$.error").value("Western is used in a rate card"));
     }
     @Test @WithMockUser(roles = "ADMIN")
     void validatesCodeAndLocalities() throws Exception {

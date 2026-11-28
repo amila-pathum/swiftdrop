@@ -1,16 +1,43 @@
 import { useEffect, useState } from 'react'
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { isActive, navigationFor } from '../utils/roles'
-import MerchantNav, { GridIcon } from './MerchantNav'
+import { isActive, navigationFor, ROLE_DASHBOARDS } from '../utils/roles'
+import MerchantNav, { BoxIcon, GridIcon } from './MerchantNav'
 import { merchantService } from '../services/merchantService'
 
+const svg = (children) => function Icon() {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor"
+      strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
+  )
+}
+const SendIcon = svg(<><path d="m22 2-7 20-4-9-9-4Z" /><path d="M22 2 11 13" /></>)
+const TruckIcon = svg(<><rect x="1" y="3" width="15" height="13" /><path d="M16 8h4l3 3v5h-7Z" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" /></>)
+const ChartIcon = svg(<><path d="M3 3v18h18" /><path d="M7 16v-5" /><path d="M12 16V8" /><path d="M17 16v-9" /></>)
+const PlusIcon = svg(<><circle cx="12" cy="12" r="10" /><path d="M12 8v8" /><path d="M8 12h8" /></>)
+const StatusIcon = svg(<><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></>)
+
 const DISPATCH_LINKS = [
-  { to: '/dispatch', label: 'Dispatch' },
-  { to: '/dispatch/deliveries', label: 'Ongoing deliveries' },
-  { to: '/dispatch/workload', label: 'Courier workload' },
-  { to: '/reports', label: 'Reports' },
+  { to: '/dispatch', label: 'Dispatch', icon: SendIcon },
+  { to: '/dispatch/deliveries', label: 'Ongoing deliveries', icon: TruckIcon },
+  { to: '/dispatch/workload', label: 'Courier workload', icon: UsersIcon },
+  { to: '/reports', label: 'Reports', icon: ChartIcon },
 ]
+
+// Icons for the shared role links (utils/roles navigationFor).
+const LINK_ICONS = {
+  '/customer/create-delivery': PlusIcon,
+  '/customer/deliveries': BoxIcon,
+  '/courier/deliveries': BoxIcon,
+  '/courier/profile': UserIcon,
+  '/profile': UserIcon,
+  '/application/status': StatusIcon,
+}
+const WORKSPACES = {
+  CUSTOMER: ['CUSTOMER ACCOUNT', 'Shipments'],
+  COURIER: ['COURIER WORKSPACE', 'Deliveries'],
+  DISPATCHER: ['DISPATCH WORKSPACE', 'Dispatch centre'],
+}
 
 function ApprovalIcon() {
   return (
@@ -159,22 +186,37 @@ export default function Sidebar({ open = false, onNavigate }) {
     )
   }
 
+  const base = navigationFor(user)
+  // The dispatcher dashboard is the /dispatch page, so it is not listed twice.
   const links = user?.role === 'DISPATCHER' && isActive(user)
-    ? [...navigationFor(user), ...DISPATCH_LINKS]
-    : navigationFor(user)
+    ? [...base.slice(0, 1), ...DISPATCH_LINKS.filter(({ to }) => to !== '/dispatch'), ...base.slice(1)]
+    : base
+  const [workspaceLabel, workspaceTitle] = (isActive(user) && WORKSPACES[role]) || []
 
   return (
     <nav id="app-sidebar" className={sidebarClass} aria-label="Main navigation">
-      <ul>
-        {links.map(({ to, label }) => (
-          <li key={to}>
-            <NavLink to={to} end={to === '/dashboard' || to === '/dispatch' || to === '/courier/dashboard'}
-              onClick={onNavigate}>
-              {label}
-            </NavLink>
-          </li>
-        ))}
+      {workspaceLabel && (
+        <div className="sidebar-workspace-badge">
+          <span className="sidebar-workspace-label">{workspaceLabel}</span>
+          <span className="sidebar-workspace-title">{workspaceTitle}</span>
+        </div>
+      )}
+      <div className="sidebar-section-title">WORKSPACE</div>
+      <ul className="merchant-nav-list">
+        {links.map(({ to, label, icon }) => {
+          const Icon = icon || LINK_ICONS[to] || (Object.values(ROLE_DASHBOARDS).includes(to) ? GridIcon : null)
+          return (
+            <li key={to}>
+              <NavLink to={to} end={to === '/dashboard' || to === '/dispatch' || to === '/courier/dashboard'}
+                className={({ isActive: current }) => (current ? 'active' : '')} onClick={onNavigate}>
+                {Icon && <Icon />}
+                <span>{label}</span>
+              </NavLink>
+            </li>
+          )
+        })}
       </ul>
+      <SidebarFooter />
     </nav>
   )
 }

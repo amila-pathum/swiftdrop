@@ -53,6 +53,8 @@ export default function ZoneManagementPage() {
   const [formErrors, setFormErrors] = useState({})
   const [saveError, setSaveError] = useState('')
   const [saving, setSaving] = useState(false)
+  // Zone waiting for delete confirmation: { zone, busy, error, inUse }
+  const [deleting, setDeleting] = useState(null)
 
   const load = useCallback((options) => pricingService.getZones({ ...options, includeInactive: true })
     .then((data) => {
@@ -73,6 +75,43 @@ export default function ZoneManagementPage() {
   const close = useCallback(() => {
     if (!saving) setEditing(null)
   }, [saving])
+
+  const closeDelete = useCallback(() => {
+    setDeleting((current) => (current?.busy ? current : null))
+  }, [])
+
+  useEffect(() => {
+    if (!deleting) return undefined
+    const onKey = (event) => { if (event.key === 'Escape') closeDelete() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [deleting, closeDelete])
+
+  const confirmDelete = async () => {
+    const { zone } = deleting
+    setDeleting({ zone, busy: true })
+    try {
+      await pricingService.deleteZone(zone.id)
+      setDeleting(null)
+      setNotice(`${zone.name} was deleted.`)
+      await load()
+    } catch (err) {
+      setDeleting({ zone, error: err?.message || 'Unable to delete this zone.', inUse: err?.status === 409 })
+    }
+  }
+
+  const disableInstead = async () => {
+    const { zone } = deleting
+    setDeleting({ ...deleting, busy: true })
+    try {
+      await pricingService.disableZone(zone.id)
+      setDeleting(null)
+      setNotice(`${zone.name} was disabled. It no longer accepts new bookings.`)
+      await load()
+    } catch (err) {
+      setDeleting({ zone, error: err?.message || 'Unable to disable this zone.', inUse: true })
+    }
+  }
 
   useEffect(() => {
     if (!editing) return undefined
@@ -184,10 +223,16 @@ export default function ZoneManagementPage() {
                       </span>
                     </td>
                     <td className="pricing-row-action">
-                      <Button variant="outline" size="sm" onClick={() => open(zone)}
-                        aria-label={`Edit ${zone.name}`}>
-                        Edit
-                      </Button>
+                      <div className="pricing-row-buttons">
+                        <Button variant="outline" size="sm" onClick={() => open(zone)}
+                          aria-label={`Edit ${zone.name}`}>
+                          Edit
+                        </Button>
+                        <Button variant="ghost" size="sm" className="pricing-delete-button"
+                          onClick={() => { setNotice(''); setDeleting({ zone }) }} aria-label={`Delete ${zone.name}`}>
+                          Delete
+                        </Button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -195,6 +240,46 @@ export default function ZoneManagementPage() {
             </table>
           </div>
         </section>
+      )}
+
+      {deleting && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="zone-delete-title"
+          onClick={(event) => { if (event.target === event.currentTarget) closeDelete() }}>
+          <div className="modal-dialog pricing-delete-dialog">
+            <div className="modal-header">
+              <h2 id="zone-delete-title" className="modal-title">Delete {deleting.zone.name}?</h2>
+              <button type="button" className="modal-close-btn" onClick={closeDelete}
+                aria-label="Close dialog" disabled={deleting.busy}>✕</button>
+            </div>
+            <div className="modal-body">
+              {deleting.error ? (
+                <Alert variant={deleting.inUse ? 'warning' : 'error'}>{deleting.error}</Alert>
+              ) : (
+                <>
+                  <p>
+                    This permanently removes the zone <strong>{deleting.zone.name}</strong> ({deleting.zone.code}) and
+                    its {deleting.zone.localities.length} {deleting.zone.localities.length === 1 ? 'city' : 'cities'}.
+                    Customers will no longer be able to book to or from them. This can't be undone.
+                  </p>
+                  <p className="pricing-delete-hint">
+                    A zone that a rate card uses can't be deleted; disable it instead.
+                  </p>
+                </>
+              )}
+            </div>
+            <div className="modal-footer">
+              <Button variant="outline" onClick={closeDelete} disabled={deleting.busy}>Cancel</Button>
+              {deleting.inUse ? (
+                deleting.zone.active && (
+                  <Button onClick={disableInstead} loading={deleting.busy} loadingText="Disabling…">Disable zone instead</Button>
+                )
+              ) : (
+                <Button className="pricing-delete-confirm" onClick={confirmDelete} loading={deleting.busy}
+                  loadingText="Deleting…">Delete zone</Button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
 
       {editing && (

@@ -33,7 +33,7 @@ describe('homePathFor', () => {
 describe('navigationFor', () => {
   it('gives an active user their dashboard and profile', () => {
     expect(navigationFor(user('COURIER'))).toEqual([
-        { to: '/courier/dashboard', label: 'Today' },
+        { to: '/courier/dashboard', label: 'Dashboard' },
         { to: '/courier/deliveries', label: 'Deliveries' },
         { to: '/courier/profile', label: 'Profile' },
     ])

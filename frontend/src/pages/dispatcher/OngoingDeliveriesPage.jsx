@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Button from '../../components/Button'
 import LoadingSpinner from '../../components/LoadingSpinner'
 import { dispatchService } from '../../services/dispatchService'
+import DeliveryDetailDialog from './DeliveryDetailDialog'
 import { EMPTY_PAGE, formatDateTime, statusLabel } from './dispatchFormat'
 const DELIVERY_STATUSES = ['PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED', 'FAILED']
 
@@ -11,6 +12,8 @@ export default function OngoingDeliveriesPage() {
   const [page, setPage] = useState(0)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [selected, setSelected] = useState(null)
+  const closeDetail = useCallback(() => setSelected(null), [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -40,7 +43,7 @@ export default function OngoingDeliveriesPage() {
       <header className="dispatch-page-header">
         <div>
           <h1>Ongoing deliveries</h1>
-          <p>Parcels out with a courier, by their latest status. Pick Delivered or Failed to see finished ones.</p>
+          <p>Parcels out with a courier, by their latest status. Pick Delivered or Failed to see finished ones. Select a tracking number to see the courier's notes and photos.</p>
         </div>
         <Button variant="secondary" onClick={load}>Refresh</Button>
       </header>
@@ -67,7 +70,11 @@ export default function OngoingDeliveriesPage() {
                 <thead><tr><th>Tracking number</th><th>Status</th><th>Courier</th><th>Last update</th></tr></thead>
                 <tbody>{result.content.map((parcel) => (
                   <tr key={parcel.parcelId}>
-                    <td>{parcel.trackingNumber}</td>
+                    <td>
+                      <button className="dispatch-link-button" onClick={() => setSelected(parcel.parcelId)}>
+                        {parcel.trackingNumber}
+                      </button>
+                    </td>
                     <td><span className={`dispatch-status status-${parcel.status.toLowerCase()}`}>
                       {statusLabel(parcel.status)}</span></td>
                     <td>{parcel.courierName || '—'}</td>
@@ -90,6 +97,7 @@ export default function OngoingDeliveriesPage() {
           </>
         )}
       </section>
+      {selected && <DeliveryDetailDialog parcelId={selected} onClose={closeDetail} />}
     </section>
   )
 }

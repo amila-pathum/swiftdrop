@@ -5,7 +5,7 @@ import { pricingService } from '../../services/pricingService'
 import ZoneManagementPage from './ZoneManagementPage'
 
 vi.mock('../../services/pricingService', () => ({
-  pricingService: { getZones: vi.fn(), createZone: vi.fn(), updateZone: vi.fn() },
+  pricingService: { getZones: vi.fn(), createZone: vi.fn(), updateZone: vi.fn(), deleteZone: vi.fn(), disableZone: vi.fn() },
 }))
 
 const ZONES = [
@@ -74,5 +74,41 @@ describe('ZoneManagementPage', () => {
     expect(pricingService.updateZone).toHaveBeenCalledWith('z1', {
       name: 'Central Hills', code: 'CP', localities: ['Kandy', 'Peradeniya'], active: false,
     })
+  })
+
+  it('deletes an unused zone after confirmation', async () => {
+    pricingService.deleteZone.mockResolvedValue(null)
+    render(<ZoneManagementPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Northern' }))
+    const dialog = screen.getByRole('dialog', { name: 'Delete Northern?' })
+    expect(within(dialog).getByText(/1 city/)).toBeInTheDocument()
+    expect(pricingService.deleteZone).not.toHaveBeenCalled()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete zone' }))
+    await waitFor(() => expect(pricingService.deleteZone).toHaveBeenCalledWith('z2'))
+    expect(await screen.findByText('Northern was deleted.')).toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(pricingService.getZones).toHaveBeenCalledTimes(2)
+  })
+
+  it('offers to disable a zone a rate card uses instead of deleting it', async () => {
+    pricingService.deleteZone.mockRejectedValue(new ApiError('Central Hills is used in a rate card, so it can\'t be deleted. Disable it instead to stop new bookings.', { status: 409 }))
+    pricingService.disableZone.mockResolvedValue({})
+    render(<ZoneManagementPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Central Hills' }))
+    const dialog = screen.getByRole('dialog', { name: 'Delete Central Hills?' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete zone' }))
+    expect(await within(dialog).findByText(/used in a rate card/)).toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: 'Delete zone' })).not.toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Disable zone instead' }))
+    await waitFor(() => expect(pricingService.disableZone).toHaveBeenCalledWith('z1'))
+    expect(await screen.findByText(/Central Hills was disabled/)).toBeInTheDocument()
+  })
+
+  it('cancelling the confirmation deletes nothing', async () => {
+    render(<ZoneManagementPage />)
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete Northern' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(pricingService.deleteZone).not.toHaveBeenCalled()
   })
 })

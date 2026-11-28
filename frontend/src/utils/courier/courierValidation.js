@@ -3,6 +3,7 @@ export const VEHICLES = [
   { value: 'THREE_WHEELER', label: 'Three-wheeler' }, { value: 'CAR', label: 'Car' },
   { value: 'VAN', label: 'Van' }, { value: 'TRUCK', label: 'Truck' },
 ]
+export const vehicleLabel = (type) => VEHICLES.find(({ value }) => value === type)?.label || type || 'Not provided'
 export const FAILURE_REASONS = [
   { value: 'RECIPIENT_ABSENT', label: 'Recipient absent' }, { value: 'WRONG_ADDRESS', label: 'Wrong address' },
   { value: 'REFUSED', label: 'Delivery refused' }, { value: 'INACCESSIBLE_LOCATION', label: 'Location inaccessible' },
@@ -27,12 +28,11 @@ export function photoError(photo) {
 }
 export function validateDelivery(values, status, photo) {
   const errors = {}
-  if (status === 'DELIVERED' && !values.recipientName.trim() && !photo) errors.recipientName = 'Enter the recipient name or add a photo'
+  if (status === 'DELIVERED' && !values.recipientName.trim()) errors.recipientName = 'Enter the recipient name'
   if (values.recipientName.length > 150) errors.recipientName = 'Use at most 150 characters'
   if (status === 'FAILED' && !FAILURE_REASONS.some(({ value }) => value === values.failureReason)) errors.failureReason = 'Select a failure reason'
   if (status === 'FAILED' && values.failureReason === 'OTHER' && !values.note.trim()) errors.note = 'Please explain the failure'
   if (values.note.length > 1000) errors.note = 'Use at most 1,000 characters'
-  if (values.locationDescription.length > 500) errors.locationDescription = 'Use at most 500 characters'
   if (photoError(photo)) errors.photo = photoError(photo)
   return errors
 }

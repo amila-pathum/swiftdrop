@@ -1,0 +1,38 @@
+/* Dispatcher dashboard (builds on components/dashboard/dashboard.css and the .dispatch-* base styles). */
+.dispatch-dashboard.dispatch-page { gap: 20px; }
+.dispatch-dashboard .db-header-actions .button { gap: 6px; }
+
+/* Parcels card: tabs sit in the card header */
+.dd-work { overflow: hidden; }
+.dd-tabs { padding: 0 12px; margin: 0; border-bottom: 1px solid #e8eef6; background: #fbfcfe; }
+.dd-tabs button { padding: 14px 12px; font-weight: 600; }
+.dd-tab-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 14px; padding: 16px 20px 6px; }
+.dd-tab-intro { margin: 0; color: #62738d; font-size: 13px; }
+
+.dd-filters.dispatch-filters { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin: 0; padding: 12px; border: 1px solid #e8eef6; border-radius: 10px; background: #f8fafd; }
+.dd-filters label { flex: 1 1 120px; font-size: 12px; font-weight: 600; color: #47566c; }
+.dd-filters input, .dd-filters select { height: 36px; font-size: 13px; }
+.dd-filters .button { height: 36px; }
+
+.dispatch-dashboard .dispatch-table-wrap { position: relative; width: auto; margin: 0 -20px; }
+.dispatch-dashboard .dispatch-table th { padding: 10px 10px; background: #fbfcfe; font-size: 11px; letter-spacing: 0.04em; white-space: nowrap; }
+.dispatch-dashboard .dispatch-table td { padding: 12px 10px; vertical-align: middle; }
+.dispatch-dashboard .dispatch-table th:first-child, .dispatch-dashboard .dispatch-table td:first-child { padding-left: 20px; }
+.dispatch-dashboard .dispatch-table th:last-child, .dispatch-dashboard .dispatch-table td:last-child { padding-right: 20px; }
+.dispatch-dashboard .dispatch-table tbody tr:hover { background: #fafcff; }
+.dispatch-dashboard .dispatch-link-button { font-family: monospace; font-size: 13.5px; }
+.dd-route-cell { width: 100%; min-width: 220px; }
+.dispatch-dashboard .dispatch-table td:first-child { width: 190px; max-width: 190px; white-space: normal; }
+.dispatch-dashboard .dispatch-table td.dd-route-cell { white-space: normal; }
+.dd-route { display: grid; gap: 4px; font-size: 13.5px; line-height: 1.35; }
+.dd-route > span { display: grid; grid-template-columns: 46px minmax(0, 1fr); align-items: baseline; overflow-wrap: anywhere; }
+.dd-route small { color: #8193ab; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+.dispatch-dashboard .dispatch-link-button { display: block; max-width: 170px; text-align: left; white-space: normal; overflow-wrap: anywhere; word-break: break-all; line-height: 1.35; }
+.dispatch-dashboard .dispatch-table td.dd-actions-cell, .dispatch-dashboard .dispatch-table .dd-muted { width: 1%; white-space: nowrap; }
+.dd-size { display: inline-block; padding: 1px 8px; border: 1px solid #dce5f1; border-radius: 6px; font-size: 12px; color: #47566c; }
+.dd-muted { color: #62738d; font-size: 13px; white-space: nowrap; }
+.dd-courier { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.dd-actions-cell { text-align: right; }
+.dd-actions-cell .dispatch-row-actions { justify-content: flex-end; }
+.dd-actions-cell .dispatch-hint { display: block; margin-top: 4px; }
+.dd-pagination.dispatch-pagination { margin: 0 -20px; padding: 12px 20px; border-top: 1px solid #e8eef6; }

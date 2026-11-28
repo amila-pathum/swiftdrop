@@ -1,265 +1,116 @@
 package com.swiftdrop.notification.client;
 
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.io.Decoders;
-import io.jsonwebtoken.security.Keys;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.Date;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 
+/**
+ * Looks up users in Identity Service through its internal API (/internal/users),
+ * authenticated with the shared service token. Never forges user tokens.
+ */
 @Slf4j
 @Component
 public class IdentityServiceClient {
 
+    public static final String TOKEN_HEADER = "X-SwiftDrop-Internal-Token";
+
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
     private final String identityServiceUrl;
-    private final String jwtSecret;
-    private final String adminId;
-    private final String adminEmail;
-    private final int adminTokenVersion;
-    private volatile Integer workingTokenVersion = null;
-    private volatile String workingAdminId = null;
-    private volatile String workingAdminEmail = null;
+    private final String serviceToken;
 
-    @org.springframework.beans.factory.annotation.Autowired
+    @Autowired
     public IdentityServiceClient(
             ObjectMapper objectMapper,
             @Value("${notification.identity.url:http://localhost:8081}") String identityServiceUrl,
-            @Value("${swiftdrop.jwt.secret:}") String jwtSecret,
-            @Value("${notification.identity.admin.id:10}") String adminId,
-            @Value("${notification.identity.admin.email:admin@swiftdrop.com}") String adminEmail,
-            @Value("${notification.identity.admin.token-version:0}") int adminTokenVersion) {
-        this.objectMapper = objectMapper;
-        this.identityServiceUrl = identityServiceUrl;
-        this.jwtSecret = jwtSecret;
-        this.adminId = adminId;
-        this.adminEmail = adminEmail;
-        this.adminTokenVersion = adminTokenVersion;
-        this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(Duration.ofSeconds(3))
-                .build();
+            @Value("${swiftdrop.internal.service-token:}") String serviceToken) {
+        this(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build(),
+                objectMapper, identityServiceUrl, serviceToken);
     }
 
-    /** Constructor for testing with mock HttpClient. */
-    public IdentityServiceClient(
-            HttpClient httpClient,
-            ObjectMapper objectMapper,
-            String identityServiceUrl,
-            String jwtSecret) {
-        this(httpClient, objectMapper, identityServiceUrl, jwtSecret, "10", "admin@swiftdrop.com", 0);
-    }
-
-    public IdentityServiceClient(
-            HttpClient httpClient,
-            ObjectMapper objectMapper,
-            String identityServiceUrl,
-            String jwtSecret,
-            String adminId,
-            String adminEmail,
-            int adminTokenVersion) {
+    public IdentityServiceClient(HttpClient httpClient, ObjectMapper objectMapper,
+            String identityServiceUrl, String serviceToken) {
         this.httpClient = httpClient;
         this.objectMapper = objectMapper;
-        this.identityServiceUrl = identityServiceUrl;
-        this.jwtSecret = jwtSecret;
-        this.adminId = adminId;
-        this.adminEmail = adminEmail;
-        this.adminTokenVersion = adminTokenVersion;
+        this.identityServiceUrl = identityServiceUrl.replaceAll("/+$", "");
+        this.serviceToken = serviceToken == null ? "" : serviceToken;
     }
 
-    /**
-     * Queries identity-service to resolve the user's email address by customerId.
-     */
+    /** The registered email of an identity user id (or the value itself when it already is an email). */
     public Optional<String> findEmailByCustomerId(String customerId) {
         if (customerId == null || customerId.isBlank()) {
             return Optional.empty();
         }
-
-        // 1. If customerId is already an email address
         if (customerId.contains("@")) {
             return Optional.of(customerId.trim());
         }
-
-        // 2. Query identity-service if customerId is a numeric ID
+        long userId;
         try {
-            long userId = Long.parseLong(customerId.trim());
-            URI uri = URI.create(identityServiceUrl + "/api/admin/users/" + userId);
-            log.debug("Calling identity-service to fetch customer details: url={}", uri);
-
-            HttpResponse<String> response = adminGet(uri);
-
+            userId = Long.parseLong(customerId.trim());
+        } catch (NumberFormatException notNumeric) {
+            log.debug("CustomerId '{}' is not numeric, skipping identity lookup", customerId);
+            return Optional.empty();
+        }
+        try {
+            HttpResponse<String> response = get(URI.create(identityServiceUrl + "/internal/users/" + userId));
             if (response.statusCode() == 200 && response.body() != null && !response.body().isBlank()) {
-                JsonNode root = objectMapper.readTree(response.body());
-                JsonNode emailNode = root.get("email");
-                if (emailNode != null && !emailNode.asText().isBlank()) {
-                    return Optional.of(emailNode.asText().trim());
+                JsonNode email = objectMapper.readTree(response.body()).get("email");
+                if (email != null && !email.asText().isBlank()) {
+                    return Optional.of(email.asText().trim());
                 }
             } else {
-                log.warn("Identity-service returned HTTP {} for customerId '{}': {}",
-                        response.statusCode(), customerId, response.body());
+                log.warn("Identity service returned HTTP {} looking up user {}", response.statusCode(), userId);
             }
-        } catch (NumberFormatException nfe) {
-            log.debug("CustomerId '{}' is not numeric, skipping identity-service query", customerId);
         } catch (Exception ex) {
-            log.warn("Could not retrieve customer email from identity-service at {} for customerId '{}': {}",
-                    identityServiceUrl, customerId, ex.getMessage());
+            log.warn("Could not look up user {} in identity service at {}: {}", userId, identityServiceUrl, ex.getMessage());
         }
-
         return Optional.empty();
     }
 
-    /**
-     * GET on identity-service with an internal ADMIN token. On 401 it retries
-     * the known admin credentials and remembers the one that works.
-     */
-    private HttpResponse<String> adminGet(URI uri) throws Exception {
-        String activeAdminId = workingAdminId != null ? workingAdminId : adminId;
-        String activeAdminEmail = workingAdminEmail != null ? workingAdminEmail : adminEmail;
-        int activeVersion = workingTokenVersion != null ? workingTokenVersion : adminTokenVersion;
-
-        String token = generateInternalAdminToken(activeAdminId, activeAdminEmail, activeVersion);
-
-        HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
-                .uri(uri)
-                .timeout(Duration.ofSeconds(3))
-                .GET();
-
-        if (!token.isBlank()) {
-            reqBuilder.header("Authorization", "Bearer " + token);
-        }
-
-        HttpResponse<String> response = httpClient.send(reqBuilder.build(), HttpResponse.BodyHandlers.ofString());
-
-        // Auto-recovery: If 401 Unauthorized occurs due to token_version, email, or admin ID divergence across environments,
-        // iterate candidate credentials to find the active admin token.
-        if (response.statusCode() == 401 && jwtSecret != null && !jwtSecret.isBlank()) {
-            // Build a candidate list: configured version first, then 0-50 as fallback range
-            int configuredVersion = adminTokenVersion;
-            java.util.List<Integer> versionList = new java.util.ArrayList<>();
-            versionList.add(configuredVersion);
-            for (int v = 0; v <= 50; v++) {
-                if (v != configuredVersion) versionList.add(v);
-            }
-            int[] candidateVersions = versionList.stream().mapToInt(Integer::intValue).toArray();
-            String[] candidateAdminIds = {adminId, "1", "2", "10"};
-            String[] candidateEmails = {adminEmail, "admin@example.com", "root.admin@swiftdrop.test", "admin@swiftdrop.lk"};
-            boolean recovered = false;
-
-            for (String candId : candidateAdminIds) {
-                for (String candEmail : candidateEmails) {
-                    for (int candVer : candidateVersions) {
-                        if (candId.equals(activeAdminId) && candEmail.equals(activeAdminEmail) && candVer == activeVersion) {
-                            continue;
-                        }
-                        String candidateToken = generateInternalAdminToken(candId, candEmail, candVer);
-                        if (candidateToken.isBlank()) {
-                            continue;
-                        }
-                        HttpRequest retryReq = HttpRequest.newBuilder()
-                                .uri(uri)
-                                .timeout(Duration.ofSeconds(2))
-                                .header("Authorization", "Bearer " + candidateToken)
-                                .GET()
-                                .build();
-                        try {
-                            HttpResponse<String> retryResp = httpClient.send(retryReq, HttpResponse.BodyHandlers.ofString());
-                            if (retryResp.statusCode() == 200) {
-                                response = retryResp;
-                                workingAdminId = candId;
-                                workingAdminEmail = candEmail;
-                                workingTokenVersion = candVer;
-                                log.info("Auto-recovered identity-service admin token with adminId='{}', email='{}', and tokenVersion={}",
-                                        candId, candEmail, candVer);
-                                recovered = true;
-                                break;
-                            }
-                        } catch (Exception ignored) {
-                        }
-                    }
-                    if (recovered) break;
-                }
-                if (recovered) break;
-            }
-        }
-
-        return response;
-    }
-
-    /**
-     * Identity user ids of every ACTIVE account with the given role, for example
-     * DISPATCHER. Returns an empty list when identity-service cannot be reached.
-     */
-    public java.util.List<String> findActiveUserIdsByRole(String role) {
-        java.util.List<String> ids = new java.util.ArrayList<>();
+    /** Identity user ids of every ACTIVE account with the role. Empty when identity service cannot be reached. */
+    public List<String> findActiveUserIdsByRole(String role) {
+        List<String> ids = new ArrayList<>();
         try {
-            for (int page = 0; page < 50; page++) {
-                URI uri = URI.create(identityServiceUrl + "/api/admin/users?role=" + role
-                        + "&status=ACTIVE&size=100&sort=id,ASC&page=" + page);
-                HttpResponse<String> response = adminGet(uri);
-                if (response.statusCode() != 200 || response.body() == null || response.body().isBlank()) {
-                    log.warn("Identity-service returned HTTP {} listing {} users", response.statusCode(), role);
-                    break;
-                }
-                JsonNode root = objectMapper.readTree(response.body());
-                JsonNode content = root.get("content");
-                if (content == null || !content.isArray() || content.isEmpty()) {
-                    break;
-                }
-                for (JsonNode user : content) {
-                    JsonNode id = user.get("id");
-                    if (id != null && !id.asText().isBlank()) {
-                        ids.add(id.asText());
-                    }
-                }
-                JsonNode last = root.get("last");
-                if (last == null || last.asBoolean()) {
-                    break;
-                }
+            URI uri = URI.create(identityServiceUrl + "/internal/users?role="
+                    + URLEncoder.encode(role, StandardCharsets.UTF_8) + "&status=ACTIVE");
+            HttpResponse<String> response = get(uri);
+            if (response.statusCode() != 200 || response.body() == null || response.body().isBlank()) {
+                log.warn("Identity service returned HTTP {} listing {} users", response.statusCode(), role);
+                return ids;
+            }
+            JsonNode root = objectMapper.readTree(response.body());
+            if (root.isArray()) {
+                root.forEach(id -> ids.add(id.asText()));
             }
         } catch (Exception ex) {
-            log.warn("Could not list {} users from identity-service at {}: {}", role, identityServiceUrl, ex.getMessage());
+            log.warn("Could not list {} users from identity service at {}: {}", role, identityServiceUrl, ex.getMessage());
         }
         return ids;
     }
 
-    private String generateInternalAdminToken() {
-        return generateInternalAdminToken(adminId, adminEmail, adminTokenVersion);
-    }
-
-    private String generateInternalAdminToken(int tokenVersion) {
-        return generateInternalAdminToken(adminId, adminEmail, tokenVersion);
-    }
-
-    private String generateInternalAdminToken(String id, String email, int tokenVersion) {
-        if (jwtSecret == null || jwtSecret.isBlank()) {
-            return "";
+    private HttpResponse<String> get(URI uri) throws Exception {
+        if (serviceToken.length() < 32) {
+            throw new IllegalStateException("swiftdrop.internal.service-token (INTERNAL_WEBHOOK_TOKEN) is not configured");
         }
-        try {
-            byte[] keyBytes = Decoders.BASE64.decode(jwtSecret);
-            return Jwts.builder()
-                    .subject(id)
-                    .claim("email", email)
-                    .claim("role", "ADMIN")
-                    .claim("status", "ACTIVE")
-                    .claim("ver", tokenVersion)
-                    .issuedAt(new Date())
-                    .expiration(Date.from(Instant.now().plusSeconds(300)))
-                    .signWith(Keys.hmacShaKeyFor(keyBytes))
-                    .compact();
-        } catch (Exception ex) {
-            log.warn("Failed to generate internal admin token: {}", ex.getMessage());
-            return "";
-        }
+        HttpRequest request = HttpRequest.newBuilder(uri)
+                .timeout(Duration.ofSeconds(3))
+                .header(TOKEN_HEADER, serviceToken)
+                .GET()
+                .build();
+        return httpClient.send(request, HttpResponse.BodyHandlers.ofString());
     }
 }

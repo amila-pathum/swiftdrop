@@ -1,12 +1,24 @@
 import { useCallback, useEffect, useState } from 'react'
 import Button from '../../components/Button'
 import LoadingSpinner from '../../components/LoadingSpinner'
+import { Avatar, DashboardHeader, KpiCard, KpiGrid } from '../../components/dashboard/Dashboard'
+import { dateTimeLabel, todayLabel } from '../../utils/dashboardFormat'
+import DashboardIcon from '../../components/dashboard/DashboardIcon'
 import { dispatchService } from '../../services/dispatchService'
 import { availabilityLabel, EMPTY_PAGE, formatDateTime, statusLabel } from './dispatchFormat'
+import './dispatcherDashboard.css'
+
+const titleCase = (value) => value ? value.charAt(0) + value.slice(1).toLowerCase().replaceAll('_', ' ') : '—'
+const STATUS_TONE = { CREATED: '', PICKED_UP: 'info', IN_TRANSIT: 'info', OUT_FOR_DELIVERY: 'warning', DELIVERED: 'success', FAILED: 'danger', CANCELLED: '' }
+
+function Pill({ tone = '', children }) {
+  return <span className={`db-pill${tone ? ` db-pill-${tone}` : ''}`}><span className="db-pill-dot" aria-hidden="true" />{children}</span>
+}
+
 
 function Pagination({ result, noun, onPageChange }) {
   return (
-    <div className="dispatch-pagination">
+    <div className="dispatch-pagination dd-pagination">
       <span>{result.totalElements} {noun}</span>
       <div>
         <Button variant="secondary" disabled={result.page <= 0} onClick={() => onPageChange(result.page - 1)}>
@@ -46,11 +58,16 @@ function WaitingParcelsTable({ parcels, onAssign, onDetails }) {
                   {parcel.trackingNumber}
                 </button>
               </td>
-              <td>{parcel.pickupArea} → {parcel.dropoffArea}</td>
-              <td>{parcel.size}</td>
-              <td>{parcel.createdAt ? new Date(parcel.createdAt).toLocaleDateString() : '—'}</td>
-              <td>
-                <Button variant="secondary" onClick={() => onAssign(parcel)}
+              <td className="dd-route-cell">
+                <span className="dd-route" aria-label={`${parcel.pickupArea} to ${parcel.dropoffArea}`}>
+                  <span><small>From</small>{parcel.pickupArea}</span>
+                  <span><small>To</small>{parcel.dropoffArea}</span>
+                </span>
+              </td>
+              <td><span className="dd-size">{titleCase(parcel.size)}</span></td>
+              <td className="dd-muted">{dateTimeLabel(parcel.createdAt)}</td>
+              <td className="dd-actions-cell">
+                <Button size="sm" onClick={() => onAssign(parcel)}
                   aria-label={`Assign ${parcel.trackingNumber}`}>
                   Assign
                 </Button>
@@ -89,25 +106,21 @@ function ActiveAssignmentsTable({ assignments, onReassign, onCancel, onDetails }
                     {assignment.trackingNumber}
                   </button>
                 </td>
-                <td>{assignment.courierName}</td>
-                <td>
-                  <span className={`dispatch-status status-${assignment.parcelStatus.toLowerCase()}`}>
-                    {statusLabel(assignment.parcelStatus)}
-                  </span>
-                </td>
-                <td>{formatDateTime(assignment.assignedAt)}</td>
-                <td>
+                <td><span className="dd-courier"><Avatar name={assignment.courierName} size={26} />{assignment.courierName}</span></td>
+                <td><Pill tone={STATUS_TONE[assignment.parcelStatus]}>{titleCase(assignment.parcelStatus)}</Pill></td>
+                <td className="dd-muted">{dateTimeLabel(assignment.assignedAt)}</td>
+                <td className="dd-actions-cell">
                   <div className="dispatch-row-actions">
-                    <Button variant="secondary" disabled={!waiting} onClick={() => onReassign(assignment)}
+                    <Button size="sm" variant="outline" disabled={!waiting} onClick={() => onReassign(assignment)}
                       aria-label={`Reassign ${assignment.trackingNumber}`}>
                       Reassign
                     </Button>
-                    <Button variant="secondary" disabled={!waiting} onClick={() => onCancel(assignment)}
+                    <Button size="sm" variant="ghost" disabled={!waiting} onClick={() => onCancel(assignment)}
                       aria-label={`Cancel assignment ${assignment.trackingNumber}`}>
                       Cancel
                     </Button>
                   </div>
-                  {!waiting && <small className="dispatch-hint">Picked up — can no longer change</small>}
+                  {!waiting && <small className="dispatch-hint">Picked up, can no longer change</small>}
                 </td>
               </tr>
             )
@@ -189,6 +202,7 @@ export default function DispatcherDashboardPage() {
   const [dialogCourier, setDialogCourier] = useState('')
   const [dialogBusy, setDialogBusy] = useState(false)
   const [dialogError, setDialogError] = useState('')
+  const [updatedAt, setUpdatedAt] = useState(null)
 
   const refresh = useCallback(async () => {
     try {
@@ -201,6 +215,7 @@ export default function DispatcherDashboardPage() {
       setUnassigned(unassignedResult)
       setAssignments(assignmentResult)
       setCouriers(courierResult)
+      setUpdatedAt(new Date())
     } catch (requestError) {
       setError(requestError.message || 'Unable to load dispatch data.')
     } finally {
@@ -277,108 +292,87 @@ export default function DispatcherDashboardPage() {
 
   const currentCourierId = dialog?.mode === 'reassign' ? dialog.item.courierId : null
 
+  const activeCouriers = couriers.filter((courier) => courier.active)
+  const availableCouriers = couriers.filter((courier) => courier.available).length
+  const busyCouriers = activeCouriers.filter((courier) => availabilityLabel(courier) === 'Busy').length
+  const onTheRoad = couriers.reduce((sum, courier) => sum + (Number(courier.activeParcelCount) || 0), 0)
+  const ready = !loading || couriers.length > 0
+
   return (
-    <section className="dispatch-page">
-      <header className="dispatch-page-header">
-        <div>
-          <h1>Dispatch dashboard</h1>
-          <p>Assign waiting parcels and manage active assignments.</p>
-        </div>
-        <Button variant="secondary" onClick={refresh}>Refresh</Button>
-      </header>
+    <section className="dispatch-page db-page dispatch-dashboard">
+      <DashboardHeader title="Dispatch centre"
+        subtitle={`${todayLabel()}${updatedAt ? ` · Updated ${new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(updatedAt)}, refreshes every 20 seconds` : ''}`}
+        actions={<Button variant="outline" onClick={refresh}><DashboardIcon name="refresh" size={16} />Refresh</Button>} />
 
       {error && <p className="dispatch-error" role="alert">{error}</p>}
       {notice && <p className="dispatch-notice" role="status">{notice}</p>}
 
-      <section className="dispatch-courier-panel card" aria-labelledby="courier-workload-heading">
-        <div className="dispatch-section-heading">
-          <div>
-            <h2 id="courier-workload-heading">Courier workload</h2>
-            <p>Active deliveries are assignments that are not yet delivered, failed or cancelled.</p>
-          </div>
-        </div>
-        {loading && couriers.length === 0 ? (
-          <div className="dispatch-loading"><LoadingSpinner label="Loading courier workload" /></div>
-        ) : couriers.length === 0 ? (
-          <p className="dispatch-empty">No courier profiles were returned by courier service.</p>
-        ) : (
-          <div className="dispatch-courier-grid">
-            {couriers.map((courier) => (
-              <article className="dispatch-courier-card" key={courier.courierId}>
-                <div>
-                  <strong>{courier.name}</strong>
-                  <span className={courier.available ? 'availability available' : 'availability unavailable'}>
-                    {availabilityLabel(courier)}
-                  </span>
-                </div>
-                <span className="workload-count">{courier.activeParcelCount}<small> active</small></span>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
+      <KpiGrid label="Dispatch summary">
+        <KpiCard icon="inbox" label="Waiting for a courier" value={ready ? unassigned.totalElements : null}
+          detail="New parcels to assign" tone="warning" highlight={unassigned.totalElements > 0} />
+        <KpiCard icon="route" label="Active assignments" value={ready ? assignments.totalElements : null} detail="Assigned, not finished" />
+        <KpiCard icon="users" label="Couriers available" value={ready ? `${availableCouriers} / ${activeCouriers.length}` : null}
+          detail={`${busyCouriers} busy · ${activeCouriers.length - availableCouriers - busyCouriers} offline`} tone="success" />
+        <KpiCard icon="truck" label="Parcels with couriers" value={ready ? onTheRoad : null}
+          detail={activeCouriers.length ? `${(onTheRoad / activeCouriers.length).toFixed(1)} per active courier` : 'No active couriers'} tone="neutral" />
+      </KpiGrid>
 
-      <div className="dispatch-tabs" role="tablist" aria-label="Parcel views">
-        <button role="tab" aria-selected={activeTab === 'waiting'} onClick={() => setActiveTab('waiting')}>
-          Waiting parcels <span>{unassigned.totalElements}</span>
-        </button>
-        <button role="tab" aria-selected={activeTab === 'active'} onClick={() => setActiveTab('active')}>
-          Active assignments <span>{assignments.totalElements}</span>
-        </button>
+      <div>
+        <section className="db-panel dd-work" aria-label="Parcels">
+          <div className="dispatch-tabs dd-tabs" role="tablist" aria-label="Parcel views">
+            <button role="tab" aria-selected={activeTab === 'waiting'} onClick={() => setActiveTab('waiting')}>
+              Waiting parcels <span>{unassigned.totalElements}</span>
+            </button>
+            <button role="tab" aria-selected={activeTab === 'active'} onClick={() => setActiveTab('active')}>
+              Active assignments <span>{assignments.totalElements}</span>
+            </button>
+          </div>
+
+          {activeTab === 'waiting' ? (
+            <div className="dd-tab-body">
+              <p className="dd-tab-intro">New parcels that have no courier yet. Assign each one to an available courier.</p>
+              <form className="dispatch-filters dd-filters" onSubmit={submitUnassignedFilters}>
+                <label>Pickup area<input name="pickupArea" placeholder="Any" /></label>
+                <label>Drop-off area<input name="dropoffArea" placeholder="Any" /></label>
+                <label>Size<select name="size" defaultValue=""><option value="">All sizes</option><option value="SMALL">Small</option><option value="MEDIUM">Medium</option><option value="LARGE">Large</option></select></label>
+                <label>From<input type="date" name="from" /></label>
+                <label>To<input type="date" name="to" /></label>
+                <Button type="submit" variant="outline">Filter parcels</Button>
+              </form>
+              {loading && unassigned.content.length === 0 ? (
+                <div className="dispatch-loading"><LoadingSpinner label="Loading waiting parcels" /></div>
+              ) : (
+                <>
+                  <WaitingParcelsTable parcels={unassigned.content} onDetails={showDetails}
+                    onAssign={(parcel) => openDialog('assign', parcel)} />
+                  <Pagination result={unassigned} noun="parcels" onPageChange={setUnassignedPage} />
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="dd-tab-body">
+              <p className="dd-tab-intro">Reassign or cancel an assignment until the courier picks the parcel up.</p>
+              <form className="dispatch-filters dd-filters" onSubmit={submitAssignmentFilters}>
+                <label>Tracking number<input name="trackingNumber" placeholder="Search tracking number" /></label>
+                <label>Courier<select name="courierId" defaultValue=""><option value="">All couriers</option>
+                  {couriers.map((courier) => <option key={courier.courierId} value={courier.courierId}>{courier.name}</option>)}
+                </select></label>
+                <Button type="submit" variant="outline">Search</Button>
+              </form>
+              {loading && assignments.content.length === 0 ? (
+                <div className="dispatch-loading"><LoadingSpinner label="Loading assignments" /></div>
+              ) : (
+                <>
+                  <ActiveAssignmentsTable assignments={assignments.content} onDetails={showDetails}
+                    onReassign={(assignment) => openDialog('reassign', assignment)} onCancel={cancelAssignment} />
+                  <Pagination result={assignments} noun="assignments" onPageChange={setAssignmentPage} />
+                </>
+              )}
+            </div>
+          )}
+        </section>
+
       </div>
-
-      {activeTab === 'waiting' ? (
-        <section className="dispatch-section card">
-          <div className="dispatch-section-heading">
-            <div>
-              <h2>Waiting parcels</h2>
-              <p>New parcels that have no courier yet.</p>
-            </div>
-          </div>
-          <form className="dispatch-filters" onSubmit={submitUnassignedFilters}>
-            <label>Pickup area<input name="pickupArea" placeholder="Any pickup area" /></label>
-            <label>Drop-off area<input name="dropoffArea" placeholder="Any drop-off area" /></label>
-            <label>Size<select name="size" defaultValue=""><option value="">All sizes</option><option>SMALL</option><option>MEDIUM</option><option>LARGE</option></select></label>
-            <label>From<input type="date" name="from" /></label>
-            <label>To<input type="date" name="to" /></label>
-            <Button type="submit">Filter parcels</Button>
-          </form>
-          {loading && unassigned.content.length === 0 ? (
-            <div className="dispatch-loading"><LoadingSpinner label="Loading waiting parcels" /></div>
-          ) : (
-            <>
-              <WaitingParcelsTable parcels={unassigned.content} onDetails={showDetails}
-                onAssign={(parcel) => openDialog('assign', parcel)} />
-              <Pagination result={unassigned} noun="parcels" onPageChange={setUnassignedPage} />
-            </>
-          )}
-        </section>
-      ) : (
-        <section className="dispatch-section card">
-          <div className="dispatch-section-heading">
-            <div>
-              <h2>Active assignments</h2>
-              <p>Reassign or cancel an assignment until the courier picks the parcel up.</p>
-            </div>
-          </div>
-          <form className="dispatch-filters" onSubmit={submitAssignmentFilters}>
-            <label>Tracking number<input name="trackingNumber" placeholder="Search tracking number" /></label>
-            <label>Courier<select name="courierId" defaultValue=""><option value="">All couriers</option>
-              {couriers.map((courier) => <option key={courier.courierId} value={courier.courierId}>{courier.name}</option>)}
-            </select></label>
-            <Button type="submit">Search</Button>
-          </form>
-          {loading && assignments.content.length === 0 ? (
-            <div className="dispatch-loading"><LoadingSpinner label="Loading assignments" /></div>
-          ) : (
-            <>
-              <ActiveAssignmentsTable assignments={assignments.content} onDetails={showDetails}
-                onReassign={(assignment) => openDialog('reassign', assignment)} onCancel={cancelAssignment} />
-              <Pagination result={assignments} noun="assignments" onPageChange={setAssignmentPage} />
-            </>
-          )}
-        </section>
-      )}
 
       {dialog && (
         <div className="dispatch-dialog-backdrop">

@@ -6,6 +6,22 @@ import { useAuth } from '../../context/AuthContext'
 import { dispatchService } from '../../services/dispatchService'
 import { merchantService } from '../../services/merchantService'
 import { parcelService } from '../../services/parcelService'
+import { DashboardHeader, KpiCard, KpiGrid, Panel } from '../../components/dashboard/Dashboard'
+import { todayLabel } from '../../utils/dashboardFormat'
+import DashboardIcon from '../../components/dashboard/DashboardIcon'
+import './adminDashboard.css'
+
+const PIPELINE = [
+  ['CREATED', 'Awaiting courier', '#94a3b8'],
+  ['ASSIGNED', 'Assigned', '#a78bfa'],
+  ['PICKED_UP', 'Picked up', '#38bdf8'],
+  ['IN_TRANSIT', 'In transit', '#1c5dfb'],
+  ['OUT_FOR_DELIVERY', 'Out for delivery', '#f59e0b'],
+  ['DELIVERED', 'Delivered', '#16a34a'],
+  ['FAILED', 'Failed', '#dc2626'],
+  ['CANCELLED', 'Cancelled', '#cbd5e1'],
+]
+const AVAILABILITY = [['AVAILABLE', 'Available', 'success'], ['BUSY', 'Busy', 'warning'], ['OFFLINE', 'Offline', ''], ['INACTIVE', 'Inactive', 'danger']]
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -40,60 +56,10 @@ function formatDayLabel(dateStr) {
   return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short' }).format(d)
 }
 
-// ─── Icons ───────────────────────────────────────────────────────────────────
 
-function PackageIcon({ size = 20 }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="M16.5 9.4 7.55 4.24a1.78 1.78 0 0 0-2.5 1.55v12.42a1.78 1.78 0 0 0 2.5 1.55L16.5 14.6" />
-      <polyline points="3.29 7 12 12 20.71 7" />
-      <line x1="12" y1="22" x2="12" y2="12" />
-      <path d="m21.5 14.6-8.95 5.16a1.78 1.78 0 0 1-2.5-1.55V5.79a1.78 1.78 0 0 1 2.5-1.55L21.5 9.4a1.78 1.78 0 0 1 0 3.2z" />
-    </svg>
-  )
-}
 
-function TruckIcon({ size = 20 }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <rect x="1" y="3" width="15" height="13" />
-      <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
-      <circle cx="5.5" cy="18.5" r="2.5" />
-      <circle cx="18.5" cy="18.5" r="2.5" />
-    </svg>
-  )
-}
 
-function StoreIcon({ size = 20 }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7" />
-      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-      <path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4" />
-      <path d="M2 7h20" />
-    </svg>
-  )
-}
 
-function XCircleIcon({ size = 20 }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <circle cx="12" cy="12" r="10" />
-      <line x1="15" y1="9" x2="9" y2="15" />
-      <line x1="9" y1="9" x2="15" y2="15" />
-    </svg>
-  )
-}
-
-function WarningTriangleIcon({ size = 20 }) {
-  return (
-    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
-      <line x1="12" y1="9" x2="12" y2="13" />
-      <line x1="12" y1="17" x2="12.01" y2="17" />
-    </svg>
-  )
-}
 
 // ─── Stacked Bar Chart Component ──────────────────────────────────────────────
 
@@ -223,7 +189,16 @@ export default function AdminDashboardPage() {
         // In-progress deliveries
         const inProgressCount = parcelsList.filter((p) => IN_PROGRESS_STATUSES.has(p.status)).length
 
+        const byStatus = parcelsList.reduce((counts, parcel) => ({ ...counts, [parcel.status]: (counts[parcel.status] || 0) + 1 }), {})
+        const courierStates = couriersList.reduce((counts, courier) => {
+          const key = !courier.active ? 'INACTIVE' : (courier.availability || (courier.available ? 'AVAILABLE' : 'OFFLINE'))
+          return { ...counts, [key]: (counts[key] || 0) + 1 }
+        }, {})
+
         setStats({
+          totalParcels: parcelsList.length,
+          byStatus,
+          courierStates,
           deliveriesToday,
           activeCouriers,
           totalCouriers,
@@ -261,172 +236,109 @@ export default function AdminDashboardPage() {
   const deliveredPct = totalFinished > 0 ? ((stats?.deliveredCount || 0) / totalFinished) * 100 : 0
   const failedPct = totalFinished > 0 ? ((stats?.failedCount || 0) / totalFinished) * 100 : 0
 
-  return (
-    <div className="admin-overview-container">
-      {/* ── Header ── */}
-      <header className="admin-overview-header">
-        <h1 className="admin-overview-title">Admin Overview</h1>
-        <p className="admin-overview-subtitle">
-          {user?.name ? `Welcome, ${user.name}. ` : ''}Real-time metrics calculated from live operational records.
-        </p>
-      </header>
+  const successValue = Number(stats?.successRate) || 0
 
-      {/* ── Loading / Error States ── */}
+  return (
+    <div className="db-page admin-dash">
+      <DashboardHeader title="Operations overview"
+        subtitle={`${todayLabel()}${user?.name ? ` · Welcome, ${user.name}` : ''} · Live figures from parcels, couriers and merchants.`}
+        actions={<Button variant="outline" onClick={loadDashboardData}><DashboardIcon name="refresh" size={16} />Refresh</Button>} />
+
       {statsLoading ? (
-        <div className="card admin-loading-card">
-          <LoadingSpinner />
-          <p role="status">Loading dashboard metrics…</p>
-        </div>
+        <div className="db-panel ad-state"><LoadingSpinner /><p role="status">Loading dashboard metrics…</p></div>
       ) : statsError ? (
-        <div className="card admin-error-card" role="alert">
+        <div className="db-panel ad-state" role="alert">
           <p className="admin-error-text">{statsError}</p>
-          <Button variant="secondary" onClick={loadDashboardData}>
-            Retry
-          </Button>
+          <Button variant="secondary" onClick={loadDashboardData}>Retry</Button>
         </div>
       ) : stats ? (
         <>
-          {/* ── A. Overview Statistics Cards ── */}
-          <section className="admin-kpi-grid" aria-label="Key operational statistics">
-            {/* Deliveries Today */}
-            <article className="admin-kpi-card card">
-              <div className="admin-kpi-top">
-                <span className="admin-kpi-label">Deliveries today</span>
-                <span className="admin-kpi-icon" aria-hidden="true">
-                  <PackageIcon />
-                </span>
-              </div>
-              <div className="admin-kpi-value">{stats.deliveriesToday}</div>
-              <div className="admin-kpi-sub">Bookings created today</div>
-            </article>
-
-            {/* Active Couriers */}
-            <article className="admin-kpi-card card">
-              <div className="admin-kpi-top">
-                <span className="admin-kpi-label">Active couriers</span>
-                <span className="admin-kpi-icon" aria-hidden="true">
-                  <TruckIcon />
-                </span>
-              </div>
-              <div className="admin-kpi-value">{stats.activeCouriers}</div>
-              <div className="admin-kpi-sub">of {stats.totalCouriers} couriers</div>
-            </article>
-
-            {/* Pending Merchant Approvals */}
-            <article className="admin-kpi-card card">
-              <div className="admin-kpi-top">
-                <span className="admin-kpi-label">Pending merchant approvals</span>
-                <span className="admin-kpi-icon" aria-hidden="true">
-                  <StoreIcon />
-                </span>
-              </div>
-              <div className={`admin-kpi-value${stats.pendingApprovalsCount > 0 ? ' text-amber' : ''}`}>
-                {stats.pendingApprovalsCount}
-              </div>
-              <div className="admin-kpi-sub">Awaiting admin review</div>
-            </article>
-
-            {/* Failed Deliveries */}
-            <article className="admin-kpi-card card">
-              <div className="admin-kpi-top">
-                <span className="admin-kpi-label">Failed deliveries</span>
-                <span className="admin-kpi-icon" aria-hidden="true">
-                  <XCircleIcon />
-                </span>
-              </div>
-              <div className={`admin-kpi-value${stats.failedCount > 0 ? ' text-red' : ''}`}>
-                {stats.failedCount}
-              </div>
-              <div className="admin-kpi-sub">Currently in Failed status</div>
-            </article>
-          </section>
-
-          {/* ── B & C. Deliveries Per Day Chart + Summary Card ── */}
-          <div className="admin-charts-grid">
-            {/* Left: Deliveries Per Day Stacked Bar Chart */}
-            <section className="admin-chart-card card" aria-labelledby="chart-deliveries-title">
-              <div className="admin-card-header">
-                <h2 id="chart-deliveries-title" className="admin-card-title">Deliveries per day</h2>
-                <p className="admin-card-desc">Last 7 days, by completion date</p>
-              </div>
-              <DeliveriesBarChart days={stats.deliveriesPerDay} />
-            </section>
-
-            {/* Right: Success / Failure Summary Card */}
-            <section className="admin-chart-card card" aria-labelledby="summary-deliveries-title">
-              <div className="admin-card-header">
-                <h2 id="summary-deliveries-title" className="admin-card-title">Success / failure summary</h2>
-              </div>
-              <div className="admin-summary-content">
-                <div className="admin-summary-list">
-                  <div className="admin-summary-row">
-                    <span className="admin-summary-label">Delivered</span>
-                    <span className="admin-summary-val">{stats.deliveredCount}</span>
-                  </div>
-                  <div className="admin-summary-row">
-                    <span className="admin-summary-label">Failed</span>
-                    <span className="admin-summary-val">{stats.failedCount}</span>
-                  </div>
-                  <div className="admin-summary-row">
-                    <span className="admin-summary-label">Success rate</span>
-                    <span className="admin-summary-val">{stats.successRate}%</span>
-                  </div>
-                  <div className="admin-summary-row">
-                    <span className="admin-summary-label">In progress</span>
-                    <span className="admin-summary-val">{stats.inProgressCount}</span>
-                  </div>
-                </div>
-
-                {/* Dual-color Progress Bar */}
-                <div className="admin-progress-container" aria-hidden="true">
-                  <div className="admin-progress-track">
-                    {totalFinished > 0 ? (
-                      <>
-                        <div
-                          className="admin-progress-delivered"
-                          style={{ width: `${deliveredPct}%` }}
-                        />
-                        <div
-                          className="admin-progress-failed"
-                          style={{ width: `${failedPct}%` }}
-                        />
-                      </>
-                    ) : (
-                      <div className="admin-progress-empty" />
-                    )}
-                  </div>
-                  <p className="admin-progress-caption">
-                    Success rate = delivered ÷ (delivered + failed). In-progress parcels excluded.
-                  </p>
-                </div>
-              </div>
-            </section>
-          </div>
-
-          {/* ── D. Pending Merchant Approval Alert ── */}
           {stats.pendingApprovalsCount > 0 && (
-            <section className="admin-alert-banner" aria-label="Pending approvals alert">
-              <div className="admin-alert-body">
-                <span className="admin-alert-icon" aria-hidden="true">
-                  <WarningTriangleIcon size={20} />
-                </span>
-                <div className="admin-alert-info">
-                  <strong className="admin-alert-title">
-                    {stats.pendingApprovalsCount} merchant application(s) awaiting review
-                  </strong>
-                  {pendingMerchantNames.length > 0 && (
-                    <p className="admin-alert-desc">
-                      {pendingMerchantNames.slice(0, 3).join(', ')}
-                      {pendingMerchantNames.length > 3 ? ` and ${pendingMerchantNames.length - 3} more` : ''}
-                    </p>
-                  )}
-                </div>
+            <section className="db-attention" aria-label="Pending approvals alert">
+              <span className="db-attention-icon"><DashboardIcon name="alert" size={18} /></span>
+              <div>
+                <strong>
+                  {stats.pendingApprovalsCount} merchant {stats.pendingApprovalsCount === 1 ? 'application is' : 'applications are'} awaiting review
+                </strong>
+                {pendingMerchantNames.length > 0 && (
+                  <p>
+                    {pendingMerchantNames.slice(0, 3).join(', ')}
+                    {pendingMerchantNames.length > 3 ? ` and ${pendingMerchantNames.length - 3} more` : ''}
+                  </p>
+                )}
               </div>
-              <Link to="/admin/merchant-approvals" className="admin-alert-btn">
-                Review
-              </Link>
+              <Link to="/admin/merchant-approvals" className="button button-outline">Review</Link>
             </section>
           )}
+
+          <KpiGrid label="Key operational statistics">
+            <KpiCard icon="package" label="Parcels booked today" value={stats.deliveriesToday} detail={`${stats.totalParcels} parcels in the system`} />
+            <KpiCard icon="truck" label="Active couriers" value={stats.activeCouriers} detail={`of ${stats.totalCouriers} couriers`} tone="success" />
+            <KpiCard icon="route" label="In progress" value={stats.inProgressCount} detail="Assigned to delivery" tone="neutral" />
+            <KpiCard icon="xcircle" label="Failed, last 7 days" value={stats.failedCount} detail={`${stats.deliveredCount} delivered in the same period`}
+              tone="danger" highlight={stats.failedCount > 0} />
+          </KpiGrid>
+
+          <div className="db-grid-3-2">
+            <Panel id="chart-deliveries" title="Deliveries per day" description="Last 7 days, by completion date">
+              <DeliveriesBarChart days={stats.deliveriesPerDay} />
+            </Panel>
+
+            <Panel id="summary-deliveries" title="Delivery performance" description="Last 7 days">
+              <div className="ad-performance">
+                <div className="ad-ring" style={{ '--value': `${Math.min(100, Math.max(0, successValue))}%` }} role="img" aria-label={`Success rate ${stats.successRate}%`}>
+                  <div><strong>{stats.successRate}%</strong><span>success rate</span></div>
+                </div>
+                <dl className="ad-figures">
+                  <div><dt><span className="ad-dot is-success" />Delivered</dt><dd>{stats.deliveredCount}</dd></div>
+                  <div><dt><span className="ad-dot is-danger" />Failed</dt><dd>{stats.failedCount}</dd></div>
+                  <div><dt><span className="ad-dot is-info" />In progress</dt><dd>{stats.inProgressCount}</dd></div>
+                </dl>
+              </div>
+              <div className="admin-progress-track ad-split" aria-hidden="true">
+                {totalFinished > 0 ? (
+                  <>
+                    <div className="admin-progress-delivered" style={{ width: `${deliveredPct}%` }} />
+                    <div className="admin-progress-failed" style={{ width: `${failedPct}%` }} />
+                  </>
+                ) : <div className="admin-progress-empty" />}
+              </div>
+              <p className="ad-caption">Success rate = delivered ÷ (delivered + failed). Parcels still in progress are not counted.</p>
+            </Panel>
+          </div>
+
+          <div className="db-grid-3-2">
+            <Panel id="pipeline" title="Parcels by status" description={`${stats.totalParcels} parcels`}
+              actions={<Link to="/dispatch/deliveries" className="db-link">Ongoing deliveries</Link>}>
+              {stats.totalParcels === 0 ? <p className="db-empty">No parcels yet.</p> : (
+                <ul className="ad-pipeline">
+                  {PIPELINE.filter(([status]) => stats.byStatus[status]).map(([status, label, colour]) => (
+                    <li key={status}>
+                      <span className="ad-pipeline-label">{label}</span>
+                      <span className="ad-pipeline-bar" aria-hidden="true"><span style={{ width: `${(stats.byStatus[status] / stats.totalParcels) * 100}%`, background: colour }} /></span>
+                      <strong>{stats.byStatus[status]}</strong>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Panel>
+
+            <Panel id="courier-availability" title="Courier availability" description={`${stats.totalCouriers} courier profiles`}
+              actions={<Link to="/dispatch/workload" className="db-link">Courier workload</Link>}>
+              <ul className="ad-availability">
+                {AVAILABILITY.map(([key, label, tone]) => (
+                  <li key={key}>
+                    <span className={`db-pill${tone ? ` db-pill-${tone}` : ''}`}><span className="db-pill-dot" aria-hidden="true" />{label}</span>
+                    <strong>{stats.courierStates[key] || 0}</strong>
+                  </li>
+                ))}
+              </ul>
+              <div className="ad-quick">
+                <Link to="/admin/courier-approvals" className="db-link">Courier approvals</Link>
+                <Link to="/admin/users" className="db-link">Manage users</Link>
+              </div>
+            </Panel>
+          </div>
         </>
       ) : null}
     </div>

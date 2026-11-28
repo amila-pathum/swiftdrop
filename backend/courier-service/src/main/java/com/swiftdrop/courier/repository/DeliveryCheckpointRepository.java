@@ -10,4 +10,5 @@ public interface DeliveryCheckpointRepository extends JpaRepository<DeliveryChec
     @Query("select c from DeliveryCheckpoint c where c.id=:id")
     Optional<DeliveryCheckpoint> lockById(@Param("id") UUID id);
     List<DeliveryCheckpoint> findByParcelIdAndCourierIdAndSyncStatusOrderByRecordedAtAsc(UUID parcelId, Long courierId, SyncStatus syncStatus);
+    List<DeliveryCheckpoint> findByParcelIdAndSyncStatusOrderByRecordedAtAsc(UUID parcelId, SyncStatus syncStatus);
 }

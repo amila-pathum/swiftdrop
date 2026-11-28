@@ -7,13 +7,27 @@ import subprocess
 ROOT = Path(__file__).resolve().parents[3]
 
 
-def sql(service, statement):
+def _read(path):
     values = {}
-    for line in (ROOT / '.env.rds').read_text().splitlines():
-        parts = shlex.split(line, comments=True)
-        if parts and '=' in parts[0]:
-            name, value = parts[0].split('=', 1)
-            values[name] = value
+    if path.exists():
+        for line in path.read_text().splitlines():
+            parts = shlex.split(line, comments=True)
+            if parts and '=' in parts[0]:
+                name, value = parts[0].split('=', 1)
+                values[name] = value
+    return values
+
+
+def rds_settings():
+    """RDS settings as un-prefixed names: RDS_* from .env, else a legacy .env.rds."""
+    env = _read(ROOT / '.env')
+    if env.get('RDS_DB_HOST'):
+        return {name[4:]: value for name, value in env.items() if name.startswith('RDS_')}
+    return _read(ROOT / '.env.rds')
+
+
+def sql(service, statement):
+    values = rds_settings()
     prefix = service.upper()
     environment = os.environ.copy()
     environment.update(PGHOST=values['DB_HOST'], PGPORT=values.get('DB_PORT', '5432'),

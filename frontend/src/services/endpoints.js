@@ -252,6 +252,14 @@ export const ENDPOINTS = Object.freeze({
     auth: true,
     // Admin only. -> Zone
   },
+  deleteZone: {
+    method: 'DELETE',
+    path: '/api/zones/:id',
+    available: true,
+    auth: true,
+    // Admin only. -> 204. 409 when a rate card (current or past) uses the zone;
+    // such zones can only be disabled.
+  },
   getRateCard: {
     method: 'GET',
     path: '/api/pricing/rates',
@@ -300,5 +308,6 @@ export const COURIER_ENDPOINTS = Object.freeze({
   courierProofs: { method: 'GET', path: '/api/couriers/me/deliveries/:parcelId/proofs', available: true, auth: true },
   courierStatus: { method: 'POST', path: '/api/couriers/me/deliveries/:parcelId/status', available: true, auth: true },
   courierSubmission: { method: 'GET', path: '/api/couriers/me/delivery-submissions/:id', available: true, auth: true },
-  courierPhoto: { method: 'GET', path: '/api/couriers/me/deliveries/:parcelId/proofs/:proofId/photo', available: true, auth: true },
+  // Optional photo: a signed S3 upload URL; the returned photoKey goes in the status update.
+  courierPhotoUpload: { method: 'POST', path: '/api/couriers/me/deliveries/:parcelId/photo-uploads', available: true, auth: true },
 })

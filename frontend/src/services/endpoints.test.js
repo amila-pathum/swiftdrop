@@ -27,7 +27,7 @@ describe('endpoint registry', () => {
       .map(([name]) => name)
     expect(available.sort()).toEqual([
       'changeUserStatus', 'confirmPasswordReset', 'courierApplication', 'createStaffUser',
-      'createZone', 'currentUser', 'disableZone',
+      'createZone', 'currentUser', 'deleteZone', 'disableZone',
       'enableZone', 'getAdminUser', 'getRateCard', 'getRateVersions', 'getZoneById', 'getZones',
       'googleExchange', 'listAdminUsers', 'login', 'logout', 'markNotificationAsRead',
       'merchantApplication', 'myCourierApplication', 'myMerchantApplication', 'notifications',

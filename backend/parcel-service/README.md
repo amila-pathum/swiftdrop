@@ -32,7 +32,7 @@ For the shared development RDS profile:
 DB_PROFILE=rds bash infrastructure/scripts/run-service.sh parcel-service
 ```
 
-RDS values come from `.env.rds` and the connection uses TLS. Never repair or
+RDS values come from the `RDS_*` variables in `.env` and the connection uses TLS. Never repair or
 reset a shared database to resolve a local schema problem.
 
 ## Authentication and authorization
@@ -230,7 +230,7 @@ From `backend/parcel-service`:
 ```
 
 Integration tests use disposable Testcontainers PostgreSQL and require Docker.
-They do not read `.env.rds` or modify team databases. Coverage includes creation,
+They do not read the RDS settings or modify team databases. Coverage includes creation,
 JWT roles, ownership, public privacy, pricing failures, transitions, concurrency,
 idempotent retries, cancellation, receipts, outbox publishing, dispatch projections,
 and migration startup.

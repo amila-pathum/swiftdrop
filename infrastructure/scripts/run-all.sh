@@ -4,7 +4,7 @@
 #
 # Local Docker PostgreSQL (default; also starts docker compose):
 #   infrastructure/scripts/run-all.sh
-# AWS RDS (databases from .env.rds; local RabbitMQ is started when needed):
+# AWS RDS (databases from the RDS_* variables in .env; local RabbitMQ is started when needed):
 #   DB_PROFILE=rds infrastructure/scripts/run-all.sh
 # Only some parts (names as in backend/, plus "frontend"):
 #   infrastructure/scripts/run-all.sh identity-service parcel-service api-gateway frontend
@@ -100,7 +100,7 @@ for part in "${parts[@]}"; do
 	fi
 done
 if [[ "$profile" == rds ]]; then
-	echo "Checking .env.rds for every database service ..."
+	echo "Checking the AWS RDS settings for every database service ..."
 	for part in "${parts[@]}"; do
 		[[ " ${database_services[*]} " == *" $part "* ]] || continue
 		# Validates this service's variables without starting it; prints no password.

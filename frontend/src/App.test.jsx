@@ -270,7 +270,7 @@ describe('App routing', () => {
       authenticatedAs('DISPATCHER')
       renderAt('/dashboard')
 
-      expect(await screen.findByRole('heading', { level: 1, name: 'Dispatch dashboard' }))
+      expect(await screen.findByRole('heading', { level: 1, name: 'Dispatch centre' }))
         .toBeInTheDocument()
       expect(currentPath()).toBe('/dispatcher/dashboard')
       expect(screen.getByRole('link', { name: 'Reports' })).toHaveAttribute('href', '/reports')

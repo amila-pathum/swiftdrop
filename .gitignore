@@ -1,10 +1,9 @@
 # Environment files
 .env
 .env.*
-# AWS RDS credentials (real passwords); copied from .env.rds.example
+# Older separate AWS RDS file (real passwords); its values now go in .env
 .env.rds
 !.env.example
-!.env.rds.example
 
 # Google OAuth client credentials downloaded from Google Cloud Console
 client_secret_*.json

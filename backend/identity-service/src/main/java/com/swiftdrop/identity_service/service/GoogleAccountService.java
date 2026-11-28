@@ -40,6 +40,14 @@ public class GoogleAccountService {
     private final UserRepository userRepository;
     private final UserIdentityRepository identityRepository;
 
+    private com.swiftdrop.identity_service.notification.NotificationEmailClient emails;
+
+    /** Optional: present only when email delivery is configured. */
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setEmails(com.swiftdrop.identity_service.notification.NotificationEmailClient emails) {
+        this.emails = emails;
+    }
+
     public GoogleAccountService(UserRepository userRepository,
             UserIdentityRepository identityRepository) {
         this.userRepository = userRepository;
@@ -70,6 +78,9 @@ public class GoogleAccountService {
             displayName(profile.name(), email), email, null, Role.CUSTOMER, UserStatus.ACTIVE));
         identityRepository.save(
             new UserIdentity(user, AuthProvider.GOOGLE, profile.subject(), email));
+        if (emails != null) {
+            emails.sendWelcome(user);
+        }
         return user;
     }
 

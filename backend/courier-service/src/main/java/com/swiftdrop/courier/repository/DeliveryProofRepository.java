@@ -6,5 +6,5 @@ import java.util.*;
 public interface DeliveryProofRepository extends JpaRepository<DeliveryProof,UUID> {
     Optional<DeliveryProof> findByCheckpointId(UUID checkpointId);
     List<DeliveryProof> findByParcelIdAndCourierIdAndCheckpointSyncStatusOrderByRecordedAtAsc(UUID parcelId, Long courierId, SyncStatus status);
-    Optional<DeliveryProof> findByIdAndParcelIdAndCourierIdAndCheckpointSyncStatus(UUID id, UUID parcelId, Long courierId, SyncStatus status);
+    List<DeliveryProof> findByParcelIdAndCheckpointSyncStatus(UUID parcelId, SyncStatus status);
 }
