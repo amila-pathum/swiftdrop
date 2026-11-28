@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CourierProfileService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">courier-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.courier.service</a> &gt; <span class="el_source">CourierProfileService.java</span></div><h1>CourierProfileService.java</h1><pre class="source lang-java linenums">package com.swiftdrop.courier.service;
+
+import com.swiftdrop.courier.client.CourierIntegrations.IdentityClient;
+import com.swiftdrop.courier.dto.CourierDtos.*;
+import com.swiftdrop.courier.entity.*;
+import com.swiftdrop.courier.exception.CourierException;
+import com.swiftdrop.courier.repository.CourierProfileRepository;
+import org.springframework.data.domain.*;
+import org.springframework.data.jpa.domain.Specification;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.ArrayList;
+import jakarta.persistence.criteria.Predicate;
+
+@Service
+public class CourierProfileService {
+    private final CourierProfileRepository profiles;
+    private final IdentityClient identity;
+<span class="fc" id="L19">    public CourierProfileService(CourierProfileRepository profiles,IdentityClient identity) { this.profiles=profiles;this.identity=identity; }</span>
+    @Transactional(readOnly=true)
+<span class="pc" id="L21">    public CourierProfile own(Long userId) { return profiles.findByUserId(userId).orElseThrow(()-&gt;CourierException.missing(&quot;Courier profile not found.&quot;)); }</span>
+    @Transactional(readOnly=true)
+    public Profile find(Long id) {
+<span class="fc" id="L24">        return Profile.from(profiles.findById(id).orElseThrow(()-&gt;CourierException.missing(&quot;Courier profile not found.&quot;)));</span>
+    }
+    public CourierProfile operational(Long userId) {
+<span class="fc" id="L27">        CourierProfile p=own(userId);</span>
+<span class="fc bfc" id="L28" title="All 2 branches covered.">        if(!p.active) throw CourierException.forbidden(&quot;Courier profile is inactive.&quot;);</span>
+<span class="fc" id="L29">        return p;</span>
+    }
+<span class="fc" id="L31">    public record Provisioned(Profile profile, boolean created) {}</span>
+    @Transactional
+    public Provisioned provision(ProvisionInput input,String token) {
+<span class="fc" id="L34">        var account=identity.account(input.userId(),token);</span>
+<span class="pc bpc" id="L35" title="1 of 4 branches missed.">        if(!input.userId().equals(account.id()) || !&quot;COURIER&quot;.equals(account.role()))</span>
+<span class="fc" id="L36">            throw CourierException.invalid(&quot;The identity account must have the COURIER role.&quot;);</span>
+<span class="fc" id="L37">        var existing=profiles.findByUserId(input.userId());</span>
+<span class="fc bfc" id="L38" title="All 2 branches covered.">        if(existing.isPresent()) return new Provisioned(Profile.from(existing.get()),false);</span>
+<span class="fc" id="L39">        CourierProfile p=new CourierProfile();p.userId=input.userId();apply(p,input.profile());</span>
+<span class="fc" id="L40">        p.active=&quot;ACTIVE&quot;.equals(account.status());</span>
+<span class="fc" id="L41">        profiles.saveAndFlush(p);</span>
+<span class="fc" id="L42">        return new Provisioned(Profile.from(p),true);</span>
+    }
+    @Transactional
+<span class="nc" id="L45">    public Profile update(Long userId,ProfileInput input) { var p=operational(userId);apply(p,input);return Profile.from(profiles.saveAndFlush(p)); }</span>
+    @Transactional
+<span class="fc" id="L47">    public Profile availability(Long userId,Availability availability) { var p=operational(userId);p.availability=availability;return Profile.from(profiles.saveAndFlush(p)); }</span>
+    @Transactional
+    public Profile active(Long id,boolean active,String token) {
+<span class="pc" id="L50">        var p=profiles.findById(id).orElseThrow(()-&gt;CourierException.missing(&quot;Courier profile not found.&quot;));</span>
+<span class="pc bpc" id="L51" title="1 of 2 branches missed.">        if(active) {</span>
+<span class="nc" id="L52">            var account=identity.account(p.userId,token);</span>
+<span class="nc bnc" id="L53" title="All 6 branches missed.">            if(!p.userId.equals(account.id()) || !&quot;COURIER&quot;.equals(account.role()) || !&quot;ACTIVE&quot;.equals(account.status()))</span>
+<span class="nc" id="L54">                throw CourierException.conflict(&quot;Activate the COURIER identity account before activating its profile.&quot;);</span>
+        }
+<span class="pc bpc" id="L56" title="1 of 2 branches missed.">        p.active=active;if(!active)p.availability=Availability.OFFLINE;</span>
+<span class="fc" id="L57">        return Profile.from(profiles.saveAndFlush(p));</span>
+    }
+    @Transactional(readOnly=true)
+    public PageResult&lt;Profile&gt; list(Availability availability,String area,boolean active,int page,int size) {
+<span class="fc" id="L61">        Specification&lt;CourierProfile&gt; filter=(root,query,cb)-&gt;{</span>
+<span class="fc" id="L62">            var conditions=new ArrayList&lt;Predicate&gt;();conditions.add(cb.equal(root.get(&quot;active&quot;),active));</span>
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">            if(availability!=null)conditions.add(cb.equal(root.get(&quot;availability&quot;),availability));</span>
+<span class="pc bpc" id="L64" title="3 of 4 branches missed.">            if(area!=null&amp;&amp;!area.isBlank())conditions.add(cb.equal(cb.lower(root.get(&quot;area&quot;)),area.trim().toLowerCase(java.util.Locale.ROOT)));</span>
+<span class="fc" id="L65">            return cb.and(conditions.toArray(Predicate[]::new));</span>
+        };
+<span class="fc" id="L67">        var result=profiles.findAll(filter,PageRequest.of(page,size,Sort.by(&quot;id&quot;)));</span>
+<span class="fc" id="L68">        return new PageResult&lt;&gt;(result.getContent().stream().map(Profile::from).toList(),page,size,result.getTotalElements(),result.getTotalPages());</span>
+    }
+<span class="fc" id="L70">    private void apply(CourierProfile p,ProfileInput i) {p.name=i.name().trim();p.phone=i.phone().trim();p.vehicleType=i.vehicleType();p.vehicleNumber=i.vehicleNumber().trim();p.area=i.area().trim();}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StoreController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">stylecart</a> &gt; <a href="index.source.html" class="el_package">com.stylecart.web</a> &gt; <span class="el_source">StoreController.java</span></div><h1>StoreController.java</h1><pre class="source lang-java linenums">package com.stylecart.web;
+import com.stylecart.repo.*;
+import com.stylecart.service.*;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.validation.Valid;
+import java.util.*;
+import org.springframework.http.*;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+@RestController
+public class StoreController {
+    private final ProductRepository products;private final OrderService orders;private final AuthController auth;private final SettingsService settings;
+    private final ShipmentService shipments;private final WebhookService webhook;private final AttemptRepository attempts;private final EventRepository events;private final LiveUpdates live;
+<span class="fc" id="L14">    public StoreController(ProductRepository products,OrderService orders,AuthController auth,SettingsService settings,ShipmentService shipments,WebhookService webhook,AttemptRepository attempts,EventRepository events,LiveUpdates live){this.products=products;this.orders=orders;this.auth=auth;this.settings=settings;this.shipments=shipments;this.webhook=webhook;this.attempts=attempts;this.events=events;this.live=live;}</span>
+<span class="fc" id="L15">    @GetMapping(&quot;/api/catalog&quot;) public Map&lt;String,Object&gt; catalog(){return Map.of(&quot;products&quot;,products.findAll(),&quot;districts&quot;,OrderService.DISTRICTS);}</span>
+<span class="fc" id="L16">    @GetMapping(&quot;/api/customer/orders&quot;) public Object mine(){return orders.list(auth.current().id);}</span>
+<span class="nc" id="L17">    @GetMapping(&quot;/api/customer/orders/{id}&quot;) public Object mine(@PathVariable UUID id){return orders.get(id,auth.current().id);}</span>
+<span class="fc" id="L18">    @PostMapping(&quot;/api/customer/orders&quot;) @ResponseStatus(HttpStatus.CREATED) public Object checkout(@Valid @RequestBody OrderService.Checkout body){return orders.create(auth.current().id,body);}</span>
+<span class="nc" id="L19">    @GetMapping(&quot;/api/admin/orders&quot;) public Object all(){return orders.list(null);}</span>
+<span class="nc" id="L20">    @GetMapping(&quot;/api/admin/orders/{id}&quot;) public Object one(@PathVariable UUID id){return orders.get(id,null);}</span>
+<span class="fc" id="L21">    @PostMapping(&quot;/api/admin/orders/{id}/shipment&quot;) public Object book(@PathVariable UUID id,@RequestBody Map&lt;String,Boolean&gt; body){return shipments.book(id,Boolean.TRUE.equals(body.get(&quot;verifyDuplicate&quot;)));}</span>
+<span class="fc" id="L22">    @GetMapping(&quot;/api/admin/integration&quot;) public Object integration(){return settings.view();}</span>
+<span class="nc" id="L23">    @PutMapping(&quot;/api/admin/integration&quot;) public Object configure(@RequestBody SettingsService.Update body){return settings.update(body);}</span>
+<span class="nc" id="L24">    @PostMapping(&quot;/api/admin/integration/check&quot;) public Object check(){shipments.check();return Map.of(&quot;connected&quot;,true);}</span>
+<span class="nc" id="L25">    @PostMapping(&quot;/api/admin/failures&quot;) public Object failures(@RequestBody Map&lt;String,String&gt; body){settings.failures(body.getOrDefault(&quot;mode&quot;,&quot;&quot;));return settings.view();}</span>
+<span class="nc" id="L26">    @GetMapping(&quot;/api/admin/webhooks&quot;) public Object webhooks(){return Map.of(&quot;events&quot;,events.findTop100ByOrderByReceivedAtDesc(),&quot;attempts&quot;,attempts.findTop100ByOrderByReceivedAtDesc());}</span>
+<span class="fc" id="L27">    @GetMapping(value={&quot;/api/admin/live&quot;,&quot;/api/customer/live&quot;},produces=MediaType.TEXT_EVENT_STREAM_VALUE) public SseEmitter live(HttpServletRequest request){var user=auth.current();return live.connect(user.id,user.role.equals(&quot;ADMIN&quot;),request.getSession(false));}</span>
+    @PostMapping(&quot;/webhooks/swiftdrop&quot;) public ResponseEntity&lt;Void&gt; webhook(@RequestBody byte[] body,
+        @RequestHeader(value=&quot;X-SwiftDrop-Timestamp&quot;,required=false) String timestamp,@RequestHeader(value=&quot;X-SwiftDrop-Signature&quot;,required=false) String signature,
+<span class="fc" id="L30">        @RequestHeader(value=&quot;X-SwiftDrop-Event-Id&quot;,required=false) String id){return ResponseEntity.status(webhook.receive(body,timestamp,signature,id)).cacheControl(CacheControl.noStore()).build();}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

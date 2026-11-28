@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RateLimiter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.identity_service.security</a> &gt; <span class="el_source">RateLimiter.java</span></div><h1>RateLimiter.java</h1><pre class="source lang-java linenums">package com.swiftdrop.identity_service.security;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
+
+import java.time.Duration;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/**
+ * Instance-local, in-memory rate limiter using a fixed window. Not distributed:
+ * in a multi-instance deployment each instance allows its own window. Adequate
+ * for a single-instance university project.
+ */
+@Component
+public class RateLimiter {
+
+    private final int maxAttempts;
+    private final long windowMs;
+
+<span class="fc" id="L21">    private final ConcurrentHashMap&lt;String, Window&gt; windows = new ConcurrentHashMap&lt;&gt;();</span>
+
+    public RateLimiter(
+            @Value(&quot;${swiftdrop.rate-limit.max-attempts:10}&quot;) int maxAttempts,
+<span class="fc" id="L25">            @Value(&quot;${swiftdrop.rate-limit.window-seconds:900}&quot;) long windowSeconds) {</span>
+<span class="fc" id="L26">        this.maxAttempts = maxAttempts;</span>
+<span class="fc" id="L27">        this.windowMs = Duration.ofSeconds(windowSeconds).toMillis();</span>
+<span class="fc" id="L28">    }</span>
+
+    public boolean isAllowed(String key) {
+<span class="fc" id="L31">        long now = System.currentTimeMillis();</span>
+<span class="fc" id="L32">        Window window = windows.compute(key, (k, existing) -&gt; {</span>
+<span class="fc bfc" id="L33" title="All 4 branches covered.">            if (existing == null || now - existing.start &gt; windowMs) {</span>
+<span class="fc" id="L34">                return new Window(now);</span>
+            }
+<span class="fc" id="L36">            return existing;</span>
+        });
+<span class="fc bfc" id="L38" title="All 2 branches covered.">        return window.counter.incrementAndGet() &lt;= maxAttempts;</span>
+    }
+
+    public void evictExpired() {
+<span class="nc" id="L42">        long now = System.currentTimeMillis();</span>
+<span class="nc bnc" id="L43" title="All 2 branches missed.">        windows.entrySet().removeIf(e -&gt; now - e.getValue().start &gt; windowMs);</span>
+<span class="nc" id="L44">    }</span>
+
+    private static final class Window {
+        final long start;
+        final AtomicInteger counter;
+
+<span class="fc" id="L50">        Window(long start) {</span>
+<span class="fc" id="L51">            this.start = start;</span>
+<span class="fc" id="L52">            this.counter = new AtomicInteger(0);</span>
+<span class="fc" id="L53">        }</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

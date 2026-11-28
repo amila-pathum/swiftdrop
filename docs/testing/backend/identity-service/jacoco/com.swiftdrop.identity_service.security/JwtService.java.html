@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JwtService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.identity_service.security</a> &gt; <span class="el_source">JwtService.java</span></div><h1>JwtService.java</h1><pre class="source lang-java linenums">package com.swiftdrop.identity_service.security;
+
+import com.swiftdrop.identity_service.entity.Role;
+import com.swiftdrop.identity_service.entity.User;
+import com.swiftdrop.identity_service.entity.UserStatus;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.io.Decoders;
+import io.jsonwebtoken.security.Keys;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import javax.crypto.SecretKey;
+import java.time.Instant;
+import java.util.Date;
+
+/**
+ * Signs and verifies SwiftDrop access tokens (HMAC, key from JWT_SECRET).
+ *
+ * &lt;p&gt;Claims: {@code sub} (user id), {@code email}, {@code role}, {@code status}
+ * (account status at issue), {@code ver} (the user's token version), {@code iat}
+ * and {@code exp}. Every claim comes from the database row, never from a request.
+ * Other services verify the same signature with the shared secret and must
+ * grant {@code ROLE_&lt;role&gt;} only when {@code status} is {@code ACTIVE}.
+ */
+@Service
+public class JwtService {
+
+    static final String CLAIM_EMAIL = &quot;email&quot;;
+    static final String CLAIM_ROLE = &quot;role&quot;;
+    static final String CLAIM_STATUS = &quot;status&quot;;
+    static final String CLAIM_TOKEN_VERSION = &quot;ver&quot;;
+
+    private final SecretKey signingKey;
+    private final long expirationMs;
+
+    public JwtService(@Value(&quot;${jwt.secret}&quot;) String encodedSecret,
+<span class="fc" id="L39">            @Value(&quot;${jwt.expiration-ms}&quot;) long expirationMs) {</span>
+<span class="pc bpc" id="L40" title="2 of 4 branches missed.">        if (encodedSecret == null || encodedSecret.isBlank()) {</span>
+<span class="nc" id="L41">            throw new IllegalStateException(&quot;JWT_SECRET must be configured&quot;);</span>
+        }
+        byte[] keyBytes;
+        try {
+<span class="fc" id="L45">            keyBytes = Decoders.BASE64.decode(encodedSecret);</span>
+<span class="nc" id="L46">        } catch (RuntimeException exception) {</span>
+<span class="nc" id="L47">            throw new IllegalStateException(&quot;JWT_SECRET must be valid Base64&quot;, exception);</span>
+<span class="fc" id="L48">        }</span>
+<span class="fc bfc" id="L49" title="All 2 branches covered.">        if (keyBytes.length &lt; 32) {</span>
+<span class="fc" id="L50">            throw new IllegalStateException(&quot;JWT_SECRET must contain at least 256 bits&quot;);</span>
+        }
+<span class="pc bpc" id="L52" title="1 of 2 branches missed.">        if (expirationMs &lt;= 0) {</span>
+<span class="nc" id="L53">            throw new IllegalStateException(&quot;JWT_EXPIRATION_MS must be positive&quot;);</span>
+        }
+<span class="fc" id="L55">        this.signingKey = Keys.hmacShaKeyFor(keyBytes);</span>
+<span class="fc" id="L56">        this.expirationMs = expirationMs;</span>
+<span class="fc" id="L57">    }</span>
+
+    public String generateToken(User user) {
+<span class="fc" id="L60">        return generateToken(user, Instant.now());</span>
+    }
+
+    /** Only the protected Merchant integration exchange calls this method. */
+    public String generateMerchantIntegrationToken(User user) {
+<span class="pc bpc" id="L65" title="2 of 4 branches missed.">        if (user.getRole() != Role.MERCHANT || user.getStatus() != UserStatus.ACTIVE) {</span>
+<span class="nc" id="L66">            throw new IllegalArgumentException(&quot;An active merchant account is required&quot;);</span>
+        }
+<span class="fc" id="L68">        Instant issuedAt = Instant.now();</span>
+<span class="fc" id="L69">        return Jwts.builder().subject(user.getId().toString())</span>
+<span class="fc" id="L70">                .claim(CLAIM_EMAIL, user.getEmail()).claim(CLAIM_ROLE, user.getRole().name())</span>
+<span class="fc" id="L71">                .claim(CLAIM_STATUS, user.getStatus().name()).claim(CLAIM_TOKEN_VERSION, user.getTokenVersion())</span>
+<span class="fc" id="L72">                .claim(&quot;purpose&quot;, &quot;MERCHANT_ORDER_INTEGRATION&quot;)</span>
+<span class="fc" id="L73">                .audience().add(&quot;parcel-service&quot;).add(&quot;pricing-service&quot;).and()</span>
+<span class="fc" id="L74">                .issuedAt(Date.from(issuedAt)).expiration(Date.from(issuedAt.plusSeconds(60)))</span>
+<span class="fc" id="L75">                .signWith(signingKey).compact();</span>
+    }
+
+    String generateToken(User user, Instant issuedAt) {
+<span class="fc" id="L79">        return Jwts.builder()</span>
+<span class="fc" id="L80">            .subject(user.getId().toString())</span>
+<span class="fc" id="L81">            .claim(CLAIM_EMAIL, user.getEmail())</span>
+<span class="fc" id="L82">            .claim(CLAIM_ROLE, user.getRole().name())</span>
+<span class="fc" id="L83">            .claim(CLAIM_STATUS, user.getStatus().name())</span>
+<span class="fc" id="L84">            .claim(CLAIM_TOKEN_VERSION, user.getTokenVersion())</span>
+<span class="fc" id="L85">            .issuedAt(Date.from(issuedAt))</span>
+<span class="fc" id="L86">            .expiration(Date.from(issuedAt.plusMillis(expirationMs)))</span>
+<span class="fc" id="L87">            .signWith(signingKey)</span>
+<span class="fc" id="L88">            .compact();</span>
+    }
+
+    /** Verifies the signature and expiry and returns who the token belongs to. */
+    public AuthenticatedUser parseToken(String token) throws JwtException {
+<span class="fc" id="L93">        return parseClaims(token).principal();</span>
+    }
+
+    /** As {@link #parseToken}, with the status and token version the token was issued with. */
+    public TokenClaims parseClaims(String token) throws JwtException {
+<span class="fc" id="L98">        Claims claims = Jwts.parser()</span>
+<span class="fc" id="L99">            .verifyWith(signingKey)</span>
+<span class="fc" id="L100">            .build()</span>
+<span class="fc" id="L101">            .parseSignedClaims(token)</span>
+<span class="fc" id="L102">            .getPayload();</span>
+        try {
+<span class="fc" id="L104">            long userId = Long.parseLong(claims.getSubject());</span>
+<span class="fc" id="L105">            String email = claims.get(CLAIM_EMAIL, String.class);</span>
+<span class="fc" id="L106">            Role role = Role.valueOf(claims.get(CLAIM_ROLE, String.class));</span>
+<span class="pc bpc" id="L107" title="2 of 4 branches missed.">            if (email == null || email.isBlank()) {</span>
+<span class="nc" id="L108">                throw new IllegalArgumentException(&quot;Missing email claim&quot;);</span>
+            }
+<span class="fc" id="L110">            String status = claims.get(CLAIM_STATUS, String.class);</span>
+<span class="fc" id="L111">            Integer version = claims.get(CLAIM_TOKEN_VERSION, Integer.class);</span>
+<span class="fc" id="L112">            return new TokenClaims(</span>
+                new AuthenticatedUser(userId, email, role),
+<span class="fc bfc" id="L114" title="All 2 branches covered.">                status == null ? null : UserStatus.valueOf(status),</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">                version == null ? 0 : version);</span>
+<span class="fc" id="L116">        } catch (RuntimeException exception) {</span>
+<span class="fc" id="L117">            throw new JwtException(&quot;Invalid token claims&quot;, exception);</span>
+        }
+    }
+
+    public long getExpirationSeconds() {
+<span class="fc" id="L122">        return expirationMs / 1000;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

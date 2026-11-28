@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>NotificationController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">notification-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.notification.controller</a> &gt; <span class="el_source">NotificationController.java</span></div><h1>NotificationController.java</h1><pre class="source lang-java linenums">package com.swiftdrop.notification.controller;
+
+import com.swiftdrop.notification.dto.response.NotificationResponse;
+import com.swiftdrop.notification.dto.response.UnreadCountResponse;
+import com.swiftdrop.notification.service.NotificationService;
+import com.swiftdrop.notification.service.NotificationStreamService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import java.util.List;
+import java.util.UUID;
+
+@RestController
+@RequestMapping(&quot;/api/notifications&quot;)
+@RequiredArgsConstructor
+public class NotificationController {
+
+    private final NotificationService notificationService;
+    private final NotificationStreamService notificationStreamService;
+
+    /**
+     * Lists all notifications for the authenticated user (sorted newest first).
+     */
+    @GetMapping
+    public List&lt;NotificationResponse&gt; listMyNotifications(@AuthenticationPrincipal Jwt jwt) {
+<span class="fc" id="L34">        return notificationService.getMyNotifications(jwt.getSubject(), jwt.getClaimAsString(&quot;email&quot;));</span>
+    }
+
+    /**
+     * Gets the count of unread notifications for the authenticated user.
+     */
+    @GetMapping(&quot;/unread-count&quot;)
+    public UnreadCountResponse getUnreadCount(@AuthenticationPrincipal Jwt jwt) {
+<span class="fc" id="L42">        return new UnreadCountResponse(notificationService.getUnreadCount(jwt.getSubject(), jwt.getClaimAsString(&quot;email&quot;)));</span>
+    }
+
+    /**
+     * Marks a specific notification as read.
+     * Enforces user isolation (returns 403 Forbidden if the notification belongs to another user).
+     */
+    @PatchMapping(&quot;/{id}/read&quot;)
+    public NotificationResponse markAsRead(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+<span class="fc" id="L51">        return notificationService.markAsRead(id, jwt.getSubject(), jwt.getClaimAsString(&quot;email&quot;));</span>
+    }
+
+    /**
+     * Marks all notifications as read for the authenticated user.
+     */
+    @PatchMapping(&quot;/read-all&quot;)
+    public void markAllAsRead(@AuthenticationPrincipal Jwt jwt) {
+<span class="fc" id="L59">        notificationService.markAllAsRead(jwt.getSubject(), jwt.getClaimAsString(&quot;email&quot;));</span>
+<span class="fc" id="L60">    }</span>
+
+    /**
+     * Server-Sent Events stream for the authenticated user's real-time notifications.
+     */
+    @GetMapping(value = &quot;/stream&quot;, produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamUserNotifications(@AuthenticationPrincipal Jwt jwt) {
+<span class="fc" id="L67">        return notificationStreamService.subscribeUser(jwt.getSubject(), jwt.getClaimAsString(&quot;email&quot;));</span>
+    }
+
+    /**
+     * Public Server-Sent Events stream for real-time tracking of a specific parcel.
+     * Sends only status and time updates without personal customer data.
+     */
+    @GetMapping(value = &quot;/parcels/{trackingNumber}/stream&quot;, produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamParcelStatus(@PathVariable String trackingNumber) {
+<span class="fc" id="L76">        return notificationStreamService.subscribeParcel(trackingNumber);</span>
+    }
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

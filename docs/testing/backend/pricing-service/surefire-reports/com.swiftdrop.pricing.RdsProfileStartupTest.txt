@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.swiftdrop.pricing.RdsProfileStartupTest
+-------------------------------------------------------------------------------
+Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.073 s -- in com.swiftdrop.pricing.RdsProfileStartupTest

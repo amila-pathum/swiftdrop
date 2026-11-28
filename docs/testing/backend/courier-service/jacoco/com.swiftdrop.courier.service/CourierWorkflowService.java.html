@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CourierWorkflowService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">courier-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.courier.service</a> &gt; <span class="el_source">CourierWorkflowService.java</span></div><h1>CourierWorkflowService.java</h1><pre class="source lang-java linenums">package com.swiftdrop.courier.service;
+
+import com.swiftdrop.courier.client.CourierIntegrations.*;
+import com.swiftdrop.courier.dto.CourierDtos.*;
+import com.swiftdrop.courier.dto.CourierWorkflowDtos.*;
+import com.swiftdrop.courier.entity.*;
+import com.swiftdrop.courier.event.CourierOutbox;
+import com.swiftdrop.courier.exception.CourierException;
+import com.swiftdrop.courier.repository.*;
+import java.sql.Timestamp;
+import java.time.*;
+import java.util.*;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+/** Dispatch owns assignment; Courier records activity against received assignments. */
+@Service
+public class CourierWorkflowService {
+<span class="fc" id="L20">    private static final Set&lt;String&gt; STATUSES=Set.of(&quot;CREATED&quot;,&quot;PICKED_UP&quot;,&quot;IN_TRANSIT&quot;,&quot;OUT_FOR_DELIVERY&quot;,&quot;DELIVERED&quot;,&quot;FAILED&quot;,&quot;CANCELLED&quot;);</span>
+<span class="fc" id="L21">    private static final Map&lt;String,Set&lt;String&gt;&gt; NEXT=Map.of(&quot;CREATED&quot;,Set.of(&quot;PICKED_UP&quot;),&quot;PICKED_UP&quot;,Set.of(&quot;IN_TRANSIT&quot;),</span>
+<span class="fc" id="L22">        &quot;IN_TRANSIT&quot;,Set.of(&quot;OUT_FOR_DELIVERY&quot;),&quot;OUT_FOR_DELIVERY&quot;,Set.of(&quot;DELIVERED&quot;,&quot;FAILED&quot;));</span>
+    private final JdbcTemplate jdbc;
+    private final CourierProfileRepository profiles;
+    private final CourierProfileService profileService;
+    private final CourierOutbox outbox;
+
+    public CourierWorkflowService(JdbcTemplate jdbc,CourierProfileRepository profiles,CourierProfileService profileService,
+<span class="fc" id="L29">            CourierOutbox outbox) {</span>
+<span class="fc" id="L30">        this.jdbc=jdbc;this.profiles=profiles;this.profileService=profileService;this.outbox=outbox;</span>
+<span class="fc" id="L31">    }</span>
+<span class="fc" id="L32">    private record Parcel(Long merchant,String status,LocalDate date,String tracking) {}</span>
+<span class="fc" id="L33">    private record Assigned(UUID id,UUID courier,int attempt,long version,Instant at,LocalDate date,boolean active,boolean local) {}</span>
+
+    @Transactional(readOnly=true)
+    public PageResult&lt;AvailableCourier&gt; available(String area,VehicleType vehicle,int page,int size) {
+<span class="fc" id="L37">        paging(page,size);var args=new ArrayList&lt;Object&gt;();</span>
+<span class="fc" id="L38">        String where=&quot; WHERE p.active=true AND p.availability='AVAILABLE'&quot;;</span>
+<span class="pc bpc" id="L39" title="1 of 4 branches missed.">        if(area!=null&amp;&amp;!area.isBlank()){where+=&quot; AND lower(p.area)=lower(?)&quot;;args.add(area.trim());}</span>
+<span class="fc bfc" id="L40" title="All 2 branches covered.">        if(vehicle!=null){where+=&quot; AND p.vehicle_type=?&quot;;args.add(vehicle.name());}</span>
+<span class="fc" id="L41">        long total=jdbc.queryForObject(&quot;SELECT count(*) FROM courier_profiles p&quot;+where,Long.class,args.toArray());</span>
+<span class="fc" id="L42">        args.add(size);args.add((long)page*size);</span>
+<span class="fc" id="L43">        var rows=jdbc.query(courierSelect()+where+&quot; ORDER BY p.id LIMIT ? OFFSET ?&quot;,this::courier,args.toArray());</span>
+<span class="fc" id="L44">        return new PageResult&lt;&gt;(rows,page,size,total,(int)((total+size-1)/size));</span>
+    }
+    @Transactional(readOnly=true)
+    public AvailableCourier availability(Long id) {
+<span class="fc" id="L48">        return jdbc.query(courierSelect()+&quot; WHERE p.id=?&quot;,this::courier,id).stream().findFirst()</span>
+<span class="pc" id="L49">            .orElseThrow(()-&gt;CourierException.missing(&quot;Courier profile not found.&quot;));</span>
+    }
+    @Transactional
+    public Profile changeAvailability(Long userId,Availability value) {
+<span class="fc" id="L53">        var current=profileService.operational(userId);</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">        if(current.availability==value)return Profile.from(current);</span>
+<span class="fc" id="L55">        var updated=profileService.availability(userId,value);</span>
+<span class="fc" id="L56">        outbox.save(CourierOutbox.AVAILABILITY,&quot;CourierAvailabilityChanged&quot;,&quot;courier:&quot;+updated.id(),</span>
+<span class="fc" id="L57">            Map.of(&quot;courierId&quot;,updated.id(),&quot;courierUserId&quot;,updated.userId(),&quot;availability&quot;,value,&quot;active&quot;,updated.active(),&quot;version&quot;,updated.version()));</span>
+<span class="fc" id="L58">        return updated;</span>
+    }
+    @Transactional
+    public Profile changeActive(Long id,boolean active,String token) {
+<span class="pc" id="L62">        var current=profiles.findById(id).orElseThrow(()-&gt;CourierException.missing(&quot;Courier profile not found.&quot;));</span>
+<span class="fc" id="L63">        boolean wasActive=current.active;Availability previous=current.availability;</span>
+<span class="fc" id="L64">        var updated=profileService.active(id,active,token);</span>
+<span class="pc bpc" id="L65" title="3 of 4 branches missed.">        if(wasActive!=updated.active()||previous!=updated.availability())</span>
+<span class="fc" id="L66">            outbox.save(CourierOutbox.AVAILABILITY,&quot;CourierAvailabilityChanged&quot;,&quot;courier:&quot;+updated.id(),</span>
+<span class="fc" id="L67">                Map.of(&quot;courierId&quot;,updated.id(),&quot;courierUserId&quot;,updated.userId(),&quot;availability&quot;,updated.availability(),&quot;active&quot;,updated.active(),&quot;version&quot;,updated.version()));</span>
+<span class="fc" id="L68">        return updated;</span>
+    }
+
+    /** Called by the existing evidence workflow; status/evidence confirmation/outbox commit together. */
+    @Transactional
+    public void changeStatus(UUID parcelId,StatusUpdate update) {
+<span class="fc" id="L74">        var parcel=parcel(parcelId,true);</span>
+<span class="pc" id="L75">        var courier=profiles.lockById(update.courierId()).orElseThrow(()-&gt;rejected(&quot;Courier profile not found.&quot;));</span>
+<span class="pc bpc" id="L76" title="2 of 4 branches missed.">        if(!courier.active||!courier.userId.equals(update.actorId()))throw rejected(&quot;Invalid courier identity.&quot;);</span>
+<span class="fc" id="L77">        var checkpoints=jdbc.query(&quot;&quot;&quot;</span>
+            SELECT * FROM delivery_checkpoints WHERE id=? FOR UPDATE
+<span class="fc" id="L79">            &quot;&quot;&quot;,(rs,row)-&gt;new SavedCheckpoint(rs.getLong(&quot;courier_id&quot;),rs.getObject(&quot;parcel_id&quot;,UUID.class),</span>
+<span class="fc" id="L80">                rs.getObject(&quot;assignment_id&quot;,UUID.class),rs.getLong(&quot;assignment_version&quot;),rs.getInt(&quot;attempt_no&quot;),</span>
+<span class="fc" id="L81">                rs.getString(&quot;status&quot;),rs.getString(&quot;sync_status&quot;),rs.getString(&quot;note&quot;),rs.getString(&quot;location_description&quot;)),update.submissionId());</span>
+<span class="pc bpc" id="L82" title="1 of 2 branches missed.">        if(checkpoints.isEmpty())throw rejected(&quot;Save the delivery submission first.&quot;);</span>
+<span class="fc" id="L83">        var checkpoint=checkpoints.getFirst();</span>
+<span class="pc bpc" id="L84" title="2 of 4 branches missed.">        if(!Objects.equals(checkpoint.courier(),courier.id)||!parcelId.equals(checkpoint.parcel())</span>
+<span class="pc bpc" id="L85" title="2 of 4 branches missed.">                ||!Objects.equals(checkpoint.assignment(),update.assignmentId())||checkpoint.version()!=update.assignmentVersion()</span>
+<span class="pc bpc" id="L86" title="3 of 6 branches missed.">                ||checkpoint.attempt()!=update.attemptNo()||!checkpoint.status().equals(update.status().name())||!Objects.equals(checkpoint.note(),update.note()))</span>
+<span class="nc" id="L87">            throw rejected(&quot;Submission does not match the saved evidence.&quot;);</span>
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">        if(&quot;CONFIRMED&quot;.equals(checkpoint.sync()))return;</span>
+<span class="pc" id="L89">        var current=assigned(parcelId,true).orElseThrow(()-&gt;rejected(&quot;Assignment not found.&quot;));</span>
+<span class="pc bpc" id="L90" title="2 of 4 branches missed.">        if(!current.active()||!current.courier().equals(courier.dispatchCourierId)</span>
+<span class="pc bpc" id="L91" title="3 of 6 branches missed.">                ||!current.id().equals(update.assignmentId())||current.version()!=update.assignmentVersion()||current.attempt()!=update.attemptNo())</span>
+<span class="nc" id="L92">            throw rejected(&quot;The Dispatch assignment changed or is inactive.&quot;);</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">        if(!NEXT.getOrDefault(parcel.status(),Set.of()).contains(update.status().name()))</span>
+<span class="fc" id="L94">            throw rejected(&quot;This delivery status transition is not allowed.&quot;);</span>
+<span class="fc" id="L95">        Instant at=Instant.now();</span>
+<span class="fc" id="L96">        jdbc.update(&quot;UPDATE courier_delivery_parcels SET status=?,status_at=? WHERE parcel_id=?&quot;,update.status().name(),Timestamp.from(at),parcelId);</span>
+<span class="fc bfc" id="L97" title="All 2 branches covered.">        if(update.status().terminal())jdbc.update(&quot;UPDATE courier_delivery_assignments SET active=false WHERE parcel_id=?&quot;,parcelId);</span>
+<span class="fc" id="L98">        history(update.submissionId(),parcelId,update.status().name(),at,checkpoint.location(),current.attempt(),&quot;COURIER&quot;);</span>
+<span class="fc" id="L99">        jdbc.update(&quot;UPDATE delivery_checkpoints SET sync_status='CONFIRMED',lease_until=NULL,version=version+1 WHERE id=?&quot;,update.submissionId());</span>
+<span class="fc" id="L100">        var event=new LinkedHashMap&lt;String,Object&gt;();event.put(&quot;submissionId&quot;,update.submissionId());event.put(&quot;parcelId&quot;,parcelId);</span>
+<span class="fc" id="L101">        event.put(&quot;trackingNumber&quot;,parcel.tracking());event.put(&quot;merchantUserId&quot;,parcel.merchant());event.put(&quot;courierId&quot;,courier.id);</span>
+<span class="fc" id="L102">        event.put(&quot;courierUserId&quot;,courier.userId);event.put(&quot;assignmentId&quot;,current.id());event.put(&quot;assignmentVersion&quot;,current.version());</span>
+<span class="fc" id="L103">        event.put(&quot;attemptNo&quot;,current.attempt());event.put(&quot;oldStatus&quot;,parcel.status());event.put(&quot;newStatus&quot;,update.status());event.put(&quot;changedAt&quot;,at);</span>
+<span class="fc" id="L104">        outbox.save(CourierOutbox.STATUS,&quot;CourierDeliveryStatusChanged&quot;,&quot;parcel:&quot;+parcelId,event);</span>
+<span class="fc" id="L105">    }</span>
+<span class="fc" id="L106">    private record SavedCheckpoint(Long courier,UUID parcel,UUID assignment,long version,int attempt,String status,String sync,String note,String location) {}</span>
+
+    @Transactional(readOnly=true)
+    public Activity courierActivity(Long userId,UUID parcelId) {
+<span class="fc" id="L110">        var courier=profileService.operational(userId);</span>
+<span class="pc" id="L111">        var current=assigned(parcelId,false).orElseThrow(()-&gt;CourierException.missing(&quot;Assignment not found.&quot;));</span>
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">        if(!courier.dispatchCourierId.equals(current.courier()))throw CourierException.forbidden(&quot;This delivery belongs to another courier.&quot;);</span>
+<span class="fc" id="L113">        return activity(parcelId);</span>
+    }
+    private Activity activity(UUID parcelId) {
+<span class="pc" id="L116">        var current=assigned(parcelId,false).orElseThrow(()-&gt;CourierException.missing(&quot;Assignment not found.&quot;));</span>
+<span class="fc" id="L117">        return jdbc.queryForObject(&quot;SELECT status,status_at FROM courier_delivery_parcels WHERE parcel_id=?&quot;,(rs,row)-&gt;new Activity(parcelId,</span>
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">            rs.getString(&quot;status&quot;),current.id(),current.version(),current.attempt(),rs.getTimestamp(&quot;status_at&quot;)==null?null:rs.getTimestamp(&quot;status_at&quot;).toInstant()),parcelId);</span>
+    }
+
+    private Parcel parcel(UUID id,boolean lock) {
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">        return jdbc.query(&quot;SELECT merchant_user_id,status,delivery_date,tracking_number FROM courier_delivery_parcels WHERE parcel_id=?&quot;+(lock?&quot; FOR UPDATE&quot;:&quot;&quot;),</span>
+<span class="fc" id="L123">            (rs,row)-&gt;new Parcel(rs.getObject(&quot;merchant_user_id&quot;,Long.class),rs.getString(&quot;status&quot;),rs.getObject(&quot;delivery_date&quot;,LocalDate.class),rs.getString(&quot;tracking_number&quot;)),id)</span>
+<span class="pc" id="L124">            .stream().findFirst().orElseThrow(()-&gt;CourierException.missing(&quot;Parcel data has not been imported into Courier.&quot;));</span>
+    }
+    private Optional&lt;Assigned&gt; assigned(UUID id,boolean lock) {
+<span class="fc bfc" id="L127" title="All 2 branches covered.">        return jdbc.query(&quot;SELECT * FROM courier_delivery_assignments WHERE parcel_id=?&quot;+(lock?&quot; FOR UPDATE&quot;:&quot;&quot;),</span>
+<span class="fc" id="L128">            (rs,row)-&gt;new Assigned(rs.getObject(&quot;projection_id&quot;,UUID.class),rs.getObject(&quot;dispatch_courier_id&quot;,UUID.class),rs.getInt(&quot;attempt_no&quot;),</span>
+<span class="fc" id="L129">                rs.getLong(&quot;assignment_version&quot;),rs.getTimestamp(&quot;assigned_at&quot;).toInstant(),rs.getObject(&quot;delivery_date&quot;,LocalDate.class),rs.getBoolean(&quot;active&quot;),rs.getBoolean(&quot;managed_locally&quot;)),id).stream().findFirst();</span>
+    }
+    private void history(UUID id,UUID parcel,String status,Instant at,String location,int attempt,String role) {
+<span class="fc" id="L132">        jdbc.update(&quot;INSERT INTO courier_delivery_history(id,parcel_id,status,recorded_at,location_description,attempt_no,actor_role) VALUES (?,?,?,?,?,?,?)&quot;,</span>
+<span class="fc" id="L133">            id,parcel,status,Timestamp.from(at),location,attempt,role);</span>
+<span class="fc" id="L134">    }</span>
+    private String courierSelect() {
+<span class="fc" id="L136">        return &quot;&quot;&quot;</span>
+            SELECT p.*,(SELECT count(*) FROM courier_delivery_assignments a JOIN courier_delivery_parcels d ON d.parcel_id=a.parcel_id
+                WHERE a.dispatch_courier_id=p.dispatch_courier_id AND a.active=true AND d.status NOT IN ('DELIVERED','FAILED','CANCELLED')) AS active_count
+            FROM courier_profiles p
+            &quot;&quot;&quot;;
+    }
+    private AvailableCourier courier(java.sql.ResultSet rs,int row) throws java.sql.SQLException {
+<span class="fc" id="L143">        return new AvailableCourier(rs.getLong(&quot;id&quot;),rs.getObject(&quot;dispatch_courier_id&quot;,UUID.class),rs.getString(&quot;name&quot;),</span>
+<span class="fc" id="L144">            VehicleType.valueOf(rs.getString(&quot;vehicle_type&quot;)),rs.getString(&quot;area&quot;),Availability.valueOf(rs.getString(&quot;availability&quot;)),rs.getBoolean(&quot;active&quot;),rs.getLong(&quot;active_count&quot;));</span>
+    }
+<span class="pc bpc" id="L146" title="3 of 6 branches missed.">    private static void paging(int page,int size) {if(page&lt;0||size&lt;1||size&gt;100)throw CourierException.invalid(&quot;Invalid pagination.&quot;);}</span>
+<span class="fc" id="L147">    private static RemoteFailure rejected(String message) {return new RemoteFailure(&quot;Courier delivery&quot;,true,message);}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhookService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">stylecart</a> &gt; <a href="index.source.html" class="el_package">com.stylecart.service</a> &gt; <span class="el_source">WebhookService.java</span></div><h1>WebhookService.java</h1><pre class="source lang-java linenums">package com.stylecart.service;
+import com.stylecart.model.*;
+import com.stylecart.repo.*;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.time.Instant;
+import java.util.*;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
+import tools.jackson.databind.ObjectMapper;
+@Service
+public class WebhookService {
+    private final SettingsRepository settings;private final EventRepository received;private final AttemptRepository attempts;
+    private final OrderRepository orders;private final SecretBox secrets;private final ObjectMapper json;private final ApplicationEventPublisher events;
+<span class="fc" id="L18">    public WebhookService(SettingsRepository settings,EventRepository received,AttemptRepository attempts,OrderRepository orders,SecretBox secrets,ObjectMapper json,ApplicationEventPublisher events){this.settings=settings;this.received=received;this.attempts=attempts;this.orders=orders;this.secrets=secrets;this.json=json;this.events=events;}</span>
+    @Transactional public int receive(byte[] raw,String timestamp,String signature,String eventHeader){
+<span class="pc bpc" id="L20" title="1 of 2 branches missed.">        var config=settings.lock().orElseThrow();if(config.secretCipher==null)return attempt(null,503,&quot;SECRET_NOT_CONFIGURED&quot;);</span>
+<span class="pc bpc" id="L21" title="1 of 2 branches missed.">        if(raw.length&gt;65536)return attempt(null,413,&quot;BODY_TOO_LARGE&quot;);</span>
+<span class="fc bfc" id="L22" title="All 2 branches covered.">        if(!valid(secrets.decrypt(config.secretCipher),raw,timestamp,signature,Instant.now()))return attempt(null,401,&quot;INVALID_SIGNATURE&quot;);</span>
+        Payload p;
+<span class="pc bpc" id="L24" title="4 of 8 branches missed.">        try{p=json.readValue(raw,Payload.class);if(p==null||p.eventId()==null||!p.eventId().toString().equals(eventHeader)||p.occurredAt()==null</span>
+<span class="pc bpc" id="L25" title="1 of 2 branches missed.">            ||!Set.of(&quot;ParcelStatusChanged&quot;,&quot;WebhookTest&quot;).contains(p.eventType())</span>
+<span class="pc bpc" id="L26" title="6 of 16 branches missed.">            ||(!&quot;WebhookTest&quot;.equals(p.eventType())&amp;&amp;(p.newStatus()==null||!OrderService.STATUSES.contains(p.newStatus())||p.trackingNumber()==null||p.trackingNumber().isBlank()||p.trackingNumber().length()&gt;100||p.merchantOrderReference()!=null&amp;&amp;p.merchantOrderReference().length()&gt;100)))return attempt(null,400,&quot;INVALID_PAYLOAD&quot;);</span>
+<span class="pc" id="L27">        }catch(RuntimeException e){return attempt(null,400,&quot;INVALID_PAYLOAD&quot;);}</span>
+<span class="pc" id="L28">        String hash;try{hash=HexFormat.of().formatHex(MessageDigest.getInstance(&quot;SHA-256&quot;).digest(raw));}catch(Exception e){throw new IllegalStateException(e);}</span>
+<span class="fc" id="L29">        var duplicate=received.findById(p.eventId());</span>
+<span class="fc bfc" id="L30" title="All 4 branches covered.">        if(duplicate.isPresent())return duplicate.get().payloadHash.equals(hash)?attempt(p.eventId(),204,&quot;DUPLICATE&quot;):attempt(p.eventId(),409,&quot;EVENT_CONTENT_CONFLICT&quot;);</span>
+<span class="fc bfc" id="L31" title="All 8 branches covered.">        if(config.failureMode.equals(&quot;ALWAYS&quot;)||config.failureMode.equals(&quot;NEXT_TWO&quot;)&amp;&amp;config.failuresRemaining&gt;0){if(config.failureMode.equals(&quot;NEXT_TWO&quot;))config.failuresRemaining--;return attempt(p.eventId(),500,&quot;SIMULATED_FAILURE&quot;);}</span>
+<span class="fc" id="L32">        StoreOrder match=null;</span>
+<span class="fc bfc" id="L33" title="All 2 branches covered.">        if(!p.eventType().equals(&quot;WebhookTest&quot;)){</span>
+<span class="fc bfc" id="L34" title="All 2 branches covered.">            var byRef=p.merchantOrderReference()==null?Optional.&lt;StoreOrder&gt;empty():orders.findByReference(p.merchantOrderReference());</span>
+<span class="fc" id="L35">            var byTracking=orders.findByTrackingNumber(p.trackingNumber());</span>
+<span class="pc bpc" id="L36" title="1 of 6 branches missed.">            if(byRef.isPresent()&amp;&amp;byTracking.isPresent()&amp;&amp;!byRef.get().id.equals(byTracking.get().id))return attempt(p.eventId(),409,&quot;ORDER_MISMATCH&quot;);</span>
+<span class="fc" id="L37">            var candidate=byRef.or(()-&gt;byTracking);</span>
+<span class="fc bfc" id="L38" title="All 2 branches covered.">            if(candidate.isPresent()){</span>
+<span class="fc" id="L39">                match=orders.lock(candidate.get().id).orElseThrow();</span>
+<span class="pc bpc" id="L40" title="3 of 8 branches missed.">                if(match.trackingNumber!=null&amp;&amp;!match.trackingNumber.equals(p.trackingNumber())||p.merchantOrderReference()!=null&amp;&amp;!match.reference.equals(p.merchantOrderReference()))return attempt(p.eventId(),409,&quot;ORDER_MISMATCH&quot;);</span>
+            }
+        }
+<span class="fc" id="L43">        var e=new WebhookEvent();e.eventId=p.eventId();e.payloadHash=hash;e.eventType=p.eventType();e.trackingNumber=p.trackingNumber();e.merchantReference=p.merchantOrderReference();e.newStatus=p.newStatus();e.occurredAt=p.occurredAt();</span>
+<span class="fc bfc" id="L44" title="All 2 branches covered.">        if(match!=null){e.orderId=match.id;BookingTransactions.apply(match,e);events.publishEvent(new LiveUpdates.Changed(match.customerId,match.id));}</span>
+<span class="fc bfc" id="L45" title="All 4 branches covered.">        received.saveAndFlush(e);return attempt(p.eventId(),204,p.eventType().equals(&quot;WebhookTest&quot;)?&quot;TEST_ACCEPTED&quot;:match==null?&quot;PENDING_MATCH&quot;:&quot;ACCEPTED&quot;);</span>
+    }
+<span class="fc" id="L47">    private int attempt(UUID eventId,int code,String outcome){var a=new WebhookAttempt();a.eventId=eventId;a.httpStatus=code;a.outcome=outcome;attempts.save(a);events.publishEvent(new LiveUpdates.Changed(null,null));return code;}</span>
+    public static boolean valid(String secret,byte[] body,String timestamp,String signature,Instant now){
+<span class="pc bpc" id="L49" title="4 of 10 branches missed.">        try{if(timestamp==null||!timestamp.matches(&quot;[0-9]{1,13}&quot;)||Math.abs(now.getEpochSecond()-Long.parseLong(timestamp))&gt;300||signature==null||!signature.matches(&quot;sha256=[a-f0-9]{64}&quot;))return false;</span>
+<span class="fc" id="L50">            var mac=Mac.getInstance(&quot;HmacSHA256&quot;);mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8),&quot;HmacSHA256&quot;));mac.update((timestamp+&quot;.&quot;).getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc" id="L51">            return MessageDigest.isEqual(mac.doFinal(body),HexFormat.of().parseHex(signature.substring(7)));</span>
+<span class="nc" id="L52">        }catch(Exception e){return false;}</span>
+    }
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown=true)
+<span class="fc" id="L55">    public record Payload(UUID eventId,String eventType,Instant occurredAt,String trackingNumber,String merchantOrderReference,String newStatus){}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

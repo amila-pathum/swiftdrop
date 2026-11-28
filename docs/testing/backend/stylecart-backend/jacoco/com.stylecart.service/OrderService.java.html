@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>OrderService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">stylecart</a> &gt; <a href="index.source.html" class="el_package">com.stylecart.service</a> &gt; <span class="el_source">OrderService.java</span></div><h1>OrderService.java</h1><pre class="source lang-java linenums">package com.stylecart.service;
+import com.stylecart.model.*;
+import com.stylecart.repo.*;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.*;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.*;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+@Service
+public class OrderService {
+<span class="fc" id="L16">    public static final Set&lt;String&gt; STATUSES=Set.of(&quot;CREATED&quot;,&quot;PICKED_UP&quot;,&quot;IN_TRANSIT&quot;,&quot;OUT_FOR_DELIVERY&quot;,&quot;DELIVERED&quot;,&quot;FAILED&quot;,&quot;CANCELLED&quot;);</span>
+<span class="fc" id="L17">    public static final List&lt;String&gt; DISTRICTS=List.of(&quot;Ampara&quot;,&quot;Anuradhapura&quot;,&quot;Badulla&quot;,&quot;Batticaloa&quot;,&quot;Colombo&quot;,&quot;Galle&quot;,&quot;Gampaha&quot;,&quot;Hambantota&quot;,&quot;Jaffna&quot;,&quot;Kalutara&quot;,&quot;Kandy&quot;,&quot;Kegalle&quot;,&quot;Kilinochchi&quot;,&quot;Kurunegala&quot;,&quot;Mannar&quot;,&quot;Matale&quot;,&quot;Matara&quot;,&quot;Monaragala&quot;,&quot;Mullaitivu&quot;,&quot;Nuwara Eliya&quot;,&quot;Polonnaruwa&quot;,&quot;Puttalam&quot;,&quot;Ratnapura&quot;,&quot;Trincomalee&quot;,&quot;Vavuniya&quot;);</span>
+    private final OrderRepository orders;private final ProductRepository products;private final EventRepository received;private final ApplicationEventPublisher events;
+<span class="fc" id="L19">    public OrderService(OrderRepository orders,ProductRepository products,EventRepository received,ApplicationEventPublisher events){this.orders=orders;this.products=products;this.received=received;this.events=events;}</span>
+    @Transactional public OrderView create(Long customer,Checkout request){
+<span class="pc bpc" id="L21" title="1 of 2 branches missed.">        if(!DISTRICTS.contains(request.city()))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,&quot;Choose a supported delivery district.&quot;);</span>
+<span class="fc" id="L22">        var order=new StoreOrder();order.reference=&quot;SC-&quot;+UUID.randomUUID();order.customerId=customer;order.receiverName=request.name().trim();order.phone=request.phone().trim();</span>
+<span class="pc bpc" id="L23" title="1 of 2 branches missed.">        order.address=request.address().trim();order.city=request.city();order.postalCode=request.postalCode()==null?&quot;&quot;:request.postalCode().trim();order.subtotal=BigDecimal.ZERO;</span>
+<span class="fc bfc" id="L24" title="All 2 branches covered.">        for(var line:request.items()){</span>
+<span class="pc" id="L25">            var product=products.findById(line.productId()).orElseThrow(()-&gt;new ResponseStatusException(HttpStatus.BAD_REQUEST,&quot;A product is no longer available.&quot;));</span>
+<span class="pc bpc" id="L26" title="2 of 4 branches missed.">            if(!Arrays.asList(product.sizes.split(&quot;,&quot;)).contains(line.size())||!Arrays.asList(product.colors.split(&quot;,&quot;)).contains(line.color()))throw new ResponseStatusException(HttpStatus.BAD_REQUEST,&quot;Choose an available size and colour.&quot;);</span>
+<span class="fc" id="L27">            var item=new OrderItem();item.order=order;item.productId=product.id;item.name=product.name;item.image=product.image;item.size=line.size();item.color=line.color();item.quantity=line.quantity();item.unitPrice=product.price;item.weight=product.weight;</span>
+<span class="fc" id="L28">            order.items.add(item);order.subtotal=order.subtotal.add(item.unitPrice.multiply(BigDecimal.valueOf(item.quantity)));</span>
+<span class="fc" id="L29">        }</span>
+<span class="fc" id="L30">        order=orders.saveAndFlush(order);events.publishEvent(new LiveUpdates.Changed(customer,order.id));return view(order);</span>
+    }
+<span class="pc bpc" id="L32" title="3 of 4 branches missed.">    @Transactional(readOnly=true) public List&lt;OrderView&gt; list(Long customer){return (customer==null?orders.findTop100ByOrderByCreatedAtDesc():orders.findTop100ByCustomerIdOrderByCreatedAtDesc(customer)).stream().map(o-&gt;view(o,customer==null)).toList();}</span>
+<span class="pc" id="L33">    @Transactional(readOnly=true) public OrderView get(UUID id,Long customer){var order=orders.findById(id).orElseThrow(()-&gt;new ResponseStatusException(HttpStatus.NOT_FOUND));</span>
+<span class="pc bpc" id="L34" title="2 of 6 branches missed.">        if(customer!=null&amp;&amp;!customer.equals(order.customerId))throw new ResponseStatusException(HttpStatus.NOT_FOUND);return view(order,customer==null);}</span>
+<span class="fc" id="L35">    public OrderView view(StoreOrder order){return view(order,true);}</span>
+<span class="fc" id="L36">    private OrderView view(StoreOrder order,boolean admin){return new OrderView(order.id,order.reference,order.customerId,order.receiverName,order.phone,order.address,order.city,order.postalCode,order.subtotal,order.shippingCharge,order.shipmentState,</span>
+<span class="pc bpc" id="L37" title="1 of 4 branches missed.">        order.trackingNumber,order.deliveryStatus,admin?order.lastError:null,order.createdAt,order.requestPayload!=null,</span>
+<span class="fc" id="L38">        order.items.stream().map(i-&gt;new ItemView(i.productId,i.name,i.image,i.size,i.color,i.quantity,i.unitPrice)).toList(),</span>
+<span class="fc" id="L39">        received.findByOrderIdOrderByOccurredAtAsc(order.id).stream().map(e-&gt;new Timeline(e.eventId,e.newStatus,e.occurredAt)).toList());}</span>
+<span class="fc" id="L40">    public record Line(@NotBlank String productId,@NotBlank String size,@NotBlank String color,@Min(1) @Max(10) int quantity){}</span>
+<span class="fc" id="L41">    public record Checkout(@NotEmpty @Size(max=20) List&lt;@Valid Line&gt; items,@NotBlank @Size(max=150) String name,</span>
+<span class="nc" id="L42">        @NotBlank @Pattern(regexp=&quot;^(?=(?:[^0-9]*[0-9]){7})[+0-9 ()-]{7,30}$&quot;) String phone,@NotBlank @Size(max=255) String address,@NotBlank String city,@Size(max=20) String postalCode){@Override public String toString(){return &quot;Checkout[REDACTED]&quot;;}}</span>
+<span class="fc" id="L43">    public record ItemView(String productId,String name,String image,String size,String color,int quantity,BigDecimal unitPrice){}</span>
+<span class="fc" id="L44">    public record Timeline(UUID eventId,String status,Instant occurredAt){}</span>
+<span class="fc" id="L45">    public record OrderView(UUID id,String reference,Long customerId,String receiverName,String phone,String address,String city,String postalCode,BigDecimal subtotal,BigDecimal shippingCharge,String shipmentState,</span>
+        String trackingNumber,String deliveryStatus,String error,Instant createdAt,boolean requestFrozen,List&lt;ItemView&gt; items,List&lt;Timeline&gt; timeline){}
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

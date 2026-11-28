@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JwtAuthenticationFilter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.identity_service.security</a> &gt; <span class="el_source">JwtAuthenticationFilter.java</span></div><h1>JwtAuthenticationFilter.java</h1><pre class="source lang-java linenums">package com.swiftdrop.identity_service.security;
+
+import tools.jackson.databind.ObjectMapper;
+import com.swiftdrop.identity_service.entity.User;
+import com.swiftdrop.identity_service.entity.UserStatus;
+import com.swiftdrop.identity_service.repository.UserRepository;
+import io.jsonwebtoken.JwtException;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpHeaders;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Authenticates requests carrying a SwiftDrop access token.
+ *
+ * &lt;p&gt;The token is only a pointer: the user is loaded again on every request and
+ * the token is refused when the account can no longer sign in, or when its
+ * email, role, status or token version differ from the token's (so a logout,
+ * password reset, activation or suspension takes effect here immediately).
+ *
+ * &lt;p&gt;Only ACTIVE accounts receive their {@code ROLE_&lt;role&gt;} authority. An
+ * account awaiting approval is authenticated but holds no authority, so it can
+ * reach only endpoints open to every signed-in user (its own profile).
+ */
+@Component
+public class JwtAuthenticationFilter extends OncePerRequestFilter {
+
+    private final JwtService jwtService;
+    private final UserRepository userRepository;
+    private final ObjectMapper objectMapper;
+
+    public JwtAuthenticationFilter(JwtService jwtService,
+<span class="fc" id="L43">            UserRepository userRepository, ObjectMapper objectMapper) {</span>
+<span class="fc" id="L44">        this.jwtService = jwtService;</span>
+<span class="fc" id="L45">        this.userRepository = userRepository;</span>
+<span class="fc" id="L46">        this.objectMapper = objectMapper;</span>
+<span class="fc" id="L47">    }</span>
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+            HttpServletResponse response, FilterChain filterChain)
+            throws ServletException, IOException {
+<span class="fc" id="L53">        String authorization = request.getHeader(HttpHeaders.AUTHORIZATION);</span>
+<span class="pc bpc" id="L54" title="1 of 4 branches missed.">        if (authorization == null || authorization.isBlank()) {</span>
+<span class="fc" id="L55">            filterChain.doFilter(request, response);</span>
+<span class="fc" id="L56">            return;</span>
+        }
+<span class="pc bpc" id="L58" title="2 of 4 branches missed.">        if (!authorization.startsWith(&quot;Bearer &quot;) || authorization.length() == 7) {</span>
+<span class="nc" id="L59">            reject(response);</span>
+<span class="nc" id="L60">            return;</span>
+        }
+
+        try {
+<span class="fc" id="L64">            TokenClaims claims = jwtService.parseClaims(authorization.substring(7));</span>
+<span class="fc" id="L65">            AuthenticatedUser claimsPrincipal = claims.principal();</span>
+<span class="fc" id="L66">            User user = userRepository.findById(claimsPrincipal.id())</span>
+<span class="fc" id="L67">                .filter(candidate -&gt; candidate.getStatus().canSignIn())</span>
+<span class="fc" id="L68">                .orElseThrow(() -&gt; new JwtException(&quot;Account unavailable&quot;));</span>
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">            if (!user.getEmail().equals(claimsPrincipal.email())</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">                    || user.getRole() != claimsPrincipal.role()</span>
+<span class="fc bfc" id="L71" title="All 2 branches covered.">                    || user.getTokenVersion() != claims.tokenVersion()</span>
+<span class="pc bpc" id="L72" title="1 of 4 branches missed.">                    || (claims.status() != null &amp;&amp; claims.status() != user.getStatus())) {</span>
+<span class="fc" id="L73">                throw new JwtException(&quot;Stale token claims&quot;);</span>
+            }
+
+<span class="fc" id="L76">            AuthenticatedUser principal = new AuthenticatedUser(</span>
+<span class="fc" id="L77">                user.getId(), user.getEmail(), user.getRole());</span>
+<span class="pc bpc" id="L78" title="1 of 3 branches missed.">            List&lt;SimpleGrantedAuthority&gt; authorities = switch (user.getStatus()) {</span>
+<span class="fc" id="L79">                case ACTIVE -&gt; List.of(new SimpleGrantedAuthority(&quot;ROLE_&quot; + user.getRole().name()));</span>
+<span class="fc" id="L80">                case PENDING_APPROVAL -&gt; List.of(</span>
+<span class="fc" id="L81">                    new SimpleGrantedAuthority(&quot;APPLICANT_&quot; + user.getRole().name()));</span>
+<span class="pc" id="L82">                default -&gt; List.of();</span>
+            };
+<span class="fc" id="L84">            var authentication = new UsernamePasswordAuthenticationToken(</span>
+                principal, null, authorities);
+<span class="fc" id="L86">            SecurityContextHolder.getContext().setAuthentication(authentication);</span>
+<span class="fc" id="L87">            filterChain.doFilter(request, response);</span>
+<span class="fc" id="L88">        } catch (JwtException | IllegalArgumentException exception) {</span>
+<span class="fc" id="L89">            SecurityContextHolder.clearContext();</span>
+<span class="fc" id="L90">            reject(response);</span>
+<span class="fc" id="L91">        }</span>
+<span class="fc" id="L92">    }</span>
+
+    private void reject(HttpServletResponse response) throws IOException {
+<span class="fc" id="L95">        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);</span>
+<span class="fc" id="L96">        response.setContentType(&quot;application/json&quot;);</span>
+<span class="fc" id="L97">        objectMapper.writeValue(response.getOutputStream(),</span>
+<span class="fc" id="L98">            Map.of(&quot;error&quot;, &quot;Invalid or expired access token&quot;));</span>
+<span class="fc" id="L99">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

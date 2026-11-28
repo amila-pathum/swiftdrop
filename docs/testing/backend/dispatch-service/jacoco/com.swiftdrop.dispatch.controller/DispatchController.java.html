@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DispatchController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">dispatch-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.dispatch.controller</a> &gt; <span class="el_source">DispatchController.java</span></div><h1>DispatchController.java</h1><pre class="source lang-java linenums">package com.swiftdrop.dispatch.controller;
+
+import com.swiftdrop.dispatch.dto.request.AssignmentRequest;
+import com.swiftdrop.dispatch.dto.request.ReassignRequest;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.AssignmentResult;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.AssignmentRow;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.CourierWorkload;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.DeliveryRow;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.PageResult;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.ParcelDetail;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.ParcelRow;
+import com.swiftdrop.dispatch.service.DispatchService;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.Positive;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.UUID;
+
+@RestController
+@RequestMapping(&quot;/api/dispatch&quot;)
+@PreAuthorize(&quot;hasAnyRole('DISPATCHER', 'ADMIN')&quot;)
+@Validated
+public class DispatchController {
+    private final DispatchService dispatch;
+
+<span class="fc" id="L43">    public DispatchController(DispatchService dispatch) {</span>
+<span class="fc" id="L44">        this.dispatch = dispatch;</span>
+<span class="fc" id="L45">    }</span>
+
+    @GetMapping(&quot;/parcels/unassigned&quot;)
+    public PageResult&lt;ParcelRow&gt; unassigned(
+            @RequestParam(required = false) String pickupArea,
+            @RequestParam(required = false) String dropoffArea,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
+            @RequestParam(required = false) String size,
+            @RequestParam(defaultValue = &quot;0&quot;) @Min(0) int page,
+            @RequestParam(defaultValue = &quot;20&quot;) @Min(1) @Max(100) int pageSize,
+            @RequestParam(defaultValue = &quot;createdAt&quot;) String sort,
+            @RequestParam(defaultValue = &quot;asc&quot;) String direction) {
+<span class="fc" id="L58">        return dispatch.unassigned(pickupArea, dropoffArea, from, to, size, page, pageSize, sort, direction);</span>
+    }
+
+    @GetMapping(&quot;/parcels/{parcelId}&quot;)
+    public ParcelDetail detail(@PathVariable UUID parcelId) {
+<span class="fc" id="L63">        return dispatch.detail(parcelId);</span>
+    }
+
+    @GetMapping(&quot;/couriers&quot;)
+    public List&lt;CourierWorkload&gt; couriers() {
+<span class="fc" id="L68">        return dispatch.couriers();</span>
+    }
+
+    @GetMapping(&quot;/assignments&quot;)
+    public PageResult&lt;AssignmentRow&gt; assignments(
+            @RequestParam(required = false) String state,
+            @RequestParam(required = false) @Positive Long courierId,
+            @RequestParam(required = false) String trackingNumber,
+            @RequestParam(defaultValue = &quot;0&quot;) @Min(0) int page,
+            @RequestParam(defaultValue = &quot;20&quot;) @Min(1) @Max(100) int pageSize) {
+<span class="fc" id="L78">        return dispatch.assignments(state, courierId, trackingNumber, page, pageSize);</span>
+    }
+
+    @PostMapping(&quot;/assignments&quot;)
+    @ResponseStatus(HttpStatus.CREATED)
+    public AssignmentResult assign(@Valid @RequestBody AssignmentRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+<span class="fc" id="L85">        return dispatch.assign(request.parcelId(), request.courierId(), jwt.getSubject());</span>
+    }
+
+    @PostMapping(&quot;/assignments/{parcelId}/reassign&quot;)
+    public AssignmentResult reassign(@PathVariable UUID parcelId, @Valid @RequestBody ReassignRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+<span class="fc" id="L91">        return dispatch.reassign(parcelId, request.courierId(), jwt.getSubject());</span>
+    }
+
+    @PostMapping(&quot;/assignments/{parcelId}/cancel&quot;)
+    public AssignmentResult cancelAssignment(@PathVariable UUID parcelId,
+            @AuthenticationPrincipal Jwt jwt) {
+<span class="fc" id="L97">        return dispatch.cancelAssignment(parcelId, jwt.getSubject());</span>
+    }
+
+    @GetMapping(&quot;/deliveries&quot;)
+    public PageResult&lt;DeliveryRow&gt; deliveries(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String trackingNumber,
+            @RequestParam(defaultValue = &quot;0&quot;) @Min(0) int page,
+            @RequestParam(defaultValue = &quot;20&quot;) @Min(1) @Max(100) int pageSize) {
+<span class="fc" id="L106">        return dispatch.deliveries(status, trackingNumber, page, pageSize);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

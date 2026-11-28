@@ -1,0 +1,370 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DispatchService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">dispatch-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.dispatch.service</a> &gt; <span class="el_source">DispatchService.java</span></div><h1>DispatchService.java</h1><pre class="source lang-java linenums">package com.swiftdrop.dispatch.service;
+
+import com.swiftdrop.dispatch.client.DispatchDataClient;
+import com.swiftdrop.dispatch.client.DispatchDataClient.CourierData;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.AssignmentResult;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.AssignmentRow;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.CourierAssignment;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.CourierWorkload;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.DeliveryByDay;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.DeliveryRow;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.DispatchSummary;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.PageResult;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.ParcelDetail;
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.ParcelRow;
+import com.swiftdrop.dispatch.event.ParcelAssignedEvent;
+import com.swiftdrop.dispatch.event.ParcelStatusChangedEvent;
+import com.swiftdrop.dispatch.exception.DispatchException;
+import com.swiftdrop.dispatch.repository.DispatchRepository;
+import com.swiftdrop.dispatch.repository.DispatchRepository.ActiveAssignment;
+import com.swiftdrop.dispatch.repository.DispatchRepository.CourierAssignmentRecord;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
+
+@Service
+public class DispatchService {
+<span class="fc" id="L40">    private static final Set&lt;String&gt; VALID_EVENT_STATUSES =</span>
+<span class="fc" id="L41">        Set.of(&quot;CREATED&quot;, &quot;PICKED_UP&quot;, &quot;IN_TRANSIT&quot;, &quot;OUT_FOR_DELIVERY&quot;, &quot;DELIVERED&quot;, &quot;FAILED&quot;, &quot;CANCELLED&quot;);</span>
+<span class="fc" id="L42">    private static final List&lt;String&gt; DELIVERY_STATUSES =</span>
+<span class="fc" id="L43">        List.of(&quot;PICKED_UP&quot;, &quot;IN_TRANSIT&quot;, &quot;OUT_FOR_DELIVERY&quot;, &quot;DELIVERED&quot;, &quot;FAILED&quot;);</span>
+<span class="fc" id="L44">    private static final Set&lt;String&gt; ASSIGNMENT_STATES = Set.of(&quot;ACTIVE&quot;, &quot;COMPLETED&quot;, &quot;CANCELLED&quot;);</span>
+
+    private final DispatchRepository repository;
+    private final ApplicationEventPublisher events;
+    private final DispatchDataClient dataClient;
+
+    public DispatchService(DispatchRepository repository, ApplicationEventPublisher events,
+<span class="fc" id="L51">            DispatchDataClient dataClient) {</span>
+<span class="fc" id="L52">        this.repository = repository;</span>
+<span class="fc" id="L53">        this.events = events;</span>
+<span class="fc" id="L54">        this.dataClient = dataClient;</span>
+<span class="fc" id="L55">    }</span>
+
+    // ---------------------------------------------------------------- reads
+
+    /** CREATED parcels from parcel-service that have no ACTIVE assignment here. */
+    public PageResult&lt;ParcelRow&gt; unassigned(String pickupArea, String dropoffArea,
+            LocalDate from, LocalDate to, String size, int page, int pageSize,
+            String sort, String direction) {
+<span class="fc" id="L63">        validatePaging(page, pageSize);</span>
+<span class="fc" id="L64">        validateDateRange(from, to);</span>
+<span class="pc bpc" id="L65" title="3 of 4 branches missed.">        if (hasText(size) &amp;&amp; size.trim().length() &gt; 30) throw badRequest(&quot;Size filter is too long&quot;);</span>
+<span class="fc" id="L66">        Comparator&lt;ParcelRow&gt; order = parcelComparator(sort, direction);</span>
+<span class="fc" id="L67">        Set&lt;UUID&gt; assigned = repository.activeAssignedParcelIds();</span>
+<span class="fc" id="L68">        List&lt;ParcelRow&gt; filtered = dataClient.createdParcels().stream()</span>
+<span class="pc bpc" id="L69" title="2 of 4 branches missed.">            .filter(parcel -&gt; parcel.parcelId() != null &amp;&amp; &quot;CREATED&quot;.equals(parcel.status()))</span>
+<span class="fc bfc" id="L70" title="All 2 branches covered.">            .filter(parcel -&gt; !assigned.contains(parcel.parcelId()))</span>
+<span class="fc" id="L71">            .filter(parcel -&gt; matches(parcel.pickupArea(), pickupArea))</span>
+<span class="fc" id="L72">            .filter(parcel -&gt; matches(parcel.dropoffArea(), dropoffArea))</span>
+<span class="fc" id="L73">            .filter(parcel -&gt; matches(parcel.size(), size))</span>
+<span class="pc bpc" id="L74" title="5 of 6 branches missed.">            .filter(parcel -&gt; from == null || parcel.createdAt() != null &amp;&amp; !parcel.createdAt().isBefore(start(from)))</span>
+<span class="pc bpc" id="L75" title="5 of 6 branches missed.">            .filter(parcel -&gt; to == null || parcel.createdAt() != null &amp;&amp; parcel.createdAt().isBefore(end(to)))</span>
+<span class="fc" id="L76">            .sorted(order)</span>
+<span class="fc" id="L77">            .toList();</span>
+<span class="fc" id="L78">        return page(filtered, page, pageSize);</span>
+    }
+
+    /** Every active courier from courier-service with its number of ACTIVE assignments. */
+    public List&lt;CourierWorkload&gt; couriers() {
+<span class="fc" id="L83">        Map&lt;Long, Long&gt; counts = repository.activeAssignmentCounts();</span>
+<span class="fc" id="L84">        return dataClient.couriers().stream()</span>
+<span class="pc bpc" id="L85" title="1 of 2 branches missed.">            .filter(courier -&gt; courier.id() != null)</span>
+<span class="fc" id="L86">            .map(courier -&gt; new CourierWorkload(courier.id(), courier.userId(), courier.name(),</span>
+<span class="fc" id="L87">                courier.active(), courier.availability(), courier.available(),</span>
+<span class="fc" id="L88">                counts.getOrDefault(courier.id(), 0L)))</span>
+<span class="fc" id="L89">            .sorted(Comparator.comparing(CourierWorkload::name, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))</span>
+<span class="fc" id="L90">            .toList();</span>
+    }
+
+    public PageResult&lt;AssignmentRow&gt; assignments(String state, Long courierId, String trackingNumber,
+            int page, int pageSize) {
+<span class="fc" id="L95">        validatePaging(page, pageSize);</span>
+<span class="fc" id="L96">        String normalizedState = null;</span>
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">        if (hasText(state)) {</span>
+<span class="fc" id="L98">            normalizedState = state.trim().toUpperCase();</span>
+<span class="pc bpc" id="L99" title="1 of 2 branches missed.">            if (!ASSIGNMENT_STATES.contains(normalizedState)) throw badRequest(&quot;Invalid assignment state&quot;);</span>
+        }
+<span class="fc" id="L101">        String pattern = trackingPattern(trackingNumber);</span>
+<span class="fc" id="L102">        long total = repository.countAssignments(normalizedState, courierId, pattern);</span>
+<span class="fc" id="L103">        List&lt;AssignmentRow&gt; rows = repository.findAssignments(normalizedState, courierId, pattern,</span>
+            pageSize, (long) page * pageSize);
+<span class="fc" id="L105">        return new PageResult&lt;&gt;(rows, page, pageSize, total, totalPages(total, pageSize));</span>
+    }
+
+    /**
+     * Deliveries by their latest stored status event. Without a status filter
+     * only parcels out with a courier (PICKED_UP, IN_TRANSIT, OUT_FOR_DELIVERY) are returned.
+     */
+    public PageResult&lt;DeliveryRow&gt; deliveries(String status, String trackingNumber, int page, int pageSize) {
+<span class="fc" id="L113">        validatePaging(page, pageSize);</span>
+<span class="fc" id="L114">        List&lt;String&gt; statuses = DispatchRepository.IN_PROGRESS_STATUSES;</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">        if (hasText(status)) {</span>
+<span class="fc" id="L116">            String normalized = status.trim().toUpperCase();</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">            if (!DELIVERY_STATUSES.contains(normalized)) throw badRequest(&quot;Invalid delivery status&quot;);</span>
+<span class="fc" id="L118">            statuses = List.of(normalized);</span>
+        }
+<span class="fc" id="L120">        String pattern = trackingPattern(trackingNumber);</span>
+<span class="fc" id="L121">        long total = repository.countDeliveries(statuses, pattern);</span>
+<span class="fc" id="L122">        List&lt;DeliveryRow&gt; rows = repository.findDeliveries(statuses, pattern, pageSize, (long) page * pageSize);</span>
+<span class="fc" id="L123">        return new PageResult&lt;&gt;(rows, page, pageSize, total, totalPages(total, pageSize));</span>
+    }
+
+    public ParcelDetail detail(UUID parcelId) {
+<span class="fc" id="L127">        ParcelRow parcel = dataClient.findParcel(parcelId)</span>
+<span class="pc" id="L128">            .orElseThrow(() -&gt; new DispatchException(HttpStatus.NOT_FOUND, &quot;Parcel not found&quot;));</span>
+<span class="fc" id="L129">        return new ParcelDetail(parcel, repository.history(parcelId), repository.parcelAssignments(parcelId));</span>
+    }
+
+    /**
+     * A courier's assignments in the shape courier-service reads. A COURIER may
+     * only read their own: every row must belong to their identity user id.
+     */
+    public List&lt;CourierAssignment&gt; courierAssignments(Long courierProfileId, Long callerUserId, boolean callerIsCourier) {
+<span class="fc" id="L137">        List&lt;CourierAssignmentRecord&gt; records = repository.courierAssignments(courierProfileId);</span>
+<span class="fc bfc" id="L138" title="All 6 branches covered.">        if (callerIsCourier &amp;&amp; records.stream().anyMatch(record -&gt; !record.courierUserId().equals(callerUserId))) {</span>
+<span class="fc" id="L139">            throw new DispatchException(HttpStatus.FORBIDDEN, &quot;Access is denied&quot;);</span>
+        }
+<span class="fc" id="L141">        return records.stream().map(record -&gt; new CourierAssignment(record.assignmentId(), record.parcelId(),</span>
+<span class="fc" id="L142">                record.courierProfileId(), record.attemptNo(), &quot;ACTIVE&quot;.equals(record.state()),</span>
+<span class="fc" id="L143">                record.version(), record.deliveryDate(), record.assignedAt()))</span>
+<span class="fc" id="L144">            .toList();</span>
+    }
+
+    // ---------------------------------------------------------------- assignment changes
+
+    /**
+     * Assigns a courier to a parcel that is CREATED and has no ACTIVE assignment.
+     * The local row and the parcel-service update succeed or fail together: if
+     * parcel-service refuses, the exception rolls the insert back.
+     */
+    @Transactional
+    public AssignmentResult assign(UUID parcelId, Long courierId, String assignedBy) {
+<span class="fc" id="L156">        requireActor(assignedBy);</span>
+<span class="pc bpc" id="L157" title="1 of 2 branches missed.">        if (parcelId == null) throw badRequest(&quot;Parcel is required&quot;);</span>
+<span class="pc bpc" id="L158" title="1 of 2 branches missed.">        if (courierId == null) throw badRequest(&quot;Courier is required&quot;);</span>
+<span class="fc" id="L159">        ParcelRow parcel = waitingParcel(parcelId, &quot;Parcel is not waiting for a courier&quot;);</span>
+<span class="fc bfc" id="L160" title="All 2 branches covered.">        if (repository.activeAssignment(parcelId).isPresent()) {</span>
+<span class="fc" id="L161">            throw new DispatchException(HttpStatus.CONFLICT, &quot;Parcel already has an active assignment&quot;);</span>
+        }
+<span class="fc" id="L163">        CourierData courier = assignableCourier(courierId);</span>
+<span class="fc" id="L164">        Instant now = Instant.now();</span>
+<span class="fc" id="L165">        AssignmentResult result = insert(parcel, courier, null, assignedBy, now);</span>
+<span class="fc" id="L166">        dataClient.assignParcelCourier(parcelId, courier.userId());</span>
+<span class="fc" id="L167">        publish(result, parcel.trackingNumber(), courier, null, assignedBy, now);</span>
+<span class="fc" id="L168">        return result;</span>
+    }
+
+    /** Moves an ACTIVE assignment to another courier before pickup. */
+    @Transactional
+    public AssignmentResult reassign(UUID parcelId, Long courierId, String reassignedBy) {
+<span class="fc" id="L174">        requireActor(reassignedBy);</span>
+<span class="pc bpc" id="L175" title="1 of 2 branches missed.">        if (courierId == null) throw badRequest(&quot;Courier is required&quot;);</span>
+<span class="fc" id="L176">        ParcelRow parcel = waitingParcel(parcelId, &quot;Courier can only be changed before pickup&quot;);</span>
+<span class="fc" id="L177">        ActiveAssignment current = repository.activeAssignment(parcelId)</span>
+<span class="fc" id="L178">            .orElseThrow(() -&gt; new DispatchException(HttpStatus.CONFLICT, &quot;Parcel has no active assignment&quot;));</span>
+<span class="fc bfc" id="L179" title="All 2 branches covered.">        if (current.courierProfileId().equals(courierId)) {</span>
+<span class="fc" id="L180">            throw new DispatchException(HttpStatus.CONFLICT, &quot;Parcel is already assigned to this courier&quot;);</span>
+        }
+<span class="fc" id="L182">        CourierData courier = assignableCourier(courierId);</span>
+<span class="fc" id="L183">        Instant now = Instant.now();</span>
+<span class="fc" id="L184">        repository.cancelActiveAssignment(parcelId, reassignedBy, now);</span>
+<span class="fc" id="L185">        AssignmentResult result = insert(parcel, courier, current.courierProfileId(), reassignedBy, now);</span>
+<span class="fc" id="L186">        dataClient.assignParcelCourier(parcelId, courier.userId());</span>
+<span class="fc" id="L187">        publish(result, parcel.trackingNumber(), courier, current, reassignedBy, now);</span>
+<span class="fc" id="L188">        return result;</span>
+    }
+
+    /** Cancels an ACTIVE assignment before pickup; the parcel returns to the waiting list. */
+    @Transactional
+    public AssignmentResult cancelAssignment(UUID parcelId, String cancelledBy) {
+<span class="fc" id="L194">        requireActor(cancelledBy);</span>
+<span class="fc" id="L195">        waitingParcel(parcelId, &quot;An assignment can only be cancelled before pickup&quot;);</span>
+<span class="fc" id="L196">        ActiveAssignment cancelled = repository.cancelActiveAssignment(parcelId, cancelledBy, Instant.now())</span>
+<span class="fc" id="L197">            .orElseThrow(() -&gt; new DispatchException(HttpStatus.CONFLICT, &quot;Parcel has no active assignment&quot;));</span>
+        // TODO(R1): clear the courier in parcel-service once it offers an un-assign call.
+        // Until then parcel-service keeps the previous courierUserId; the next assignment overwrites it.
+<span class="fc" id="L200">        return new AssignmentResult(cancelled.assignmentId(), parcelId, cancelled.trackingNumber(),</span>
+<span class="fc" id="L201">            cancelled.courierProfileId(), cancelled.courierName(), null, cancelled.assignedBy(),</span>
+<span class="fc" id="L202">            cancelled.assignedAt(), &quot;CANCELLED&quot;);</span>
+    }
+
+    // ---------------------------------------------------------------- events
+
+    /**
+     * Validates and stores one parcel status event. Throws a 400
+     * {@link DispatchException} for an event that can never be stored.
+     */
+    @Transactional
+    public boolean applyStatusEvent(ParcelStatusChangedEvent event) {
+<span class="pc bpc" id="L213" title="3 of 6 branches missed.">        if (event == null || event.eventId() == null || event.occurredAt() == null</span>
+<span class="pc bpc" id="L214" title="1 of 2 branches missed.">                || !&quot;ParcelStatusChanged&quot;.equals(event.eventType())</span>
+<span class="pc bpc" id="L215" title="2 of 4 branches missed.">                || !hasText(event.parcelId()) || !hasText(event.trackingNumber())</span>
+<span class="pc bpc" id="L216" title="1 of 2 branches missed.">                || !hasText(event.customerId())</span>
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">                || !hasText(event.newStatus())</span>
+<span class="fc bfc" id="L218" title="All 2 branches covered.">                || !VALID_EVENT_STATUSES.contains(event.newStatus())</span>
+<span class="fc bfc" id="L219" title="All 2 branches covered.">                || (&quot;CREATED&quot;.equals(event.newStatus())</span>
+<span class="pc bpc" id="L220" title="1 of 2 branches missed.">                    ? event.oldStatus() != null</span>
+<span class="fc bfc" id="L221" title="All 2 branches covered.">                    : !hasText(event.oldStatus()))) {</span>
+<span class="fc" id="L222">            throw badRequest(&quot;Invalid parcel status event&quot;);</span>
+        }
+        try {
+<span class="fc" id="L225">            UUID.fromString(event.parcelId());</span>
+<span class="fc" id="L226">        } catch (IllegalArgumentException exception) {</span>
+<span class="fc" id="L227">            throw badRequest(&quot;Invalid parcel status event&quot;);</span>
+<span class="fc" id="L228">        }</span>
+<span class="fc" id="L229">        return repository.applyStatusEvent(event);</span>
+    }
+
+    // ---------------------------------------------------------------- reports
+
+    public DispatchSummary reportSummary(LocalDate from, LocalDate to) {
+<span class="fc" id="L235">        List&lt;DeliveryByDay&gt; perDay = repository.summaryDeliveriesPerDay(from, to);</span>
+<span class="fc" id="L236">        long delivered = perDay.stream().mapToLong(DeliveryByDay::delivered).sum();</span>
+<span class="fc" id="L237">        long failed = perDay.stream().mapToLong(DeliveryByDay::failed).sum();</span>
+<span class="fc" id="L238">        BigDecimal successRate = percentage(delivered, delivered + failed);</span>
+<span class="pc bpc" id="L239" title="1 of 2 branches missed.">        BigDecimal failureRate = delivered + failed == 0 ? BigDecimal.ZERO.setScale(2)</span>
+<span class="fc" id="L240">            : BigDecimal.valueOf(100).setScale(2).subtract(successRate);</span>
+<span class="fc" id="L241">        return new DispatchSummary(perDay, successRate, failureRate,</span>
+<span class="fc" id="L242">            repository.summaryCountsByStatus(start(from), end(to)),</span>
+<span class="fc" id="L243">            repository.summaryActiveByCourier(end(to)));</span>
+    }
+
+    // ---------------------------------------------------------------- helpers
+
+    private ParcelRow waitingParcel(UUID parcelId, String notWaitingMessage) {
+<span class="fc" id="L249">        ParcelRow parcel = dataClient.findParcel(parcelId)</span>
+<span class="fc" id="L250">            .orElseThrow(() -&gt; new DispatchException(HttpStatus.NOT_FOUND, &quot;Parcel not found&quot;));</span>
+<span class="fc bfc" id="L251" title="All 2 branches covered.">        if (!&quot;CREATED&quot;.equals(parcel.status())) {</span>
+<span class="fc" id="L252">            throw new DispatchException(HttpStatus.CONFLICT, notWaitingMessage);</span>
+        }
+<span class="fc" id="L254">        return parcel;</span>
+    }
+
+    private CourierData assignableCourier(Long courierId) {
+<span class="fc" id="L258">        CourierData courier = dataClient.findCourier(courierId)</span>
+<span class="fc" id="L259">            .orElseThrow(() -&gt; badRequest(&quot;Courier not found&quot;));</span>
+<span class="fc bfc" id="L260" title="All 2 branches covered.">        if (!courier.available()) {</span>
+<span class="fc" id="L261">            throw new DispatchException(HttpStatus.CONFLICT, &quot;Courier must be active and AVAILABLE&quot;);</span>
+        }
+<span class="pc bpc" id="L263" title="1 of 2 branches missed.">        if (courier.userId() == null) {</span>
+<span class="nc" id="L264">            throw new DispatchException(HttpStatus.BAD_GATEWAY, &quot;Courier service returned a courier without a user id&quot;);</span>
+        }
+<span class="fc" id="L266">        return courier;</span>
+    }
+
+    private AssignmentResult insert(ParcelRow parcel, CourierData courier, Long previousCourierId,
+            String assignedBy, Instant now) {
+        try {
+<span class="fc" id="L272">            return repository.insertAssignment(parcel.parcelId(), parcel.trackingNumber(), courier.id(),</span>
+<span class="fc" id="L273">                courier.userId(), courierName(courier), previousCourierId, assignedBy, now);</span>
+<span class="fc" id="L274">        } catch (DataIntegrityViolationException exception) {</span>
+<span class="fc" id="L275">            throw new DispatchException(HttpStatus.CONFLICT, &quot;Parcel already has an active assignment&quot;, exception);</span>
+        }
+    }
+
+    private void publish(AssignmentResult result, String trackingNumber, CourierData courier,
+            ActiveAssignment previous, String assignedBy, Instant now) {
+<span class="fc" id="L281">        events.publishEvent(new ParcelAssignedEvent(UUID.randomUUID(), &quot;ParcelAssigned&quot;, now,</span>
+<span class="fc" id="L282">            result.parcelId().toString(), trackingNumber,</span>
+<span class="fc" id="L283">            courier.id().toString(), courier.userId().toString(),</span>
+<span class="fc bfc" id="L284" title="All 2 branches covered.">            previous == null ? null : previous.courierProfileId().toString(),</span>
+<span class="fc bfc" id="L285" title="All 2 branches covered.">            previous == null ? null : previous.courierUserId().toString(),</span>
+            assignedBy));
+<span class="fc" id="L287">    }</span>
+
+    private static String courierName(CourierData courier) {
+<span class="pc bpc" id="L290" title="1 of 2 branches missed.">        String name = hasText(courier.name()) ? courier.name().trim() : &quot;Courier &quot; + courier.id();</span>
+<span class="pc bpc" id="L291" title="1 of 2 branches missed.">        return name.length() &gt; 100 ? name.substring(0, 100) : name;</span>
+    }
+
+    private static void requireActor(String actor) {
+<span class="pc bpc" id="L295" title="3 of 6 branches missed.">        if (actor == null || actor.isBlank() || actor.length() &gt; 80) {</span>
+<span class="nc" id="L296">            throw new DispatchException(HttpStatus.UNAUTHORIZED, &quot;Invalid authenticated user&quot;);</span>
+        }
+<span class="fc" id="L298">    }</span>
+
+    static BigDecimal percentage(long part, long total) {
+<span class="fc bfc" id="L301" title="All 2 branches covered.">        if (total == 0) return BigDecimal.ZERO.setScale(2);</span>
+<span class="fc" id="L302">        return BigDecimal.valueOf(part * 100L).divide(BigDecimal.valueOf(total), 2, RoundingMode.HALF_UP);</span>
+    }
+
+    static Instant start(LocalDate date) {
+<span class="fc" id="L306">        return date.atStartOfDay(ZoneOffset.UTC).toInstant();</span>
+    }
+
+    static Instant end(LocalDate date) {
+<span class="fc" id="L310">        return date.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant();</span>
+    }
+
+    private static String trackingPattern(String trackingNumber) {
+<span class="fc bfc" id="L314" title="All 2 branches covered.">        if (!hasText(trackingNumber)) return null;</span>
+<span class="fc" id="L315">        String escaped = trackingNumber.trim().replace(&quot;!&quot;, &quot;!!&quot;).replace(&quot;%&quot;, &quot;!%&quot;).replace(&quot;_&quot;, &quot;!_&quot;);</span>
+<span class="pc bpc" id="L316" title="1 of 2 branches missed.">        if (escaped.length() &gt; 80) throw badRequest(&quot;Tracking search is too long&quot;);</span>
+<span class="fc" id="L317">        return &quot;%&quot; + escaped + &quot;%&quot;;</span>
+    }
+
+    private static int totalPages(long total, int pageSize) {
+<span class="fc" id="L321">        return (int) Math.ceil((double) total / pageSize);</span>
+    }
+
+    private static PageResult&lt;ParcelRow&gt; page(List&lt;ParcelRow&gt; all, int page, int pageSize) {
+<span class="fc" id="L325">        int start = (int) Math.min(all.size(), (long) page * pageSize);</span>
+<span class="fc" id="L326">        int end = (int) Math.min(all.size(), (long) start + pageSize);</span>
+<span class="fc" id="L327">        return new PageResult&lt;&gt;(all.subList(start, end), page, pageSize, all.size(), totalPages(all.size(), pageSize));</span>
+    }
+
+    private static boolean matches(String actual, String filter) {
+<span class="pc bpc" id="L331" title="3 of 4 branches missed.">        return !hasText(filter) || actual != null</span>
+<span class="pc bnc" id="L332" title="All 2 branches missed.">            &amp;&amp; actual.toLowerCase().contains(filter.trim().toLowerCase());</span>
+    }
+
+    private static Comparator&lt;ParcelRow&gt; parcelComparator(String sort, String direction) {
+<span class="pc bpc" id="L336" title="6 of 7 branches missed.">        Comparator&lt;ParcelRow&gt; comparator = switch (sort) {</span>
+<span class="fc" id="L337">            case &quot;createdAt&quot; -&gt; Comparator.comparing(ParcelRow::createdAt, Comparator.nullsLast(Comparator.naturalOrder()));</span>
+<span class="nc" id="L338">            case &quot;updatedAt&quot; -&gt; Comparator.comparing(ParcelRow::updatedAt, Comparator.nullsLast(Comparator.naturalOrder()));</span>
+<span class="nc" id="L339">            case &quot;trackingNumber&quot; -&gt; Comparator.comparing(ParcelRow::trackingNumber, Comparator.nullsLast(Comparator.naturalOrder()));</span>
+<span class="nc" id="L340">            case &quot;pickupArea&quot; -&gt; Comparator.comparing(ParcelRow::pickupArea, Comparator.nullsLast(Comparator.naturalOrder()));</span>
+<span class="nc" id="L341">            case &quot;dropoffArea&quot; -&gt; Comparator.comparing(ParcelRow::dropoffArea, Comparator.nullsLast(Comparator.naturalOrder()));</span>
+<span class="nc" id="L342">            case &quot;size&quot; -&gt; Comparator.comparing(ParcelRow::size, Comparator.nullsLast(Comparator.naturalOrder()));</span>
+<span class="pc" id="L343">            default -&gt; throw badRequest(&quot;Unsupported sort field&quot;);</span>
+        };
+<span class="pc bpc" id="L345" title="1 of 2 branches missed.">        if (direction.equalsIgnoreCase(&quot;desc&quot;)) comparator = comparator.reversed();</span>
+<span class="pc bpc" id="L346" title="1 of 2 branches missed.">        else if (!direction.equalsIgnoreCase(&quot;asc&quot;)) throw badRequest(&quot;Sort direction must be asc or desc&quot;);</span>
+<span class="fc" id="L347">        return comparator.thenComparing(ParcelRow::parcelId);</span>
+    }
+
+    private static void validateDateRange(LocalDate from, LocalDate to) {
+<span class="pc bpc" id="L351" title="5 of 6 branches missed.">        if (from != null &amp;&amp; to != null &amp;&amp; from.isAfter(to)) {</span>
+<span class="nc" id="L352">            throw badRequest(&quot;Start date must not be after end date&quot;);</span>
+        }
+<span class="fc" id="L354">    }</span>
+
+    private static void validatePaging(int page, int pageSize) {
+<span class="pc bpc" id="L357" title="3 of 6 branches missed.">        if (page &lt; 0 || pageSize &lt; 1 || pageSize &gt; 100) {</span>
+<span class="nc" id="L358">            throw badRequest(&quot;Page must be non-negative and page size must be between 1 and 100&quot;);</span>
+        }
+<span class="fc" id="L360">    }</span>
+
+    private static boolean hasText(String value) {
+<span class="pc bpc" id="L363" title="1 of 4 branches missed.">        return value != null &amp;&amp; !value.isBlank();</span>
+    }
+
+    private static DispatchException badRequest(String message) {
+<span class="fc" id="L367">        return new DispatchException(HttpStatus.BAD_REQUEST, message);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ProofStorageService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">courier-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.courier.service</a> &gt; <span class="el_source">ProofStorageService.java</span></div><h1>ProofStorageService.java</h1><pre class="source lang-java linenums">package com.swiftdrop.courier.service;
+
+import com.swiftdrop.courier.exception.CourierException;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.*;
+import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.http.HttpStatus;
+import javax.imageio.ImageIO;
+import java.io.*;
+import java.nio.file.*;
+import java.security.*;
+import java.util.*;
+
+@Service
+public class ProofStorageService {
+    public static final int MAX_BYTES=5*1024*1024;
+    private final Path root;
+<span class="fc" id="L19">    public ProofStorageService(@Value(&quot;${swiftdrop.proofs.directory:.data/courier-proofs}&quot;) String directory) {root=Path.of(directory).toAbsolutePath().normalize();}</span>
+<span class="fc" id="L20">    public record Photo(byte[] bytes,String extension,String digest) {}</span>
+    public Photo validate(MultipartFile upload) {
+<span class="fc bfc" id="L22" title="All 2 branches covered.">        if(upload==null) return null;</span>
+<span class="pc bpc" id="L23" title="1 of 2 branches missed.">        if(upload.isEmpty())throw CourierException.invalid(&quot;The uploaded photo is empty.&quot;);</span>
+<span class="fc bfc" id="L24" title="All 2 branches covered.">        if(upload.getSize()&gt;MAX_BYTES)throw new CourierException(HttpStatus.PAYLOAD_TOO_LARGE,&quot;Photos must be at most 5 MB.&quot;);</span>
+<span class="fc" id="L25">        String filename=Optional.ofNullable(upload.getOriginalFilename()).orElse(&quot;&quot;).toLowerCase(Locale.ROOT);</span>
+<span class="fc bfc" id="L26" title="All 4 branches covered.">        String extension=filename.endsWith(&quot;.jpg&quot;)?&quot;jpg&quot;:filename.endsWith(&quot;.png&quot;)?&quot;png&quot;:null;</span>
+<span class="fc bfc" id="L27" title="All 2 branches covered.">        if(extension==null)throw CourierException.invalid(&quot;Only .jpg and .png photos are accepted.&quot;);</span>
+<span class="fc" id="L28">        try(InputStream input=upload.getInputStream()) {</span>
+<span class="fc" id="L29">            byte[] bytes=input.readNBytes(MAX_BYTES+1);</span>
+<span class="pc bpc" id="L30" title="1 of 2 branches missed.">            if(bytes.length&gt;MAX_BYTES)throw new CourierException(HttpStatus.PAYLOAD_TOO_LARGE,&quot;Photos must be at most 5 MB.&quot;);</span>
+<span class="fc" id="L31">            try(var image=ImageIO.createImageInputStream(new ByteArrayInputStream(bytes))) {</span>
+<span class="fc" id="L32">                var readers=ImageIO.getImageReaders(image);</span>
+<span class="fc bfc" id="L33" title="All 2 branches covered.">                if(!readers.hasNext())throw CourierException.invalid(&quot;The file is not a supported image.&quot;);</span>
+<span class="fc" id="L34">                var reader=readers.next();</span>
+                try {
+<span class="fc" id="L36">                    reader.setInput(image);String format=reader.getFormatName();</span>
+<span class="pc bpc" id="L37" title="5 of 6 branches missed.">                    if(!format.equalsIgnoreCase(extension) &amp;&amp; !(extension.equals(&quot;jpg&quot;)&amp;&amp;format.equalsIgnoreCase(&quot;JPEG&quot;)))</span>
+<span class="nc" id="L38">                        throw CourierException.invalid(&quot;Photo content does not match its extension.&quot;);</span>
+<span class="pc bpc" id="L39" title="1 of 2 branches missed.">                    if((long)reader.getWidth(0)*reader.getHeight(0)&gt;20_000_000L)throw CourierException.invalid(&quot;Photo dimensions are too large.&quot;);</span>
+<span class="pc bpc" id="L40" title="1 of 2 branches missed.">                    if(reader.read(0)==null)throw CourierException.invalid(&quot;The image cannot be decoded.&quot;);</span>
+<span class="fc" id="L41">                } finally {reader.dispose();}</span>
+            }
+<span class="fc" id="L43">            return new Photo(bytes,extension,HexFormat.of().formatHex(MessageDigest.getInstance(&quot;SHA-256&quot;).digest(bytes)));</span>
+<span class="nc" id="L44">        } catch(IOException e) {throw CourierException.invalid(&quot;The image cannot be decoded.&quot;);}</span>
+<span class="nc" id="L45">          catch(NoSuchAlgorithmException e) {throw new IllegalStateException(e);}</span>
+    }
+    public String store(Photo photo) {
+<span class="fc bfc" id="L48" title="All 2 branches covered.">        if(photo==null)return null;</span>
+<span class="fc" id="L49">        String key=UUID.randomUUID()+&quot;.&quot;+photo.extension();</span>
+<span class="fc" id="L50">        try {Files.createDirectories(root);Files.write(root.resolve(key),photo.bytes(),StandardOpenOption.CREATE_NEW);return key;}</span>
+<span class="nc" id="L51">        catch(IOException e){throw new CourierException(HttpStatus.SERVICE_UNAVAILABLE,&quot;Proof storage is unavailable.&quot;);}</span>
+    }
+    public Resource load(String key) {
+<span class="pc bpc" id="L54" title="1 of 4 branches missed.">        if(key==null||!key.matches(&quot;[a-f0-9-]{36}\\.(jpg|png)&quot;))throw CourierException.missing(&quot;Photo not found.&quot;);</span>
+<span class="fc" id="L55">        Path file=root.resolve(key).normalize();</span>
+<span class="pc bpc" id="L56" title="1 of 4 branches missed.">        if(!file.startsWith(root)||!Files.isRegularFile(file,LinkOption.NOFOLLOW_LINKS))throw CourierException.missing(&quot;Photo not found.&quot;);</span>
+<span class="fc" id="L57">        return new FileSystemResource(file);</span>
+    }
+    public void discard(String key) {
+<span class="pc bpc" id="L60" title="1 of 4 branches missed.">        if(key==null||!key.matches(&quot;[a-f0-9-]{36}\\.(jpg|png)&quot;))return;</span>
+<span class="pc" id="L61">        try{Files.deleteIfExists(root.resolve(key));}catch(IOException ignored){/* A retained orphan can be cleaned up offline. */}</span>
+<span class="fc" id="L62">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

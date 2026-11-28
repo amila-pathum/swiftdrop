@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HttpMerchantWebhookSettingsLookup.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">notification-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.notification.webhook.retry</a> &gt; <span class="el_source">HttpMerchantWebhookSettingsLookup.java</span></div><h1>HttpMerchantWebhookSettingsLookup.java</h1><pre class="source lang-java linenums">package com.swiftdrop.notification.webhook.retry;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.HttpClientErrorException;
+
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.time.Duration;
+import java.util.Optional;
+
+@Component
+public class HttpMerchantWebhookSettingsLookup
+        implements MerchantWebhookSettingsLookup, MerchantProfileLookup {
+
+    private final RestClient client;
+    private final String token;
+
+    public HttpMerchantWebhookSettingsLookup(
+            @Value(&quot;${swiftdrop.merchant-service-url:http://localhost:8083}&quot;)
+            String baseUrl,
+            @Value(&quot;${swiftdrop.internal.webhook-token:}&quot;)
+            String token
+<span class="fc" id="L26">    ) {</span>
+<span class="fc" id="L27">        var httpClient = HttpClient.newBuilder()</span>
+<span class="fc" id="L28">                .connectTimeout(Duration.ofSeconds(2))</span>
+<span class="fc" id="L29">                .followRedirects(HttpClient.Redirect.NEVER)</span>
+<span class="fc" id="L30">                .build();</span>
+
+<span class="fc" id="L32">        var factory = new JdkClientHttpRequestFactory(httpClient);</span>
+<span class="fc" id="L33">        factory.setReadTimeout(Duration.ofSeconds(5));</span>
+
+<span class="fc" id="L35">        this.client = RestClient.builder()</span>
+<span class="fc" id="L36">                .baseUrl(baseUrl)</span>
+<span class="fc" id="L37">                .requestFactory(factory)</span>
+<span class="fc" id="L38">                .build();</span>
+
+<span class="fc" id="L40">        this.token = token;</span>
+<span class="fc" id="L41">    }</span>
+
+    @Override
+    public Optional&lt;String&gt; profileForUser(String userId) {
+<span class="pc bpc" id="L45" title="1 of 2 branches missed.">        if (token.length() &lt; 32) throw new IllegalStateException(&quot;Internal webhook token must be configured&quot;);</span>
+        try {
+<span class="fc" id="L47">            long id = Long.parseLong(userId);</span>
+<span class="pc bpc" id="L48" title="1 of 4 branches missed.">            if (id &lt;= 0 || !Long.toString(id).equals(userId)) throw new NumberFormatException();</span>
+<span class="fc" id="L49">        } catch (RuntimeException exception) { throw new IllegalArgumentException(&quot;Invalid merchant user identity&quot;); }</span>
+        try {
+<span class="fc" id="L51">            ProfileResponse profile = client.get().uri(&quot;/internal/merchants/by-user/{id}/profile&quot;, userId)</span>
+<span class="fc" id="L52">                    .header(&quot;X-SwiftDrop-Internal-Token&quot;, token).retrieve().body(ProfileResponse.class);</span>
+<span class="pc bpc" id="L53" title="3 of 6 branches missed.">            if (profile == null || profile.merchantId() == null || profile.merchantId() &lt;= 0)</span>
+<span class="nc" id="L54">                throw new IllegalStateException(&quot;Merchant identity mapping is incomplete&quot;);</span>
+<span class="fc" id="L55">            return Optional.of(profile.merchantId().toString());</span>
+<span class="nc" id="L56">        } catch (HttpClientErrorException.NotFound exception) {</span>
+<span class="nc" id="L57">            ErrorResponse error = exception.getResponseBodyAs(ErrorResponse.class);</span>
+<span class="nc bnc" id="L58" title="All 4 branches missed.">            if (error != null &amp;&amp; &quot;MERCHANT_NOT_FOUND&quot;.equals(error.error())) return Optional.empty();</span>
+<span class="nc" id="L59">            throw exception;</span>
+        }
+    }
+
+<span class="fc" id="L63">    private record ProfileResponse(Long merchantId) { }</span>
+
+    @Override
+    public Optional&lt;Settings&gt; findForMerchant(String merchantId) {
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">        if (token.length() &lt; 32) {</span>
+<span class="nc" id="L68">            throw new IllegalStateException(</span>
+                    &quot;Internal webhook token must be configured&quot;
+            );
+        }
+
+<span class="fc" id="L73">        RestClient.RequestHeadersSpec&lt;?&gt; request = client.get()</span>
+<span class="fc" id="L74">                .uri(&quot;/internal/merchants/{id}/webhook&quot;, merchantId);</span>
+
+<span class="fc" id="L76">        request.header(&quot;X-SwiftDrop-Internal-Token&quot;, token);</span>
+
+        SettingsResponse result;
+        try {
+<span class="fc" id="L80">            result = request.retrieve().body(SettingsResponse.class);</span>
+<span class="fc" id="L81">        } catch (HttpClientErrorException.NotFound exception) {</span>
+            // Only the owning controller's explicit absence result is terminal.
+            // A proxy or route 404 remains a dependency failure, eligible for retry.
+<span class="fc" id="L84">            ErrorResponse error = exception.getResponseBodyAs(ErrorResponse.class);</span>
+<span class="pc bpc" id="L85" title="1 of 4 branches missed.">            if (error != null &amp;&amp; &quot;MERCHANT_NOT_FOUND&quot;.equals(error.error())) {</span>
+<span class="fc" id="L86">                return Optional.empty();</span>
+            }
+<span class="fc" id="L88">            throw exception;</span>
+<span class="fc" id="L89">        }</span>
+
+<span class="fc bfc" id="L91" title="All 2 branches covered.">        if (result == null) {</span>
+<span class="fc" id="L92">            throw new IllegalStateException(</span>
+                    &quot;Merchant settings response was empty&quot;
+            );
+        }
+
+<span class="fc bfc" id="L97" title="All 2 branches covered.">        if (result.enabled() == null) {</span>
+<span class="fc" id="L98">            throw new IllegalStateException(&quot;Merchant settings response is incomplete&quot;);</span>
+        }
+<span class="fc bfc" id="L100" title="All 2 branches covered.">        if (!result.enabled()) {</span>
+<span class="fc" id="L101">            return Optional.empty();</span>
+        }
+
+<span class="pc bpc" id="L104" title="1 of 4 branches missed.">        if (result.url() == null || result.signingSecret() == null</span>
+<span class="pc bpc" id="L105" title="1 of 2 branches missed.">                || result.signingSecret().isBlank()) {</span>
+<span class="fc" id="L106">            throw new IllegalStateException(</span>
+                    &quot;Enabled webhook settings are incomplete&quot;
+            );
+        }
+
+<span class="fc" id="L111">        return Optional.of(new Settings(</span>
+<span class="fc" id="L112">                URI.create(result.url()),</span>
+<span class="fc" id="L113">                result.signingSecret(),</span>
+<span class="fc" id="L114">                true, result.events()</span>
+        ));
+    }
+
+<span class="fc" id="L118">    private record ErrorResponse(String error) { }</span>
+
+<span class="fc" id="L120">    private record SettingsResponse(</span>
+            String url,
+            String signingSecret,
+            Boolean enabled,
+            java.util.Set&lt;String&gt; events
+    ) {
+        @Override
+        public String toString() {
+<span class="nc" id="L128">            return &quot;SettingsResponse[enabled=&quot; + enabled + &quot;]&quot;;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

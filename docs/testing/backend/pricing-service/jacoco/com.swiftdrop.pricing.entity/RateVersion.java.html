@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>RateVersion.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">pricing-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.pricing.entity</a> &gt; <span class="el_source">RateVersion.java</span></div><h1>RateVersion.java</h1><pre class="source lang-java linenums">package com.swiftdrop.pricing.entity;
+
+import jakarta.persistence.*;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * One published set of rates. Publishing never edits a version; it creates the next
+ * one, so earlier versions remain as history. Quotes always use the latest version.
+ */
+@Entity
+@Table(name = &quot;rate_versions&quot;)
+public class RateVersion {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    @Column(nullable = false, updatable = false)
+    private UUID id;
+
+    @Column(nullable = false, unique = true, updatable = false)
+    private int version;
+
+    @Column(name = &quot;small_surcharge&quot;, nullable = false, precision = 12, scale = 2)
+    private BigDecimal smallSurcharge;
+
+    @Column(name = &quot;medium_surcharge&quot;, nullable = false, precision = 12, scale = 2)
+    private BigDecimal mediumSurcharge;
+
+    @Column(name = &quot;large_surcharge&quot;, nullable = false, precision = 12, scale = 2)
+    private BigDecimal largeSurcharge;
+
+    @Column(name = &quot;published_by&quot;, nullable = false, length = 100, updatable = false)
+    private String publishedBy;
+
+    @Column(name = &quot;published_at&quot;, nullable = false, updatable = false)
+    private Instant publishedAt;
+
+<span class="fc" id="L41">    @OneToMany(mappedBy = &quot;rateVersion&quot;, cascade = CascadeType.ALL, orphanRemoval = true)</span>
+    private List&lt;RouteRate&gt; routes = new ArrayList&lt;&gt;();
+
+<span class="fc" id="L44">    public RateVersion() {</span>
+<span class="fc" id="L45">    }</span>
+
+    public RateVersion(int version, BigDecimal smallSurcharge, BigDecimal mediumSurcharge,
+<span class="fc" id="L48">            BigDecimal largeSurcharge, String publishedBy) {</span>
+<span class="fc" id="L49">        this.version = version;</span>
+<span class="fc" id="L50">        this.smallSurcharge = smallSurcharge;</span>
+<span class="fc" id="L51">        this.mediumSurcharge = mediumSurcharge;</span>
+<span class="fc" id="L52">        this.largeSurcharge = largeSurcharge;</span>
+<span class="fc" id="L53">        this.publishedBy = publishedBy;</span>
+<span class="fc" id="L54">    }</span>
+
+    @PrePersist
+    void beforeInsert() {
+<span class="fc" id="L58">        publishedAt = Instant.now();</span>
+<span class="fc" id="L59">    }</span>
+
+    public BigDecimal surchargeFor(ParcelSize size) {
+<span class="fc bfc" id="L62" title="All 3 branches covered.">        return switch (size) {</span>
+<span class="fc" id="L63">            case SMALL -&gt; smallSurcharge;</span>
+<span class="fc" id="L64">            case MEDIUM -&gt; mediumSurcharge;</span>
+<span class="fc" id="L65">            case LARGE -&gt; largeSurcharge;</span>
+        };
+    }
+
+    public void addRoute(RouteRate route) {
+<span class="fc" id="L70">        route.setRateVersion(this);</span>
+<span class="fc" id="L71">        routes.add(route);</span>
+<span class="fc" id="L72">    }</span>
+
+    public UUID getId() {
+<span class="fc" id="L75">        return id;</span>
+    }
+
+    public int getVersion() {
+<span class="fc" id="L79">        return version;</span>
+    }
+
+    public BigDecimal getSmallSurcharge() {
+<span class="fc" id="L83">        return smallSurcharge;</span>
+    }
+
+    public BigDecimal getMediumSurcharge() {
+<span class="fc" id="L87">        return mediumSurcharge;</span>
+    }
+
+    public BigDecimal getLargeSurcharge() {
+<span class="fc" id="L91">        return largeSurcharge;</span>
+    }
+
+    public String getPublishedBy() {
+<span class="fc" id="L95">        return publishedBy;</span>
+    }
+
+    public Instant getPublishedAt() {
+<span class="fc" id="L99">        return publishedAt;</span>
+    }
+
+    public List&lt;RouteRate&gt; getRoutes() {
+<span class="fc" id="L103">        return routes;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

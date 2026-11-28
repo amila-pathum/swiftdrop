@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MerchantController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">merchant-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.merchant.controller</a> &gt; <span class="el_source">MerchantController.java</span></div><h1>MerchantController.java</h1><pre class="source lang-java linenums">package com.swiftdrop.merchant.controller;
+
+import com.swiftdrop.merchant.dto.request.MerchantRegistrationRequest;
+import com.swiftdrop.merchant.dto.request.RejectMerchantRequest;
+import com.swiftdrop.merchant.dto.response.MerchantDashboardResponse;
+import com.swiftdrop.merchant.dto.response.MerchantResponse;
+import com.swiftdrop.merchant.entity.MerchantStatus;
+import com.swiftdrop.merchant.service.MerchantService;
+
+import jakarta.validation.Valid;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
+
+@RestController
+@RequestMapping(&quot;/api/merchants&quot;)
+public class MerchantController {
+
+    private final MerchantService merchantService;
+
+<span class="fc" id="L27">    public MerchantController(MerchantService merchantService) {</span>
+<span class="fc" id="L28">        this.merchantService = merchantService;</span>
+<span class="fc" id="L29">    }</span>
+
+    // Merchant application registration
+    @PostMapping(&quot;/register&quot;)
+    public ResponseEntity&lt;MerchantResponse&gt; registerMerchant(
+            @AuthenticationPrincipal Jwt jwt,
+            @Valid @RequestBody MerchantRegistrationRequest request) {
+
+<span class="nc" id="L37">        requireApplicantRole(jwt);</span>
+
+<span class="nc" id="L39">        Long userId = getAuthenticatedUserId(jwt);</span>
+
+<span class="nc" id="L41">        MerchantResponse response =</span>
+<span class="nc" id="L42">                merchantService.registerMerchant(userId, request);</span>
+
+<span class="nc" id="L44">        return ResponseEntity</span>
+<span class="nc" id="L45">                .status(HttpStatus.CREATED)</span>
+<span class="nc" id="L46">                .body(response);</span>
+    }
+
+    // Get current user's merchant profile
+    @GetMapping(&quot;/me&quot;)
+    public ResponseEntity&lt;MerchantResponse&gt; getMyMerchant(
+            @AuthenticationPrincipal Jwt jwt) {
+
+<span class="nc" id="L54">        requireApplicantRole(jwt);</span>
+
+<span class="nc" id="L56">        Long userId = getAuthenticatedUserId(jwt);</span>
+
+<span class="nc" id="L58">        return ResponseEntity.ok(</span>
+<span class="nc" id="L59">                merchantService.getMyMerchant(userId));</span>
+    }
+
+    // Get current user's merchant dashboard data
+    @GetMapping(&quot;/me/dashboard&quot;)
+    public ResponseEntity&lt;MerchantDashboardResponse&gt; getMyDashboard(
+            @AuthenticationPrincipal Jwt jwt) {
+
+<span class="nc" id="L67">        requireApplicantRole(jwt);</span>
+
+<span class="nc" id="L69">        Long userId = getAuthenticatedUserId(jwt);</span>
+
+<span class="nc" id="L71">        return ResponseEntity.ok(</span>
+<span class="nc" id="L72">                merchantService.getMyDashboard(userId));</span>
+    }
+
+    // Admin: list merchant applications
+    @GetMapping(&quot;/admin&quot;)
+    public ResponseEntity&lt;List&lt;MerchantResponse&gt;&gt; getAllMerchants(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) MerchantStatus status) {
+
+<span class="nc" id="L81">        requireAdmin(jwt);</span>
+
+<span class="nc" id="L83">        return ResponseEntity.ok(</span>
+<span class="nc" id="L84">                merchantService.getAllMerchants(status));</span>
+    }
+
+    // Admin: view a merchant
+    @GetMapping(&quot;/admin/{merchantId}&quot;)
+    public ResponseEntity&lt;MerchantResponse&gt; getMerchantById(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long merchantId) {
+
+<span class="nc" id="L93">        requireAdmin(jwt);</span>
+
+<span class="nc" id="L95">        return ResponseEntity.ok(</span>
+<span class="nc" id="L96">                merchantService.getMerchantById(merchantId));</span>
+    }
+
+    // Admin: approve merchant
+    @PatchMapping(&quot;/admin/{merchantId}/approve&quot;)
+    @org.springframework.security.access.prepost.PreAuthorize(&quot;hasRole('ADMIN')&quot;)
+    public ResponseEntity&lt;MerchantResponse&gt; approveMerchant(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestHeader(name = org.springframework.http.HttpHeaders.AUTHORIZATION, required = false) String authorization,
+            @PathVariable Long merchantId) {
+
+<span class="fc" id="L107">        requireAdmin(jwt);</span>
+
+<span class="fc" id="L109">        Long adminId = getAuthenticatedUserId(jwt);</span>
+
+<span class="fc" id="L111">        return ResponseEntity.ok(</span>
+<span class="fc" id="L112">                merchantService.approveMerchant(merchantId, adminId, authorization));</span>
+    }
+
+    // Admin: reject merchant
+    @PatchMapping(&quot;/admin/{merchantId}/reject&quot;)
+    public ResponseEntity&lt;MerchantResponse&gt; rejectMerchant(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable Long merchantId,
+            @Valid @RequestBody RejectMerchantRequest request) {
+
+<span class="nc" id="L122">        requireAdmin(jwt);</span>
+
+<span class="nc" id="L124">        Long adminId = getAuthenticatedUserId(jwt);</span>
+
+<span class="nc" id="L126">        return ResponseEntity.ok(</span>
+<span class="nc" id="L127">                merchantService.rejectMerchant(</span>
+                        merchantId,
+                        adminId,
+<span class="nc" id="L130">                        request.reason()));</span>
+    }
+
+    // Extract Identity Service user ID from JWT subject
+    private Long getAuthenticatedUserId(Jwt jwt) {
+
+<span class="pc bpc" id="L136" title="2 of 4 branches missed.">        if (jwt == null || jwt.getSubject() == null) {</span>
+<span class="nc" id="L137">            throw new ResponseStatusException(</span>
+                    HttpStatus.UNAUTHORIZED,
+                    &quot;Authentication required&quot;);
+        }
+
+        try {
+<span class="fc" id="L143">            return Long.parseLong(jwt.getSubject());</span>
+<span class="nc" id="L144">        } catch (NumberFormatException ex) {</span>
+<span class="nc" id="L145">            throw new ResponseStatusException(</span>
+                    HttpStatus.UNAUTHORIZED,
+                    &quot;Invalid JWT subject&quot;);
+        }
+    }
+
+    // Only ADMIN can access admin endpoints
+    private void requireAdmin(Jwt jwt) {
+
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">        if (jwt == null ||</span>
+<span class="pc bpc" id="L155" title="1 of 2 branches missed.">                !&quot;ADMIN&quot;.equals(jwt.getClaimAsString(&quot;role&quot;))) {</span>
+<span class="nc" id="L156">            throw new ResponseStatusException(</span>
+                    HttpStatus.FORBIDDEN,
+                    &quot;Admin access required&quot;);
+        }
+<span class="fc" id="L160">    }</span>
+
+    // Customer can apply; approved merchants can access profile
+    private void requireApplicantRole(Jwt jwt) {
+
+<span class="nc bnc" id="L165" title="All 2 branches missed.">        if (jwt == null) {</span>
+<span class="nc" id="L166">            throw new ResponseStatusException(</span>
+                    HttpStatus.UNAUTHORIZED,
+                    &quot;Authentication required&quot;);
+        }
+
+<span class="nc" id="L171">        String role = jwt.getClaimAsString(&quot;role&quot;);</span>
+
+<span class="nc bnc" id="L173" title="All 2 branches missed.">        if (!&quot;CUSTOMER&quot;.equals(role) &amp;&amp;</span>
+<span class="nc bnc" id="L174" title="All 2 branches missed.">                !&quot;MERCHANT&quot;.equals(role)) {</span>
+<span class="nc" id="L175">            throw new ResponseStatusException(</span>
+                    HttpStatus.FORBIDDEN,
+                    &quot;Customer or merchant access required&quot;);
+        }
+<span class="nc" id="L179">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

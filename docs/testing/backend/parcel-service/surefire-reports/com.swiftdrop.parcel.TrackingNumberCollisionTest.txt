@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.swiftdrop.parcel.TrackingNumberCollisionTest
+-------------------------------------------------------------------------------
+Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 5.206 s -- in com.swiftdrop.parcel.TrackingNumberCollisionTest

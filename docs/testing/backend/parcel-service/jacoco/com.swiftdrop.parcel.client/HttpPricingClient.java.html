@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>HttpPricingClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">parcel-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.parcel.client</a> &gt; <span class="el_source">HttpPricingClient.java</span></div><h1>HttpPricingClient.java</h1><pre class="source lang-java linenums">package com.swiftdrop.parcel.client;
+
+import com.swiftdrop.parcel.dto.request.CreateParcelRequest;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.util.StringUtils;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.server.ResponseStatusException;
+import java.math.BigDecimal;
+
+@Component
+public class HttpPricingClient implements PricingClient {
+    private final RestClient client;
+    private final String quotePath;
+
+    public HttpPricingClient(RestClient.Builder builder,
+        @Value(&quot;${swiftdrop.pricing.base-url:http://localhost:8086}&quot;) String baseUrl,
+<span class="fc" id="L20">        @Value(&quot;${swiftdrop.pricing.quote-path:/api/pricing/quote}&quot;) String quotePath) {</span>
+<span class="fc" id="L21">        this.client = builder.baseUrl(baseUrl).build();</span>
+<span class="fc" id="L22">        this.quotePath = quotePath;</span>
+<span class="fc" id="L23">    }</span>
+
+    // Send parcel size for pricing surcharges; accept amount and the legacy charge field.
+    // Do not replace this with a locally invented price when pricing is unavailable.
+    @Override
+    public BigDecimal quote(CreateParcelRequest request, String accessToken) {
+<span class="fc bfc" id="L29" title="All 2 branches covered.">        if (!StringUtils.hasText(accessToken)) {</span>
+<span class="fc" id="L30">            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,</span>
+                &quot;Authenticated access token is required for pricing&quot;);
+        }
+        try {
+<span class="fc" id="L34">            QuoteResponse response = client.post().uri(quotePath)</span>
+<span class="fc" id="L35">                .headers(headers -&gt; headers.setBearerAuth(accessToken))</span>
+<span class="fc" id="L36">                .body(new QuoteRequest(request.pickupCity(), request.deliveryCity(),</span>
+<span class="fc" id="L37">                                       request.weight(), request.parcelType(), request.size()))</span>
+<span class="fc" id="L38">                .retrieve().body(QuoteResponse.class);</span>
+<span class="pc bpc" id="L39" title="1 of 4 branches missed.">            if (response == null || response.amount() == null ||</span>
+<span class="pc bpc" id="L40" title="1 of 4 branches missed.">                response.amount().signum() &lt; 0 || response.amount().stripTrailingZeros().scale() &gt; 2 ||</span>
+<span class="pc bpc" id="L41" title="1 of 2 branches missed.">                response.amount().compareTo(new BigDecimal(&quot;9999999999.99&quot;)) &gt; 0) {</span>
+<span class="fc" id="L42">                throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,</span>
+                    &quot;Pricing service returned an invalid charge&quot;);
+            }
+            // Normalize representation (450.0000 -&gt; 450.00) without rounding or inventing a price.
+<span class="fc" id="L46">            return response.amount().setScale(2, java.math.RoundingMode.UNNECESSARY);</span>
+<span class="fc" id="L47">        } catch (RestClientException exception) {</span>
+<span class="fc" id="L48">            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,</span>
+                &quot;Pricing service unavailable&quot;, exception);
+        }
+    }
+
+<span class="fc" id="L53">    private record QuoteRequest(String pickupCity, String deliveryCity,</span>
+                                BigDecimal weight, String serviceType, String size) {}
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown=true)
+<span class="fc" id="L56">    private record QuoteResponse(@com.fasterxml.jackson.annotation.JsonAlias(&quot;charge&quot;) BigDecimal amount) {}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

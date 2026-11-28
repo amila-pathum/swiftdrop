@@ -1,0 +1,98 @@
+-------------------------------------------------------------------------------
+Test set: com.swiftdrop.notification.service.EmailNotificationServiceTest
+-------------------------------------------------------------------------------
+Tests run: 7, Failures: 5, Errors: 0, Skipped: 0, Time elapsed: 0.153 s <<< FAILURE! -- in com.swiftdrop.notification.service.EmailNotificationServiceTest
+com.swiftdrop.notification.service.EmailNotificationServiceTest.sendParcelUpdateEmail_withUnresolvedCustomerId_fallsBackToConfiguredRecipient -- Time elapsed: 0.126 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: 
+
+expected: 
+  "Dear Customer,
+  
+  Your parcel **SD-456** has been successfully delivered on November 14, 2026, at 8:22 PM (Sri Lanka time).
+  
+  Thank you for choosing SwiftDrop. We appreciate your trust in our service.
+  
+  Best regards,
+  **SwiftDrop Team**"
+ but was: 
+  "Dear Customer,
+  
+  Your parcel SD-456 has been successfully delivered on November 14, 2026, at 8:22 PM (Sri Lanka time).
+  
+  Thank you for choosing SwiftDrop. We appreciate your trust in our service.
+  
+  Best regards,
+  SwiftDrop Team"
+	at com.swiftdrop.notification.service.EmailNotificationServiceTest.sendParcelUpdateEmail_withUnresolvedCustomerId_fallsBackToConfiguredRecipient(EmailNotificationServiceTest.java:141)
+
+com.swiftdrop.notification.service.EmailNotificationServiceTest.sendParcelUpdateEmail_withResolvedEmailFromIdentityService_sendsToResolvedEmail -- Time elapsed: 0.004 s <<< FAILURE!
+java.lang.AssertionError: 
+
+Expecting actual:
+  "Dear Customer,
+
+Your parcel SD-999 has been picked up by the courier on November 22, 2026, at 11:53 AM (Sri Lanka time).
+
+Thank you for choosing SwiftDrop. We appreciate your trust in our service.
+
+Best regards,
+SwiftDrop Team"
+to contain:
+  "Your parcel **SD-999** has been picked up by the courier" 
+	at com.swiftdrop.notification.service.EmailNotificationServiceTest.sendParcelUpdateEmail_withResolvedEmailFromIdentityService_sendsToResolvedEmail(EmailNotificationServiceTest.java:108)
+
+com.swiftdrop.notification.service.EmailNotificationServiceTest.resolveEmailBody_convertsUtcToSriLankaTimeCorrectly -- Time elapsed: 0.002 s <<< FAILURE!
+org.opentest4j.AssertionFailedError: 
+
+expected: 
+  "Dear Customer,
+  
+  Your parcel **SD-2026-9003** has been successfully delivered on November 15, 2026, at 8:00 AM (Sri Lanka time).
+  
+  Thank you for choosing SwiftDrop. We appreciate your trust in our service.
+  
+  Best regards,
+  **SwiftDrop Team**"
+ but was: 
+  "Dear Customer,
+  
+  Your parcel SD-2026-9003 has been successfully delivered on November 15, 2026, at 8:00 AM (Sri Lanka time).
+  
+  Thank you for choosing SwiftDrop. We appreciate your trust in our service.
+  
+  Best regards,
+  SwiftDrop Team"
+	at com.swiftdrop.notification.service.EmailNotificationServiceTest.resolveEmailBody_convertsUtcToSriLankaTimeCorrectly(EmailNotificationServiceTest.java:203)
+
+com.swiftdrop.notification.service.EmailNotificationServiceTest.sendParcelUpdateEmail_withDirectEmailCustomerId_sendsToCustomer -- Time elapsed: 0.003 s <<< FAILURE!
+java.lang.AssertionError: 
+
+Expecting actual:
+  "Dear Customer,
+
+Your parcel SD-123 is on the way to the delivery location as of November 14, 2026, at 8:22 PM (Sri Lanka time).
+
+Thank you for choosing SwiftDrop. We appreciate your trust in our service.
+
+Best regards,
+SwiftDrop Team"
+to contain:
+  "Your parcel **SD-123** is on the way to the delivery location as of November 14, 2026, at 8:22 PM (Sri Lanka time)." 
+	at com.swiftdrop.notification.service.EmailNotificationServiceTest.sendParcelUpdateEmail_withDirectEmailCustomerId_sendsToCustomer(EmailNotificationServiceTest.java:74)
+
+com.swiftdrop.notification.service.EmailNotificationServiceTest.resolveEmailBody_handlesMidnightCrossingCorrectly -- Time elapsed: 0.002 s <<< FAILURE!
+java.lang.AssertionError: 
+
+Expecting actual:
+  "Dear Customer,
+
+Your parcel SD-9001 is out for delivery as of November 15, 2026, at 1:30 AM (Sri Lanka time) and will arrive soon.
+
+Thank you for choosing SwiftDrop. We appreciate your trust in our service.
+
+Best regards,
+SwiftDrop Team"
+to contain:
+  "Your parcel **SD-9001** is out for delivery as of November 15, 2026, at 1:30 AM (Sri Lanka time) and will arrive soon." 
+	at com.swiftdrop.notification.service.EmailNotificationServiceTest.resolveEmailBody_handlesMidnightCrossingCorrectly(EmailNotificationServiceTest.java:219)
+

@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MerchantWebhookService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">merchant-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.merchant.service</a> &gt; <span class="el_source">MerchantWebhookService.java</span></div><h1>MerchantWebhookService.java</h1><pre class="source lang-java linenums">package com.swiftdrop.merchant.service;
+
+import com.swiftdrop.merchant.dto.request.UpdateMerchantWebhookRequest;
+import com.swiftdrop.merchant.dto.response.MerchantWebhookResponse;
+import com.swiftdrop.merchant.dto.response.MerchantWebhookWithSecretResponse;
+import com.swiftdrop.merchant.entity.Merchant;
+import com.swiftdrop.merchant.entity.MerchantStatus;
+import com.swiftdrop.merchant.entity.MerchantWebhookSettings;
+import com.swiftdrop.merchant.repository.MerchantRepository;
+import com.swiftdrop.merchant.repository.MerchantWebhookSettingsRepository;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+import javax.crypto.Cipher;
+import javax.crypto.spec.GCMParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+import java.net.URI;
+import java.security.SecureRandom;
+import java.time.OffsetDateTime;
+import java.util.Arrays;
+import java.util.Base64;
+import java.nio.charset.StandardCharsets;
+
+@Service
+public class MerchantWebhookService {
+    private final MerchantRepository merchants;
+    private final MerchantWebhookSettingsRepository settings;
+<span class="fc" id="L31">    private final SecureRandom random = new SecureRandom();</span>
+    private final String encryptionKey;
+
+    public MerchantWebhookService(MerchantRepository merchants,
+                                  MerchantWebhookSettingsRepository settings,
+<span class="fc" id="L36">                                  @Value(&quot;${webhook.encryption-key:}&quot;) String encryptionKey) {</span>
+<span class="fc" id="L37">        this.merchants = merchants;</span>
+<span class="fc" id="L38">        this.settings = settings;</span>
+<span class="fc" id="L39">        this.encryptionKey = encryptionKey;</span>
+<span class="fc" id="L40">    }</span>
+
+    @Transactional(readOnly = true)
+    public MerchantWebhookResponse get(Long userId) {
+<span class="fc" id="L44">        Merchant merchant = approvedMerchant(userId);</span>
+<span class="fc" id="L45">        return settings.findByMerchantId(merchant.getId())</span>
+<span class="fc" id="L46">                .map(MerchantWebhookResponse::from)</span>
+<span class="pc" id="L47">                .orElseThrow(() -&gt; new ResponseStatusException(HttpStatus.NOT_FOUND,</span>
+                        &quot;Webhook settings not configured&quot;));
+    }
+
+    @Transactional
+    public MerchantWebhookWithSecretResponse configure(Long userId,
+                                                       UpdateMerchantWebhookRequest request) {
+<span class="fc" id="L54">        Merchant merchant = approvedMerchant(userId);</span>
+<span class="fc" id="L55">        validateHttpsUrl(request.url());</span>
+<span class="fc bfc" id="L56" title="All 4 branches covered.">        if (request.events() != null &amp;&amp; !MerchantWebhookSettings.ALL_EVENTS.containsAll(request.events())) {</span>
+<span class="fc" id="L57">            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, &quot;Unknown webhook event&quot;);</span>
+        }
+<span class="fc" id="L59">        MerchantWebhookSettings config = settings.findByMerchantId(merchant.getId()).orElse(null);</span>
+<span class="fc" id="L60">        String newSecret = null;</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">        if (config == null) {</span>
+<span class="fc" id="L62">            config = new MerchantWebhookSettings();</span>
+<span class="fc" id="L63">            config.setMerchant(merchant);</span>
+<span class="fc" id="L64">            newSecret = generateSecret();</span>
+<span class="fc" id="L65">            config.setEncryptedSigningSecret(encrypt(newSecret));</span>
+        }
+<span class="fc" id="L67">        config.setWebhookUrl(request.url().trim());</span>
+<span class="fc" id="L68">        config.setEnabled(request.enabled());</span>
+        // Older clients omit events: preserve an existing selection, default new settings to all.
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        if (request.events() != null) config.setEvents(request.events());</span>
+<span class="fc" id="L71">        config.markUpdated();</span>
+<span class="fc" id="L72">        MerchantWebhookSettings saved = settings.saveAndFlush(config);</span>
+<span class="fc" id="L73">        return new MerchantWebhookWithSecretResponse(MerchantWebhookResponse.from(saved), newSecret);</span>
+    }
+
+    @Transactional
+    public MerchantWebhookWithSecretResponse rotateSecret(Long userId) {
+<span class="fc" id="L78">        Merchant merchant = approvedMerchant(userId);</span>
+<span class="fc" id="L79">        MerchantWebhookSettings config = settings.findByMerchantId(merchant.getId())</span>
+<span class="pc" id="L80">                .orElseThrow(() -&gt; new ResponseStatusException(HttpStatus.NOT_FOUND,</span>
+                        &quot;Webhook settings not configured&quot;));
+<span class="fc" id="L82">        String newSecret = generateSecret();</span>
+<span class="fc" id="L83">        config.setEncryptedSigningSecret(encrypt(newSecret));</span>
+<span class="fc" id="L84">        config.markUpdated();</span>
+<span class="fc" id="L85">        return new MerchantWebhookWithSecretResponse(</span>
+<span class="fc" id="L86">                MerchantWebhookResponse.from(settings.saveAndFlush(config)), newSecret);</span>
+    }
+
+    private Merchant approvedMerchant(Long userId) {
+<span class="fc" id="L90">        Merchant merchant = merchants.findByUserId(userId)</span>
+<span class="pc" id="L91">                .orElseThrow(() -&gt; new ResponseStatusException(HttpStatus.NOT_FOUND,</span>
+                        &quot;Merchant profile not found&quot;));
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">        if (merchant.getStatus() != MerchantStatus.APPROVED) {</span>
+<span class="nc" id="L94">            throw new ResponseStatusException(HttpStatus.FORBIDDEN,</span>
+                    &quot;Merchant must be approved&quot;);
+        }
+<span class="fc" id="L97">        return merchant;</span>
+    }
+
+    @Transactional(readOnly = true)
+    public Long profileIdForUser(Long userId) {
+<span class="fc" id="L102">        return merchants.findByUserId(userId).orElseThrow(() -&gt;</span>
+<span class="pc" id="L103">                new ResponseStatusException(HttpStatus.NOT_FOUND, &quot;Merchant profile not found&quot;)).getId();</span>
+    }
+
+    private void validateHttpsUrl(String url) {
+        try {
+<span class="fc" id="L108">            URI uri = URI.create(url.trim());</span>
+<span class="pc bpc" id="L109" title="1 of 2 branches missed.">            if (!&quot;https&quot;.equalsIgnoreCase(uri.getScheme()) ||</span>
+<span class="pc bpc" id="L110" title="2 of 4 branches missed.">                    uri.getHost() == null || uri.getRawUserInfo() != null ||</span>
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">                    uri.getFragment() != null) {</span>
+<span class="nc" id="L112">                throw new IllegalArgumentException(&quot;Invalid URL&quot;);</span>
+            }
+<span class="nc" id="L114">        } catch (RuntimeException e) {</span>
+<span class="nc" id="L115">            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,</span>
+                    &quot;Webhook URL must be a valid HTTPS URL without credentials or fragment&quot;);
+<span class="fc" id="L117">        }</span>
+<span class="fc" id="L118">    }</span>
+
+    private String generateSecret() {
+<span class="fc" id="L121">        byte[] bytes = new byte[32];</span>
+<span class="fc" id="L122">        random.nextBytes(bytes);</span>
+<span class="fc" id="L123">        return &quot;whsec_&quot; + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);</span>
+    }
+
+    private String encrypt(String plaintext) {
+        try {
+<span class="fc" id="L128">            byte[] rawKey = Base64.getDecoder().decode(encryptionKey);</span>
+<span class="pc bpc" id="L129" title="1 of 2 branches missed.">            if (rawKey.length != 32) throw new IllegalStateException(&quot;Invalid key length&quot;);</span>
+<span class="fc" id="L130">            byte[] iv = new byte[12];</span>
+<span class="fc" id="L131">            random.nextBytes(iv);</span>
+<span class="fc" id="L132">            Cipher cipher = Cipher.getInstance(&quot;AES/GCM/NoPadding&quot;);</span>
+<span class="fc" id="L133">            cipher.init(Cipher.ENCRYPT_MODE, new SecretKeySpec(rawKey, &quot;AES&quot;),</span>
+                    new GCMParameterSpec(128, iv));
+<span class="fc" id="L135">            byte[] ciphertext = cipher.doFinal(plaintext.getBytes(StandardCharsets.UTF_8));</span>
+<span class="fc" id="L136">            byte[] packed = Arrays.copyOf(iv, iv.length + ciphertext.length);</span>
+<span class="fc" id="L137">            System.arraycopy(ciphertext, 0, packed, iv.length, ciphertext.length);</span>
+<span class="fc" id="L138">            return Base64.getEncoder().encodeToString(packed);</span>
+<span class="nc" id="L139">        } catch (IllegalArgumentException e) {</span>
+<span class="nc" id="L140">            throw new IllegalStateException(&quot;WEBHOOK_ENCRYPTION_KEY must be base64 32 bytes&quot;, e);</span>
+<span class="nc" id="L141">        } catch (Exception e) {</span>
+<span class="nc" id="L142">            throw new IllegalStateException(&quot;Webhook encryption failed; check WEBHOOK_ENCRYPTION_KEY&quot;, e);</span>
+        }
+    }
+    @Transactional(readOnly = true)
+    public InternalWebhookSettings getInternalSettings(Long merchantId) {
+<span class="fc" id="L147">        Merchant merchant = merchants.findById(merchantId)</span>
+<span class="pc" id="L148">                .orElseThrow(() -&gt; new ResponseStatusException(</span>
+                        HttpStatus.NOT_FOUND, &quot;Merchant not found&quot;));
+
+<span class="fc bfc" id="L151" title="All 2 branches covered.">        if (merchant.getStatus() != MerchantStatus.APPROVED) {</span>
+<span class="fc" id="L152">            return new InternalWebhookSettings(null, null, false);</span>
+        }
+
+<span class="fc" id="L155">        return settings.findByMerchantId(merchantId)</span>
+<span class="fc" id="L156">                .filter(MerchantWebhookSettings::isEnabled)</span>
+<span class="fc" id="L157">                .map(config -&gt; new InternalWebhookSettings(</span>
+<span class="fc" id="L158">                        config.getWebhookUrl(),</span>
+<span class="fc" id="L159">                        decrypt(config.getEncryptedSigningSecret()),</span>
+<span class="fc" id="L160">                        true, config.getEvents()</span>
+                ))
+<span class="fc" id="L162">                .orElseGet(() -&gt;</span>
+<span class="fc" id="L163">                        new InternalWebhookSettings(null, null, false));</span>
+    }
+
+<span class="fc" id="L166">    public record InternalWebhookSettings(</span>
+            String url,
+            String signingSecret,
+            boolean enabled,
+            java.util.Set&lt;String&gt; events
+    ) {
+        public InternalWebhookSettings(String url, String signingSecret, boolean enabled) {
+<span class="fc" id="L173">            this(url, signingSecret, enabled, MerchantWebhookSettings.ALL_EVENTS);</span>
+<span class="fc" id="L174">        }</span>
+        @Override
+        public String toString() {
+<span class="nc" id="L177">            return &quot;InternalWebhookSettings[enabled=&quot; + enabled + &quot;]&quot;;</span>
+        }
+    }
+
+    private String decrypt(String encryptedValue) {
+        try {
+<span class="fc" id="L183">            byte[] rawKey = Base64.getDecoder().decode(encryptionKey);</span>
+<span class="pc bpc" id="L184" title="1 of 2 branches missed.">            if (rawKey.length != 32) {</span>
+<span class="nc" id="L185">                throw new IllegalStateException(&quot;Invalid encryption key length&quot;);</span>
+            }
+
+<span class="fc" id="L188">            byte[] packed = Base64.getDecoder().decode(encryptedValue);</span>
+<span class="pc bpc" id="L189" title="1 of 2 branches missed.">            if (packed.length &lt; 28) {</span>
+<span class="nc" id="L190">                throw new IllegalStateException(&quot;Invalid encrypted secret&quot;);</span>
+            }
+
+<span class="fc" id="L193">            byte[] iv = Arrays.copyOfRange(packed, 0, 12);</span>
+<span class="fc" id="L194">            byte[] ciphertext = Arrays.copyOfRange(packed, 12, packed.length);</span>
+
+<span class="fc" id="L196">            Cipher cipher = Cipher.getInstance(&quot;AES/GCM/NoPadding&quot;);</span>
+<span class="fc" id="L197">            cipher.init(</span>
+                    Cipher.DECRYPT_MODE,
+                    new SecretKeySpec(rawKey, &quot;AES&quot;),
+                    new GCMParameterSpec(128, iv)
+            );
+
+<span class="fc" id="L203">            return new String(</span>
+<span class="fc" id="L204">                    cipher.doFinal(ciphertext),</span>
+                    StandardCharsets.UTF_8
+            );
+<span class="nc" id="L207">        } catch (Exception exception) {</span>
+<span class="nc" id="L208">            throw new IllegalStateException(</span>
+                    &quot;Webhook signing secret could not be decrypted&quot;
+            );
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

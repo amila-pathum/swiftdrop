@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ParcelHistoryResponse.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">parcel-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.parcel.dto.response</a> &gt; <span class="el_source">ParcelHistoryResponse.java</span></div><h1>ParcelHistoryResponse.java</h1><pre class="source lang-java linenums">package com.swiftdrop.parcel.dto.response;
+
+import com.swiftdrop.parcel.entity.ParcelStatus;
+import com.swiftdrop.parcel.entity.ParcelStatusHistory;
+
+import java.time.Instant;
+import java.util.UUID;
+
+<span class="fc" id="L9">public record ParcelHistoryResponse(</span>
+    UUID id,
+    ParcelStatus previousStatus,
+    ParcelStatus newStatus,
+    Instant changedAt,
+    Long changedBy,
+    String note
+) {
+    public static ParcelHistoryResponse from(ParcelStatusHistory history) {
+<span class="fc" id="L18">        return new ParcelHistoryResponse(</span>
+<span class="fc" id="L19">            history.getId(),</span>
+<span class="fc" id="L20">            history.getPreviousStatus(),</span>
+<span class="fc" id="L21">            history.getNewStatus(),</span>
+<span class="fc" id="L22">            history.getChangedAt(),</span>
+<span class="fc" id="L23">            history.getChangedBy(),</span>
+<span class="fc" id="L24">            history.getNote()</span>
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ZoneService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">pricing-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.pricing.service</a> &gt; <span class="el_source">ZoneService.java</span></div><h1>ZoneService.java</h1><pre class="source lang-java linenums">package com.swiftdrop.pricing.service;
+
+import com.swiftdrop.pricing.dto.request.ZoneRequest;
+import com.swiftdrop.pricing.entity.Zone;
+import com.swiftdrop.pricing.exception.PricingConflictException;
+import com.swiftdrop.pricing.exception.ZoneNotFoundException;
+import com.swiftdrop.pricing.repository.ZoneRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.UUID;
+
+@Service
+@Transactional
+public class ZoneService {
+
+    private final ZoneRepository zoneRepository;
+
+<span class="fc" id="L24">    public ZoneService(ZoneRepository zoneRepository) {</span>
+<span class="fc" id="L25">        this.zoneRepository = zoneRepository;</span>
+<span class="fc" id="L26">    }</span>
+
+    @Transactional(readOnly = true)
+    public List&lt;Zone&gt; getAllZones() {
+<span class="nc" id="L30">        return zoneRepository.findAllByOrderByNameAsc();</span>
+    }
+
+    @Transactional(readOnly = true)
+    public List&lt;Zone&gt; getActiveZones() {
+<span class="nc" id="L35">        return zoneRepository.findByActiveTrueOrderByNameAsc();</span>
+    }
+
+    @Transactional(readOnly = true)
+    public Zone getZoneById(UUID id) {
+<span class="fc" id="L40">        return zoneRepository.findById(id)</span>
+<span class="pc" id="L41">                .orElseThrow(() -&gt; new ZoneNotFoundException(id));</span>
+    }
+
+    /** The active zone covering a locality (the city a customer picks). */
+    @Transactional(readOnly = true)
+    public Zone getZoneByLocality(String locality) {
+<span class="pc bpc" id="L47" title="2 of 4 branches missed.">        if (locality == null || locality.isBlank()) {</span>
+<span class="nc" id="L48">            throw new IllegalArgumentException(&quot;City is required&quot;);</span>
+        }
+<span class="fc" id="L50">        return zoneRepository.findByLocality(locality.trim())</span>
+<span class="fc" id="L51">                .filter(Zone::isActive)</span>
+<span class="fc" id="L52">                .orElseThrow(() -&gt; new ZoneNotFoundException(locality.trim()));</span>
+    }
+
+    public Zone createZone(ZoneRequest request) {
+<span class="fc" id="L56">        Zone zone = new Zone();</span>
+<span class="fc" id="L57">        apply(zone, request);</span>
+<span class="fc" id="L58">        return zoneRepository.save(zone);</span>
+    }
+
+    public Zone updateZone(UUID id, ZoneRequest request) {
+<span class="fc" id="L62">        Zone zone = getZoneById(id);</span>
+<span class="fc" id="L63">        apply(zone, request);</span>
+<span class="fc" id="L64">        return zoneRepository.save(zone);</span>
+    }
+
+    public Zone disableZone(UUID id) {
+<span class="fc" id="L68">        Zone zone = getZoneById(id);</span>
+<span class="fc" id="L69">        zone.setActive(false);</span>
+<span class="fc" id="L70">        return zoneRepository.save(zone);</span>
+    }
+
+    public Zone enableZone(UUID id) {
+<span class="fc" id="L74">        Zone zone = getZoneById(id);</span>
+<span class="fc" id="L75">        zone.setActive(true);</span>
+<span class="fc" id="L76">        return zoneRepository.save(zone);</span>
+    }
+
+    private void apply(Zone zone, ZoneRequest request) {
+<span class="fc" id="L80">        String code = request.code().trim().toUpperCase(Locale.ROOT);</span>
+<span class="fc" id="L81">        zoneRepository.findByCodeIgnoreCase(code)</span>
+<span class="fc bfc" id="L82" title="All 2 branches covered.">                .filter(other -&gt; !other.getId().equals(zone.getId()))</span>
+<span class="fc" id="L83">                .ifPresent(other -&gt; {</span>
+<span class="fc" id="L84">                    throw new PricingConflictException(</span>
+<span class="fc" id="L85">                            &quot;Zone code &quot; + code + &quot; is already used by &quot; + other.getName());</span>
+                });
+
+<span class="fc" id="L88">        List&lt;String&gt; localities = normalize(request.localities());</span>
+<span class="fc bfc" id="L89" title="All 2 branches covered.">        for (String locality : localities) {</span>
+<span class="fc" id="L90">            zoneRepository.findByLocality(locality)</span>
+<span class="fc bfc" id="L91" title="All 2 branches covered.">                    .filter(other -&gt; !other.getId().equals(zone.getId()))</span>
+<span class="fc" id="L92">                    .ifPresent(other -&gt; {</span>
+<span class="fc" id="L93">                        throw new PricingConflictException(</span>
+<span class="fc" id="L94">                                locality + &quot; is already covered by &quot; + other.getName());</span>
+                    });
+<span class="fc" id="L96">        }</span>
+
+<span class="pc bpc" id="L98" title="1 of 4 branches missed.">        if (zone.getId() != null &amp;&amp; !zone.getLocalities().equals(localities)) {</span>
+            // Hibernate rewrites list rows position by position, so reordering in place
+            // could briefly give two rows the same locality; remove the old rows first.
+<span class="fc" id="L101">            zone.getLocalities().clear();</span>
+<span class="fc" id="L102">            zoneRepository.flush();</span>
+        }
+
+<span class="fc" id="L105">        zone.setName(request.name().trim());</span>
+<span class="fc" id="L106">        zone.setCode(code);</span>
+<span class="fc" id="L107">        zone.setLocalities(localities);</span>
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        if (request.active() != null) {</span>
+<span class="fc" id="L109">            zone.setActive(request.active());</span>
+        }
+<span class="fc" id="L111">    }</span>
+
+    /** Trims, drops blanks and repeats (ignoring case), and keeps the admin's order. */
+    static List&lt;String&gt; normalize(List&lt;String&gt; localities) {
+<span class="fc" id="L115">        List&lt;String&gt; result = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L116">        Set&lt;String&gt; seen = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        for (String value : localities) {</span>
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">            String locality = value == null ? &quot;&quot; : value.trim().replaceAll(&quot;\\s+&quot;, &quot; &quot;);</span>
+<span class="fc bfc" id="L119" title="All 4 branches covered.">            if (!locality.isEmpty() &amp;&amp; seen.add(locality.toLowerCase(Locale.ROOT))) {</span>
+<span class="fc" id="L120">                result.add(locality);</span>
+            }
+<span class="fc" id="L122">        }</span>
+<span class="pc bpc" id="L123" title="1 of 2 branches missed.">        if (result.isEmpty()) {</span>
+<span class="nc" id="L124">            throw new IllegalArgumentException(&quot;Add at least one covered locality&quot;);</span>
+        }
+<span class="fc" id="L126">        return result;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

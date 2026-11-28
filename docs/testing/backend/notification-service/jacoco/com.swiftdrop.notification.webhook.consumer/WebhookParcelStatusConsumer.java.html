@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhookParcelStatusConsumer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">notification-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.notification.webhook.consumer</a> &gt; <span class="el_source">WebhookParcelStatusConsumer.java</span></div><h1>WebhookParcelStatusConsumer.java</h1><pre class="source lang-java linenums">package com.swiftdrop.notification.webhook.consumer;
+
+import com.swiftdrop.notification.event.ParcelStatusChangedEvent;
+import com.swiftdrop.notification.webhook.retry.WebhookEventRecorder;
+import com.swiftdrop.notification.webhook.retry.MerchantProfileLookup;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
+import tools.jackson.databind.DeserializationFeature;
+import tools.jackson.databind.ObjectMapper;
+import tools.jackson.databind.ObjectReader;
+
+@Component
+@ConditionalOnProperty(
+        name = &quot;swiftdrop.webhooks.consumer-enabled&quot;,
+        havingValue = &quot;true&quot;
+)
+public class WebhookParcelStatusConsumer {
+
+    private final ObjectReader reader;
+    private final WebhookEventRecorder recorder;
+    private final MerchantProfileLookup merchants;
+
+    public WebhookParcelStatusConsumer(
+            ObjectMapper objectMapper,
+            WebhookEventRecorder recorder,
+            MerchantProfileLookup merchants
+<span class="fc" id="L28">    ) {</span>
+<span class="fc" id="L29">        this.reader = objectMapper</span>
+<span class="fc" id="L30">                .readerFor(ParcelStatusChangedEvent.class)</span>
+<span class="fc" id="L31">                .without(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);</span>
+<span class="fc" id="L32">        this.recorder = recorder;</span>
+<span class="fc" id="L33">        this.merchants = merchants;</span>
+<span class="fc" id="L34">    }</span>
+
+    @RabbitListener(
+            queues = &quot;webhook.parcel-status-changed&quot;,
+            ackMode = &quot;AUTO&quot;
+    )
+    public void consume(byte[] message) throws Exception {
+<span class="fc" id="L41">        ParcelStatusChangedEvent event = reader.readValue(message);</span>
+
+<span class="fc" id="L43">        validate(event);</span>
+
+        // Customer-only parcels do not need merchant webhooks.
+<span class="pc bpc" id="L46" title="1 of 4 branches missed.">        if (event.merchantId() == null || event.merchantId().isBlank()) {</span>
+<span class="fc" id="L47">            return;</span>
+        }
+
+<span class="fc" id="L50">        var profileId = merchants.profileForUser(event.merchantId());</span>
+<span class="fc bfc" id="L51" title="All 2 branches covered.">        if (profileId.isEmpty()) return;</span>
+
+        // Dependency/database failures must propagate: never fall back to the input user ID.
+        // The listener must fail if durable persistence fails.
+<span class="fc" id="L55">        recorder.record(</span>
+<span class="fc" id="L56">                event.eventId(),</span>
+<span class="fc" id="L57">                event.occurredAt(),</span>
+<span class="fc" id="L58">                profileId.get(),</span>
+<span class="fc" id="L59">                event.trackingNumber(),</span>
+<span class="fc" id="L60">                event.merchantOrderReference(),</span>
+<span class="fc" id="L61">                event.newStatus()</span>
+        );
+<span class="fc" id="L63">    }</span>
+
+    private static void validate(ParcelStatusChangedEvent event) {
+<span class="fc bfc" id="L66" title="All 2 branches covered.">        if (event == null</span>
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">                || event.eventId() == null</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">                || !&quot;ParcelStatusChanged&quot;.equals(event.eventType())</span>
+<span class="pc bpc" id="L69" title="1 of 2 branches missed.">                || event.occurredAt() == null</span>
+<span class="pc bpc" id="L70" title="1 of 2 branches missed.">                || !hasText(event.trackingNumber())</span>
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">                || !hasText(event.parcelId())</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">                || !hasText(event.customerId())</span>
+<span class="fc bfc" id="L73" title="All 2 branches covered.">                || !hasText(event.newStatus())</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">                || (&quot;CREATED&quot;.equals(event.newStatus())</span>
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">                    ? event.oldStatus() != null</span>
+<span class="fc bfc" id="L76" title="All 2 branches covered.">                    : !hasText(event.oldStatus()))) {</span>
+<span class="fc" id="L77">            throw new IllegalArgumentException(</span>
+                    &quot;Invalid parcel status changed event&quot;
+            );
+        }
+<span class="fc" id="L81">    }</span>
+
+    private static boolean hasText(String value) {
+<span class="fc bfc" id="L84" title="All 4 branches covered.">        return value != null &amp;&amp; !value.isBlank();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AuthController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.identity_service.controller</a> &gt; <span class="el_source">AuthController.java</span></div><h1>AuthController.java</h1><pre class="source lang-java linenums">package com.swiftdrop.identity_service.controller;
+
+import com.swiftdrop.identity_service.dto.GoogleExchangeRequest;
+import com.swiftdrop.identity_service.dto.LoginRequest;
+import com.swiftdrop.identity_service.dto.LoginResponse;
+import com.swiftdrop.identity_service.dto.MessageResponse;
+import com.swiftdrop.identity_service.dto.PasswordResetConfirmRequest;
+import com.swiftdrop.identity_service.dto.PasswordResetRequest;
+import com.swiftdrop.identity_service.dto.RefreshRequest;
+import com.swiftdrop.identity_service.dto.RegisterRequest;
+import com.swiftdrop.identity_service.dto.UserResponse;
+import com.swiftdrop.identity_service.security.AuthenticatedUser;
+import com.swiftdrop.identity_service.service.AuthService;
+import com.swiftdrop.identity_service.service.PasswordResetService;
+
+import jakarta.validation.Valid;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping(&quot;/api/auth&quot;)
+public class AuthController {
+
+    private final AuthService authService;
+    private final PasswordResetService passwordResetService;
+
+<span class="fc" id="L30">    public AuthController(AuthService authService, PasswordResetService passwordResetService) {</span>
+<span class="fc" id="L31">        this.authService = authService;</span>
+<span class="fc" id="L32">        this.passwordResetService = passwordResetService;</span>
+<span class="fc" id="L33">    }</span>
+
+    /** Customer sign-up. */
+    @PostMapping(&quot;/register&quot;)
+    public ResponseEntity&lt;UserResponse&gt; register(
+            @Valid @RequestBody RegisterRequest request) {
+<span class="fc" id="L39">        UserResponse response = authService.register(request);</span>
+<span class="fc" id="L40">        return ResponseEntity.status(HttpStatus.CREATED).body(response);</span>
+    }
+
+    /** Merchant sign-up: the identity account only, awaiting approval. */
+    @PostMapping(&quot;/register/merchant&quot;)
+    public ResponseEntity&lt;UserResponse&gt; registerMerchant(
+            @Valid @RequestBody RegisterRequest request) {
+<span class="fc" id="L47">        return ResponseEntity.status(HttpStatus.CREATED)</span>
+<span class="fc" id="L48">            .body(authService.registerMerchant(request));</span>
+    }
+
+    /** Courier sign-up: the identity account only, awaiting approval. */
+    @PostMapping(&quot;/register/courier&quot;)
+    public ResponseEntity&lt;UserResponse&gt; registerCourier(
+            @Valid @RequestBody RegisterRequest request) {
+<span class="fc" id="L55">        return ResponseEntity.status(HttpStatus.CREATED)</span>
+<span class="fc" id="L56">            .body(authService.registerCourier(request));</span>
+    }
+
+    @PostMapping(&quot;/login&quot;)
+    public LoginResponse login(@Valid @RequestBody LoginRequest request) {
+<span class="fc" id="L61">        return authService.login(request);</span>
+    }
+
+    @PostMapping(&quot;/google/exchange&quot;)
+    public LoginResponse exchangeGoogleCode(@Valid @RequestBody GoogleExchangeRequest request) {
+<span class="fc" id="L66">        return authService.exchangeGoogleCode(request);</span>
+    }
+
+    /**
+     * Exchanges a refresh token for new tokens. Public: the access token may
+     * already have expired. Answers 401 if the refresh token is not accepted.
+     */
+    @PostMapping(&quot;/refresh&quot;)
+    public LoginResponse refresh(@Valid @RequestBody RefreshRequest request) {
+<span class="fc" id="L75">        return authService.refresh(request);</span>
+    }
+
+    /** Invalidates every access and refresh token of the signed-in user. */
+    @PostMapping(&quot;/logout&quot;)
+    public ResponseEntity&lt;Void&gt; logout(@AuthenticationPrincipal AuthenticatedUser principal) {
+<span class="fc" id="L81">        authService.logout(principal.id());</span>
+<span class="fc" id="L82">        return ResponseEntity.noContent().build();</span>
+    }
+
+    /**
+     * Asks for a reset link by email. Answers 501 until email delivery exists;
+     * then 202 whether or not the email is registered.
+     */
+    @PostMapping(&quot;/password-reset/request&quot;)
+    public ResponseEntity&lt;MessageResponse&gt; requestPasswordReset(
+            @Valid @RequestBody PasswordResetRequest request) {
+<span class="nc" id="L92">        passwordResetService.requestByEmail(request.email());</span>
+<span class="nc" id="L93">        return ResponseEntity.accepted().body(new MessageResponse(</span>
+            &quot;If an account exists for this email, a password reset link has been sent&quot;));
+    }
+
+    /** Sets a new password with a reset token. */
+    @PostMapping(&quot;/password-reset/confirm&quot;)
+    public MessageResponse confirmPasswordReset(
+            @Valid @RequestBody PasswordResetConfirmRequest request) {
+<span class="fc" id="L101">        passwordResetService.confirm(request.token(), request.newPassword());</span>
+<span class="fc" id="L102">        return new MessageResponse(&quot;Password has been reset&quot;);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

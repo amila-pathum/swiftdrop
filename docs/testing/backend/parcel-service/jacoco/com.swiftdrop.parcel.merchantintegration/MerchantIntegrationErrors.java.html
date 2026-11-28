@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MerchantIntegrationErrors.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">parcel-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.parcel.merchantintegration</a> &gt; <span class="el_source">MerchantIntegrationErrors.java</span></div><h1>MerchantIntegrationErrors.java</h1><pre class="source lang-java linenums">package com.swiftdrop.parcel.merchantintegration;
+
+import java.util.Map;
+import org.springframework.http.*;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+
+@RestControllerAdvice(assignableTypes=MerchantIntegrationController.class)
+<span class="fc" id="L9">public class MerchantIntegrationErrors {</span>
+    @ExceptionHandler(ResponseStatusException.class)
+    ResponseEntity&lt;Map&lt;String,String&gt;&gt; status(ResponseStatusException exception) {
+<span class="nc" id="L12">        return ResponseEntity.status(exception.getStatusCode()).cacheControl(CacheControl.noStore())</span>
+<span class="nc bnc" id="L13" title="All 2 branches missed.">                .body(Map.of(&quot;error&quot;, exception.getReason() == null ? &quot;Order request failed&quot; : exception.getReason()));</span>
+    }
+    @ExceptionHandler({org.springframework.web.bind.MethodArgumentNotValidException.class,
+            org.springframework.http.converter.HttpMessageNotReadableException.class})
+    ResponseEntity&lt;Map&lt;String,String&gt;&gt; invalid(Exception exception) {
+<span class="nc" id="L18">        return ResponseEntity.badRequest().body(Map.of(&quot;error&quot;, &quot;Invalid order details&quot;));</span>
+    }
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    ResponseEntity&lt;Map&lt;String,String&gt;&gt; forbidden(Exception exception) {
+<span class="fc" id="L22">        return ResponseEntity.status(403).body(Map.of(&quot;error&quot;, &quot;Merchant authentication is required&quot;));</span>
+    }
+    @ExceptionHandler(Exception.class)
+    ResponseEntity&lt;Map&lt;String,String&gt;&gt; failed(Exception exception) {
+<span class="fc" id="L26">        return ResponseEntity.status(503).body(Map.of(&quot;error&quot;, &quot;Parcel creation is unavailable&quot;));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

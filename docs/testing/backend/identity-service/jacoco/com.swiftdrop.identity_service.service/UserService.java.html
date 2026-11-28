@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UserService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.identity_service.service</a> &gt; <span class="el_source">UserService.java</span></div><h1>UserService.java</h1><pre class="source lang-java linenums">package com.swiftdrop.identity_service.service;
+
+import com.swiftdrop.identity_service.dto.ChangePasswordRequest;
+import com.swiftdrop.identity_service.dto.LoginResponse;
+import com.swiftdrop.identity_service.dto.UpdateProfileRequest;
+import com.swiftdrop.identity_service.dto.UserResponse;
+import com.swiftdrop.identity_service.exception.AccountNotActiveException;
+import com.swiftdrop.identity_service.exception.InvalidCurrentPasswordException;
+import com.swiftdrop.identity_service.exception.PasswordMismatchException;
+import com.swiftdrop.identity_service.exception.SamePasswordException;
+import com.swiftdrop.identity_service.exception.UserNotFoundException;
+import com.swiftdrop.identity_service.repository.UserRepository;
+import com.swiftdrop.identity_service.security.JwtService;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class UserService {
+
+    private final UserRepository userRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
+    private final RefreshTokenService refreshTokens;
+
+    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder,
+<span class="fc" id="L27">            JwtService jwtService, RefreshTokenService refreshTokens) {</span>
+<span class="fc" id="L28">        this.userRepository = userRepository;</span>
+<span class="fc" id="L29">        this.passwordEncoder = passwordEncoder;</span>
+<span class="fc" id="L30">        this.jwtService = jwtService;</span>
+<span class="fc" id="L31">        this.refreshTokens = refreshTokens;</span>
+<span class="fc" id="L32">    }</span>
+
+    @Transactional(readOnly = true)
+    public UserResponse getCurrentUser(long userId) {
+<span class="fc" id="L36">        var user = userRepository.findById(userId)</span>
+<span class="fc" id="L37">            .orElseThrow(UserNotFoundException::new);</span>
+<span class="fc bfc" id="L38" title="All 2 branches covered.">        if (!user.getStatus().canSignIn()) {</span>
+<span class="fc" id="L39">            throw new AccountNotActiveException();</span>
+        }
+<span class="fc" id="L41">        return UserResponse.from(user);</span>
+    }
+
+    @Transactional
+    public UserResponse updateProfile(long userId, UpdateProfileRequest request) {
+<span class="fc" id="L46">        var user = userRepository.findById(userId)</span>
+<span class="fc" id="L47">            .orElseThrow(UserNotFoundException::new);</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">        if (!user.getStatus().canSignIn()) {</span>
+<span class="fc" id="L49">            throw new AccountNotActiveException();</span>
+        }
+<span class="fc" id="L51">        user.updateProfile(</span>
+<span class="fc" id="L52">            request.name().trim(),</span>
+<span class="fc bfc" id="L53" title="All 2 branches covered.">            request.phone() != null ? request.phone().trim() : null,</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">            request.address() != null ? request.address().trim() : null</span>
+        );
+<span class="fc" id="L56">        return UserResponse.from(userRepository.save(user));</span>
+    }
+
+    @Transactional
+    public LoginResponse changePassword(long userId, ChangePasswordRequest request) {
+<span class="fc" id="L61">        String newPassword = request.newPassword();</span>
+<span class="fc" id="L62">        String confirmPassword = request.confirmPassword();</span>
+
+<span class="pc bpc" id="L64" title="2 of 4 branches missed.">        if (confirmPassword == null || !confirmPassword.equals(newPassword)) {</span>
+<span class="nc" id="L65">            throw new PasswordMismatchException(&quot;New password and confirm password do not match&quot;);</span>
+        }
+
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">        if (request.currentPassword().equals(newPassword)) {</span>
+<span class="nc" id="L69">            throw new SamePasswordException(&quot;New password cannot be the same as current password&quot;);</span>
+        }
+
+<span class="fc" id="L72">        var user = userRepository.findById(userId)</span>
+<span class="fc" id="L73">            .orElseThrow(UserNotFoundException::new);</span>
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">        if (!user.getStatus().canSignIn()) {</span>
+<span class="nc" id="L75">            throw new AccountNotActiveException();</span>
+        }
+
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">        if (!user.hasPassword()</span>
+<span class="fc bfc" id="L79" title="All 2 branches covered.">                || !passwordEncoder.matches(request.currentPassword(), user.getPasswordHash())) {</span>
+<span class="fc" id="L80">            throw new InvalidCurrentPasswordException(&quot;Current password is incorrect&quot;);</span>
+        }
+
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">        if (passwordEncoder.matches(newPassword, user.getPasswordHash())) {</span>
+<span class="nc" id="L84">            throw new SamePasswordException(&quot;New password cannot be the same as current password&quot;);</span>
+        }
+
+<span class="fc" id="L87">        user.updatePassword(passwordEncoder.encode(newPassword));</span>
+<span class="fc" id="L88">        user.invalidateTokens();</span>
+<span class="fc" id="L89">        userRepository.save(user);</span>
+
+        // Every other session ends; this one continues with fresh tokens.
+<span class="fc" id="L92">        var refresh = refreshTokens.issue(user, request.persistent());</span>
+<span class="fc" id="L93">        return new LoginResponse(jwtService.generateToken(user), &quot;Bearer&quot;,</span>
+<span class="fc" id="L94">            jwtService.getExpirationSeconds(), refresh.token(), refresh.expiresInSeconds(),</span>
+<span class="fc" id="L95">            UserResponse.from(user));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.swiftdrop.pricing.strategy.PricingStrategyTest
+-------------------------------------------------------------------------------
+Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.083 s -- in com.swiftdrop.pricing.strategy.PricingStrategyTest

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MerchantWebhookSettingsLookup.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">notification-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.notification.webhook.retry</a> &gt; <span class="el_source">MerchantWebhookSettingsLookup.java</span></div><h1>MerchantWebhookSettingsLookup.java</h1><pre class="source lang-java linenums">package com.swiftdrop.notification.webhook.retry;
+
+import java.net.URI;
+import java.util.Optional;
+
+/** Member 8's authenticated internal API adapter implements this interface.
+ * Never implement this by directly accessing merchant_db. */
+public interface MerchantWebhookSettingsLookup {
+    Optional&lt;Settings&gt; findForMerchant(String merchantId);
+
+    record Settings(URI endpoint, String signingSecret, boolean enabled, java.util.Set&lt;String&gt; events) {
+<span class="fc" id="L12">        public Settings(URI endpoint, String signingSecret, boolean enabled) { this(endpoint, signingSecret, enabled, null); }</span>
+<span class="fc bfc" id="L13" title="All 2 branches covered.">        public Settings { if (events != null) events = java.util.Set.copyOf(events); }</span>
+        @Override
+        public String toString() {
+<span class="nc" id="L16">            return &quot;WebhookSettings[endpoint=redacted, signingSecret=redacted, enabled=&quot;</span>
+                    + enabled + &quot;]&quot;;
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

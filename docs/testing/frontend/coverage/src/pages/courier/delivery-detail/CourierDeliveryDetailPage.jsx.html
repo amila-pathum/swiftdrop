@@ -1,0 +1,430 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for src/pages/courier/delivery-detail/CourierDeliveryDetailPage.jsx</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../../../../prettify.css" />
+    <link rel="stylesheet" href="../../../../base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="../../../../favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../../../../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="../../../../index.html">All files</a> / <a href="index.html">src/pages/courier/delivery-detail</a> CourierDeliveryDetailPage.jsx</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">92.3% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>36/39</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">82.17% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>83/101</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">86.66% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>13/15</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">93.93% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>31/33</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line high'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a>
+<a name='L15'></a><a href='#L15'>15</a>
+<a name='L16'></a><a href='#L16'>16</a>
+<a name='L17'></a><a href='#L17'>17</a>
+<a name='L18'></a><a href='#L18'>18</a>
+<a name='L19'></a><a href='#L19'>19</a>
+<a name='L20'></a><a href='#L20'>20</a>
+<a name='L21'></a><a href='#L21'>21</a>
+<a name='L22'></a><a href='#L22'>22</a>
+<a name='L23'></a><a href='#L23'>23</a>
+<a name='L24'></a><a href='#L24'>24</a>
+<a name='L25'></a><a href='#L25'>25</a>
+<a name='L26'></a><a href='#L26'>26</a>
+<a name='L27'></a><a href='#L27'>27</a>
+<a name='L28'></a><a href='#L28'>28</a>
+<a name='L29'></a><a href='#L29'>29</a>
+<a name='L30'></a><a href='#L30'>30</a>
+<a name='L31'></a><a href='#L31'>31</a>
+<a name='L32'></a><a href='#L32'>32</a>
+<a name='L33'></a><a href='#L33'>33</a>
+<a name='L34'></a><a href='#L34'>34</a>
+<a name='L35'></a><a href='#L35'>35</a>
+<a name='L36'></a><a href='#L36'>36</a>
+<a name='L37'></a><a href='#L37'>37</a>
+<a name='L38'></a><a href='#L38'>38</a>
+<a name='L39'></a><a href='#L39'>39</a>
+<a name='L40'></a><a href='#L40'>40</a>
+<a name='L41'></a><a href='#L41'>41</a>
+<a name='L42'></a><a href='#L42'>42</a>
+<a name='L43'></a><a href='#L43'>43</a>
+<a name='L44'></a><a href='#L44'>44</a>
+<a name='L45'></a><a href='#L45'>45</a>
+<a name='L46'></a><a href='#L46'>46</a>
+<a name='L47'></a><a href='#L47'>47</a>
+<a name='L48'></a><a href='#L48'>48</a>
+<a name='L49'></a><a href='#L49'>49</a>
+<a name='L50'></a><a href='#L50'>50</a>
+<a name='L51'></a><a href='#L51'>51</a>
+<a name='L52'></a><a href='#L52'>52</a>
+<a name='L53'></a><a href='#L53'>53</a>
+<a name='L54'></a><a href='#L54'>54</a>
+<a name='L55'></a><a href='#L55'>55</a>
+<a name='L56'></a><a href='#L56'>56</a>
+<a name='L57'></a><a href='#L57'>57</a>
+<a name='L58'></a><a href='#L58'>58</a>
+<a name='L59'></a><a href='#L59'>59</a>
+<a name='L60'></a><a href='#L60'>60</a>
+<a name='L61'></a><a href='#L61'>61</a>
+<a name='L62'></a><a href='#L62'>62</a>
+<a name='L63'></a><a href='#L63'>63</a>
+<a name='L64'></a><a href='#L64'>64</a>
+<a name='L65'></a><a href='#L65'>65</a>
+<a name='L66'></a><a href='#L66'>66</a>
+<a name='L67'></a><a href='#L67'>67</a>
+<a name='L68'></a><a href='#L68'>68</a>
+<a name='L69'></a><a href='#L69'>69</a>
+<a name='L70'></a><a href='#L70'>70</a>
+<a name='L71'></a><a href='#L71'>71</a>
+<a name='L72'></a><a href='#L72'>72</a>
+<a name='L73'></a><a href='#L73'>73</a>
+<a name='L74'></a><a href='#L74'>74</a>
+<a name='L75'></a><a href='#L75'>75</a>
+<a name='L76'></a><a href='#L76'>76</a>
+<a name='L77'></a><a href='#L77'>77</a>
+<a name='L78'></a><a href='#L78'>78</a>
+<a name='L79'></a><a href='#L79'>79</a>
+<a name='L80'></a><a href='#L80'>80</a>
+<a name='L81'></a><a href='#L81'>81</a>
+<a name='L82'></a><a href='#L82'>82</a>
+<a name='L83'></a><a href='#L83'>83</a>
+<a name='L84'></a><a href='#L84'>84</a>
+<a name='L85'></a><a href='#L85'>85</a>
+<a name='L86'></a><a href='#L86'>86</a>
+<a name='L87'></a><a href='#L87'>87</a>
+<a name='L88'></a><a href='#L88'>88</a>
+<a name='L89'></a><a href='#L89'>89</a>
+<a name='L90'></a><a href='#L90'>90</a>
+<a name='L91'></a><a href='#L91'>91</a>
+<a name='L92'></a><a href='#L92'>92</a>
+<a name='L93'></a><a href='#L93'>93</a>
+<a name='L94'></a><a href='#L94'>94</a>
+<a name='L95'></a><a href='#L95'>95</a>
+<a name='L96'></a><a href='#L96'>96</a>
+<a name='L97'></a><a href='#L97'>97</a>
+<a name='L98'></a><a href='#L98'>98</a>
+<a name='L99'></a><a href='#L99'>99</a>
+<a name='L100'></a><a href='#L100'>100</a>
+<a name='L101'></a><a href='#L101'>101</a>
+<a name='L102'></a><a href='#L102'>102</a>
+<a name='L103'></a><a href='#L103'>103</a>
+<a name='L104'></a><a href='#L104'>104</a>
+<a name='L105'></a><a href='#L105'>105</a>
+<a name='L106'></a><a href='#L106'>106</a>
+<a name='L107'></a><a href='#L107'>107</a>
+<a name='L108'></a><a href='#L108'>108</a>
+<a name='L109'></a><a href='#L109'>109</a>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a>
+<a name='L114'></a><a href='#L114'>114</a>
+<a name='L115'></a><a href='#L115'>115</a>
+<a name='L116'></a><a href='#L116'>116</a></td><td class="line-coverage quiet"><span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-yes">31x</span>
+<span class="cline-any cline-yes">28x</span>
+<span class="cline-any cline-yes">14x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">40x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">62x</span>
+<span class="cline-any cline-yes">40x</span>
+<span class="cline-any cline-yes">40x</span>
+<span class="cline-any cline-yes">40x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">7x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">22x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">8x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">14x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-no">&nbsp;</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import { useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import Button from '../../../components/Button'
+import Alert from '../../../components/Alert'
+import LoadingSpinner from '../../../components/LoadingSpinner'
+import CourierIcon from '../../../components/courier/CourierIcon'
+import DeliveryStatusBadge from '../../../components/courier/DeliveryStatusBadge'
+import ProofPhoto from '../../../components/courier/ProofPhoto'
+import { useCourierDelivery } from '../../../hooks/courier/useCourierDeliveries'
+import { activeDelivery, address, courierError, dateLabel, STATUS } from '../../../utils/courier/deliveryStatus'
+import DeliveryUpdateForm from './components/DeliveryUpdateForm'
+import '../../../components/courier/courier.css'
+import './courierDeliveryDetail.css'
+&nbsp;
+const PROGRESS = ['CREATED', 'PICKED_UP', 'IN_TRANSIT', 'OUT_FOR_DELIVERY', 'DELIVERED']
+const ACTIONS = { CREATED: 'Mark Picked Up', PICKED_UP: 'Mark In Transit', IN_TRANSIT: 'Mark Out for Delivery', OUT_FOR_DELIVERY: 'Deliver or report failure' }
+// Shorter badge text where the History column is narrow; other places keep the full label.
+const HISTORY_LABELS = { OUT_FOR_DELIVERY: 'Out' }
+const when = (value) =&gt; value ? dateLabel(value, { dateStyle: 'medium', timeStyle: 'short' }) : 'Time not recorded'
+const number = (value) =&gt; new Intl.NumberFormat('en-GB', { maximumFractionDigits: 3 }).format(Number(value))
+const roleLabel = (role) =&gt; role ? role.charAt(0).toUpperCase() + role.slice(1).toLowerCase() : <span class="branch-1 cbranch-no" title="branch not covered" >'Role not recorded'</span>
+&nbsp;
+function Panel({ title, children, className = '' }) {
+  return &lt;section className={`courier-panel detail-panel ${className}`} aria-label={title}&gt;
+    &lt;header className="courier-panel-heading"&gt;&lt;h2&gt;{title}&lt;/h2&gt;&lt;/header&gt;
+    &lt;div className="courier-panel-body"&gt;{children}&lt;/div&gt;
+  &lt;/section&gt;
+}
+&nbsp;
+function Timeline({ status, history }) {
+  const stopped = ['FAILED', 'CANCELLED'].includes(status)
+  const stages = stopped ? [...PROGRESS.slice(0, -1), status] : PROGRESS
+  const current = stages.indexOf(status)
+  return &lt;ol className="detail-timeline" aria-label="Delivery progress"&gt;
+    {stages.map((stage, index) =&gt; {
+      const entry = history.find((item) =&gt; item.status === stage)
+      const complete = stopped ? Boolean(entry) &amp;&amp; stage !== status : current &gt;= 0 &amp;&amp; index &lt; current
+      const isCurrent = stage === status
+      return &lt;li key={stage} className={complete || isCurrent ? 'is-reached' : ''} aria-current={isCurrent ? 'step' : undefined}&gt;
+        &lt;span className="detail-step-marker" aria-hidden="true"&gt;{complete || isCurrent
+          ? &lt;svg viewBox="0 0 20 20" fill="none"&gt;&lt;path d="m5 10 3 3 7-7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /&gt;&lt;/svg&gt;
+          : &lt;span /&gt;}&lt;/span&gt;
+        &lt;div&gt;&lt;span className="detail-step-name"&gt;{STATUS[stage]?.label || <span class="branch-1 cbranch-no" title="branch not covered" >stage}&lt;/span&gt;</span>{isCurrent &amp;&amp; &lt;span className="detail-muted"&gt; (current)&lt;/span&gt;}
+          {(complete || isCurrent) &amp;&amp; &lt;p className="detail-step-meta"&gt;{when(entry?.recordedAt)}{entry?.locationDescription &amp;&amp; ` \u00b7 ${entry.locationDescription}`}&lt;/p&gt;}
+        &lt;/div&gt;
+      &lt;/li&gt;
+    })}
+  &lt;/ol&gt;
+}
+&nbsp;
+export default function CourierDeliveryDetailPage() {
+  const { parcelId } = useParams()
+  const resource = useCourierDelivery(parcelId)
+  const [editingParcel, setEditingParcel] = useState(null)
+  const delivery = resource.data
+  const parcel = delivery?.parcel
+  const history = [...(Array.isArray(parcel?.history) &amp;&amp; parcel.history.length ? parcel.history : Array.isArray(delivery?.tracking) ? delivery.tracking : <span class="branch-1 cbranch-no" title="branch not covered" >[])]</span>
+    .sort((a, b) =&gt; new Date(b.recordedAt) - new Date(a.recordedAt))
+  const dimensions = [parcel?.lengthCm, parcel?.widthCm, parcel?.heightCm]
+  const dimensionText = dimensions.every((value) =&gt; value != null &amp;&amp; Number.isFinite(Number(value)) &amp;&amp; Number(value) &gt; 0)
+    ? `${dimensions.map(number).join(' \u00d7 ')} cm` : null
+  const size = parcel?.size ? parcel.size.charAt(0).toUpperCase() + parcel.size.slice(1).toLowerCase() : null
+  const phone = parcel?.receiverPhone?.replace(/[^+0-9]/g, '')
+  const trackingNumber = parcel?.trackingNumber || <span class="branch-1 cbranch-no" title="branch not covered" >'Delivery details'</span>
+&nbsp;
+  return &lt;section className="courier-page courier-delivery-detail"&gt;
+    &lt;header className="detail-page-header"&gt;
+      &lt;nav className="detail-breadcrumb" aria-label="Breadcrumb"&gt;&lt;Link to="/courier/deliveries"&gt;Deliveries&lt;/Link&gt;&lt;span aria-hidden="true"&gt;{'\u203a'}&lt;/span&gt;&lt;span aria-current="page"&gt;{trackingNumber}&lt;/span&gt;&lt;/nav&gt;
+      &lt;h1&gt;{trackingNumber}&lt;/h1&gt;
+      {parcel &amp;&amp; &lt;DeliveryStatusBadge status={parcel.status} /&gt;}
+    &lt;/header&gt;
+    {resource.loading &amp;&amp; <span class="branch-1 cbranch-no" title="branch not covered" >&lt;div role="status" className="courier-loading"&gt;&lt;LoadingSpinner /&gt;&lt;span&gt;Loading delivery...&lt;/span&gt;&lt;/div&gt;}</span>
+    {resource.error &amp;&amp; <span class="branch-1 cbranch-no" title="branch not covered" >&lt;Alert variant="error"&gt;&lt;p&gt;{courierError(resource.error)}&lt;/p&gt;&lt;Button variant="outline" onClick={resource.reload}&gt;Try again&lt;/Button&gt;&lt;/Alert&gt;}</span>
+    {delivery &amp;&amp; &lt;&gt;
+      &lt;section className="courier-panel detail-recipient" aria-label="Deliver to"&gt;
+        &lt;span className="detail-label"&gt;Deliver to&lt;/span&gt;
+        &lt;h2&gt;{parcel.receiverName || 'Recipient not provided'}&lt;/h2&gt;
+        &lt;p&gt;{address(parcel, 'delivery')}&lt;/p&gt;
+        {phone ? &lt;a className="detail-call" href={`tel:${phone}`}&gt;&lt;CourierIcon name="phone" size={16} /&gt;Call {parcel.receiverPhone}&lt;/a&gt;
+          : &lt;p className="detail-call detail-muted"&gt;Phone not provided&lt;/p&gt;}
+      &lt;/section&gt;
+      &lt;div className="detail-contact-grid"&gt;
+        &lt;Panel title="Pickup"&gt;&lt;p&gt;{parcel.pickupContactName || 'Pickup contact not provided'}&lt;/p&gt;&lt;p&gt;{address(parcel, 'pickup')}&lt;/p&gt;
+          &lt;p&gt;{parcel.pickupContactPhone || 'Phone not provided'}&lt;/p&gt;&lt;/Panel&gt;
+        &lt;Panel title="Drop-off"&gt;&lt;p&gt;{parcel.receiverName || 'Recipient not provided'}&lt;/p&gt;&lt;p&gt;{address(parcel, 'delivery')}&lt;/p&gt;&lt;p&gt;{parcel.receiverPhone || 'Phone not provided'}&lt;/p&gt;&lt;/Panel&gt;
+      &lt;/div&gt;
+      &lt;Panel title="Parcel"&gt;&lt;dl className="detail-parcel-facts"&gt;
+        &lt;dt&gt;Contents&lt;/dt&gt;&lt;dd&gt;{parcel.contentsDescription || 'Not provided'}&lt;/dd&gt;
+        &lt;dt&gt;Weight&lt;/dt&gt;&lt;dd&gt;{parcel.weight != null ? `${number(parcel.weight)} kg` : 'Not provided'}&lt;/dd&gt;
+        &lt;dt&gt;Size&lt;/dt&gt;&lt;dd&gt;{dimensionText ? `${dimensionText}${size ? ` (${size})` : <span class="branch-1 cbranch-no" title="branch not covered" >''}` : s</span>ize || 'Not provided'}&lt;/dd&gt;
+        &lt;dt&gt;Scheduled&lt;/dt&gt;&lt;dd&gt;{dateLabel(delivery.assignment.deliveryDate)}&lt;/dd&gt;
+      &lt;/dl&gt;&lt;/Panel&gt;
+      &lt;Panel title="Timeline"&gt;&lt;Timeline status={parcel.status} history={history} /&gt;&lt;/Panel&gt;
+      &lt;Panel title="History"&gt;{history.length ? &lt;ol className="detail-history" aria-label="Delivery history"&gt;
+        {history.map((point) =&gt; &lt;li key={point.id}&gt;
+          &lt;time dateTime={point.recordedAt}&gt;{when(point.recordedAt)}&lt;/time&gt;
+          &lt;DeliveryStatusBadge status={point.status} label={HISTORY_LABELS[point.status]} /&gt;
+          &lt;span className="detail-history-location"&gt;{point.locationDescription || 'Location not recorded'}&lt;/span&gt;
+          &lt;span className="detail-history-actor"&gt;{point.attemptNo != null ? `Attempt ${point.attemptNo}` : <span class="branch-1 cbranch-no" title="branch not covered" >'Attempt not recorded'} </span>{'\u00b7'} by {roleLabel(point.actorRole)}&lt;/span&gt;
+        &lt;/li&gt;)}
+      &lt;/ol&gt; : &lt;p className="courier-help"&gt;No confirmed history is available yet.&lt;/p&gt;}&lt;/Panel&gt;
+      {delivery.evidenceUnavailable &amp;&amp; <span class="branch-1 cbranch-no" title="branch not covered" >&lt;Alert variant="warning"&gt;Some tracking or proof details could not be loaded.&lt;/Alert&gt;}</span>
+      {delivery.proofs?.length &gt; 0 &amp;&amp; <span class="branch-1 cbranch-no" title="branch not covered" >&lt;Panel title="Delivery evidence"&gt;{delivery.proofs.<span class="fstat-no" title="function not covered" >map((p</span>roof) =&gt; <span class="cstat-no" title="statement not covered" >&lt;article key={proof.id} className="courier-proof"&gt;</span></span>
+        &lt;h3&gt;{STATUS[proof.outcome]?.label || proof.outcome}&lt;/h3&gt;&lt;p&gt;{proof.recipientName || proof.failureReason}&lt;/p&gt;{proof.note &amp;&amp; &lt;p&gt;{proof.note}&lt;/p&gt;}
+        &lt;p className="courier-help"&gt;{when(proof.recordedAt)}&lt;/p&gt;{proof.photoUrl &amp;&amp; &lt;ProofPhoto parcelId={parcelId} proofId={proof.id} /&gt;}
+      &lt;/article&gt;)}&lt;/Panel&gt;}
+      {activeDelivery(delivery) &amp;&amp; ACTIONS[parcel.status] ? &lt;div className="courier-panel detail-actions"&gt;
+        {editingParcel === `${parcelId}:${parcel.status}` ? &lt;&gt;
+          &lt;Button variant="ghost" onClick={() =&gt; setEditingParcel(null)}&gt;Close update&lt;/Button&gt;
+          &lt;DeliveryUpdateForm key={`${parcelId}:${parcel.status}`} parcel={parcel} <span class="fstat-no" title="function not covered" >onConfirmed={() =&gt; {</span> <span class="cstat-no" title="statement not covered" >setEditingParcel(null); <span class="cstat-no" title="statement not covered" >r</span>esource.reload() }</span>} /&gt;
+        &lt;/&gt; : &lt;Button fullWidth onClick={() =&gt; setEditingParcel(`${parcelId}:${parcel.status}`)}&gt;{ACTIONS[parcel.status]}&lt;/Button&gt;}
+      &lt;/div&gt; : &lt;Alert variant="info"&gt;This delivery is read-only because it is completed, cancelled or no longer assigned to you.&lt;/Alert&gt;}
+    &lt;/&gt;}
+  &lt;/section&gt;
+}
+&nbsp;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-11-22T06:19:28.469Z
+            </div>
+        <script src="../../../../prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="../../../../sorter.js"></script>
+        <script src="../../../../block-navigation.js"></script>
+    </body>
+</html>
+    

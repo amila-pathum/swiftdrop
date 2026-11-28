@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Merchant.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">merchant-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.merchant.entity</a> &gt; <span class="el_source">Merchant.java</span></div><h1>Merchant.java</h1><pre class="source lang-java linenums">package com.swiftdrop.merchant.entity;
+
+import jakarta.persistence.*;
+import java.time.OffsetDateTime;
+
+@Entity
+@Table(name = &quot;merchants&quot;)
+<span class="fc" id="L8">public class Merchant {</span>
+
+    public Long getId() {
+<span class="fc" id="L11">        return id;</span>
+    }
+
+
+    public void setId(Long id) {
+<span class="fc" id="L16">        this.id = id;</span>
+<span class="fc" id="L17">    }</span>
+
+
+    public Long getUserId() {
+<span class="fc" id="L21">        return userId;</span>
+    }
+
+
+    public void setUserId(Long userId) {
+<span class="fc" id="L26">        this.userId = userId;</span>
+<span class="fc" id="L27">    }</span>
+
+
+    public String getBusinessName() {
+<span class="fc" id="L31">        return businessName;</span>
+    }
+
+
+    public void setBusinessName(String businessName) {
+<span class="fc" id="L36">        this.businessName = businessName;</span>
+<span class="fc" id="L37">    }</span>
+
+
+    public String getRegistrationNumber() {
+<span class="fc" id="L41">        return registrationNumber;</span>
+    }
+
+
+    public void setRegistrationNumber(String registrationNumber) {
+<span class="nc" id="L46">        this.registrationNumber = registrationNumber;</span>
+<span class="nc" id="L47">    }</span>
+
+
+    public String getContactName() {
+<span class="fc" id="L51">        return contactName;</span>
+    }
+
+
+    public void setContactName(String contactName) {
+<span class="nc" id="L56">        this.contactName = contactName;</span>
+<span class="nc" id="L57">    }</span>
+
+
+    public String getEmail() {
+<span class="fc" id="L61">        return email;</span>
+    }
+
+
+    public void setEmail(String email) {
+<span class="nc" id="L66">        this.email = email;</span>
+<span class="nc" id="L67">    }</span>
+
+
+    public String getPhone() {
+<span class="fc" id="L71">        return phone;</span>
+    }
+
+
+    public void setPhone(String phone) {
+<span class="nc" id="L76">        this.phone = phone;</span>
+<span class="nc" id="L77">    }</span>
+
+
+    public String getAddress() {
+<span class="fc" id="L81">        return address;</span>
+    }
+
+
+    public void setAddress(String address) {
+<span class="nc" id="L86">        this.address = address;</span>
+<span class="nc" id="L87">    }</span>
+
+
+    public MerchantStatus getStatus() {
+<span class="fc" id="L91">        return status;</span>
+    }
+
+
+    public void setStatus(MerchantStatus status) {
+<span class="fc" id="L96">        this.status = status;</span>
+<span class="fc" id="L97">    }</span>
+
+
+    public String getRejectionReason() {
+<span class="fc" id="L101">        return rejectionReason;</span>
+    }
+
+
+    public void setRejectionReason(String rejectionReason) {
+<span class="fc" id="L106">        this.rejectionReason = rejectionReason;</span>
+<span class="fc" id="L107">    }</span>
+
+
+    public OffsetDateTime getCreatedAt() {
+<span class="fc" id="L111">        return createdAt;</span>
+    }
+
+
+    public void setCreatedAt(OffsetDateTime createdAt) {
+<span class="nc" id="L116">        this.createdAt = createdAt;</span>
+<span class="nc" id="L117">    }</span>
+
+
+    public Long getReviewedBy() {
+<span class="fc" id="L121">        return reviewedBy;</span>
+    }
+
+
+    public void setReviewedBy(Long reviewedBy) {
+<span class="fc" id="L126">        this.reviewedBy = reviewedBy;</span>
+<span class="fc" id="L127">    }</span>
+
+
+    public OffsetDateTime getReviewedAt() {
+<span class="fc" id="L131">        return reviewedAt;</span>
+    }
+
+
+    public void setReviewedAt(OffsetDateTime reviewedAt) {
+<span class="fc" id="L136">        this.reviewedAt = reviewedAt;</span>
+<span class="fc" id="L137">    }</span>
+
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = &quot;user_id&quot;, nullable = false, unique = true)
+    private Long userId;
+
+    @Column(name = &quot;business_name&quot;, nullable = false)
+    private String businessName;
+
+    @Column(name = &quot;registration_number&quot;, nullable = false, unique = true)
+    private String registrationNumber;
+
+    @Column(name = &quot;contact_name&quot;, nullable = false)
+    private String contactName;
+
+    @Column(nullable = false)
+    private String email;
+
+    @Column(nullable = false)
+    private String phone;
+
+    @Column(nullable = false, columnDefinition = &quot;TEXT&quot;)
+    private String address;
+
+<span class="fc" id="L165">    @Enumerated(EnumType.STRING)</span>
+    @Column(nullable = false)
+    private MerchantStatus status = MerchantStatus.PENDING;
+
+    @Column(name = &quot;rejection_reason&quot;)
+    private String rejectionReason;
+
+    @Column(name = &quot;created_at&quot;, nullable = false)
+    private OffsetDateTime createdAt;
+
+    @Column(name = &quot;reviewed_by&quot;)
+    private Long reviewedBy;
+
+    @Column(name = &quot;reviewed_at&quot;)
+    private OffsetDateTime reviewedAt;
+
+    
+@PrePersist
+protected void onCreate() {
+<span class="nc bnc" id="L184" title="All 2 branches missed.">    if (createdAt == null) {</span>
+<span class="nc" id="L185">        createdAt = OffsetDateTime.now();</span>
+    }
+<span class="nc bnc" id="L187" title="All 2 branches missed.">    if (status == null) {</span>
+<span class="nc" id="L188">        status = MerchantStatus.PENDING;</span>
+    }
+<span class="nc" id="L190">}</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

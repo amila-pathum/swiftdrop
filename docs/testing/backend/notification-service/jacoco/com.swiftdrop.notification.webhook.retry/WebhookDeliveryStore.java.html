@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>WebhookDeliveryStore.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">notification-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.notification.webhook.retry</a> &gt; <span class="el_source">WebhookDeliveryStore.java</span></div><h1>WebhookDeliveryStore.java</h1><pre class="source lang-java linenums">package com.swiftdrop.notification.webhook.retry;
+
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Repository;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+@Repository
+public class WebhookDeliveryStore {
+    private final JdbcTemplate jdbc;
+    private final TransactionTemplate transactions;
+
+<span class="fc" id="L17">    public WebhookDeliveryStore(JdbcTemplate jdbc, PlatformTransactionManager manager) {</span>
+<span class="fc" id="L18">        this.jdbc = jdbc;</span>
+<span class="fc" id="L19">        this.transactions = new TransactionTemplate(manager);</span>
+<span class="fc" id="L20">        this.transactions.setTimeout(20);</span>
+<span class="fc" id="L21">    }</span>
+
+    public UUID enqueue(UUID eventId, String merchantId, String trackingNumber,
+            String reference, String status, byte[] payload, Instant now) {
+<span class="fc" id="L25">        UUID id = UUID.randomUUID();</span>
+<span class="fc" id="L26">        jdbc.update(&quot;&quot;&quot;</span>
+            INSERT INTO webhook_deliveries
+            (id,event_id,merchant_id,tracking_number,merchant_order_reference,status_sent,
+             payload,state,attempt_count,next_attempt_at,created_at,updated_at)
+            VALUES (?,?,?,?,?,?,?,'PENDING',0,?,?,?)
+            ON CONFLICT (event_id,merchant_id) DO NOTHING
+            &quot;&quot;&quot;, id,eventId,merchantId,trackingNumber,reference,status,payload,
+<span class="fc" id="L33">                Timestamp.from(now),Timestamp.from(now),Timestamp.from(now));</span>
+<span class="fc" id="L34">        return jdbc.queryForObject(&quot;&quot;&quot;</span>
+            SELECT id FROM webhook_deliveries WHERE event_id=? AND merchant_id=?
+            &quot;&quot;&quot;, UUID.class, eventId, merchantId);
+    }
+
+    public List&lt;UUID&gt; due(Instant now, int limit) {
+<span class="fc" id="L40">        return jdbc.query(&quot;&quot;&quot;</span>
+            SELECT id FROM webhook_deliveries
+            WHERE state IN ('PENDING','RETRY_SCHEDULED') AND next_attempt_at &lt;= ?
+            ORDER BY next_attempt_at, id LIMIT ?
+<span class="fc" id="L44">            &quot;&quot;&quot;, (rs,row) -&gt; rs.getObject(&quot;id&quot;,UUID.class), Timestamp.from(now),limit);</span>
+    }
+
+<span class="fc" id="L47">    public record DeliverySummary(UUID id, UUID eventId, String trackingNumber,</span>
+            String merchantOrderReference, String parcelStatus, String state,
+            int attemptCount, Instant createdAt, Instant nextRetryAt) { }
+<span class="fc" id="L50">    public record Attempt(int attemptNumber, Instant attemptedAt, String outcome,</span>
+            Integer httpStatus, String failureCode, Instant nextRetryAt) { }
+<span class="fc" id="L52">    public record Page(List&lt;DeliverySummary&gt; items, long total, int page, int size) { }</span>
+
+    private static Instant instant(java.sql.ResultSet rs, String column) throws java.sql.SQLException {
+<span class="fc" id="L55">        var value = rs.getTimestamp(column);</span>
+<span class="fc bfc" id="L56" title="All 2 branches covered.">        return value == null ? null : value.toInstant();</span>
+    }
+    private static DeliverySummary summary(java.sql.ResultSet rs, int row) throws java.sql.SQLException {
+<span class="fc" id="L59">        return new DeliverySummary(rs.getObject(&quot;id&quot;, UUID.class), rs.getObject(&quot;event_id&quot;, UUID.class),</span>
+<span class="fc" id="L60">                rs.getString(&quot;tracking_number&quot;), rs.getString(&quot;merchant_order_reference&quot;),</span>
+<span class="fc" id="L61">                rs.getString(&quot;status_sent&quot;), rs.getString(&quot;state&quot;), rs.getInt(&quot;attempt_count&quot;),</span>
+<span class="fc" id="L62">                instant(rs, &quot;created_at&quot;), instant(rs, &quot;next_attempt_at&quot;));</span>
+    }
+    public Page history(String merchantId, boolean failedOnly, int page, int size) {
+<span class="pc bpc" id="L65" title="4 of 8 branches missed.">        if (page &lt; 0 || page &gt; 1000000 || size &lt; 1 || size &gt; 100) {</span>
+<span class="nc" id="L66">            throw new IllegalArgumentException(&quot;Invalid pagination&quot;);</span>
+        }
+<span class="fc bfc" id="L68" title="All 2 branches covered.">        String where = &quot; WHERE merchant_id=?&quot; + (failedOnly ? &quot; AND state='FAILED'&quot; : &quot;&quot;);</span>
+<span class="fc" id="L69">        long total = jdbc.queryForObject(&quot;SELECT COUNT(*) FROM webhook_deliveries&quot; + where, Long.class, merchantId);</span>
+<span class="fc" id="L70">        var items = jdbc.query(&quot;SELECT * FROM webhook_deliveries&quot; + where</span>
+                + &quot; ORDER BY created_at DESC, id LIMIT ? OFFSET ?&quot;, WebhookDeliveryStore::summary,
+<span class="fc" id="L72">                merchantId, size, (long) page * size);</span>
+<span class="fc" id="L73">        return new Page(items, total, page, size);</span>
+    }
+    public java.util.Optional&lt;DeliverySummary&gt; detail(String merchantId, UUID id) {
+<span class="fc" id="L76">        return jdbc.query(&quot;SELECT * FROM webhook_deliveries WHERE merchant_id=? AND id=?&quot;,</span>
+<span class="fc" id="L77">                WebhookDeliveryStore::summary, merchantId, id).stream().findFirst();</span>
+    }
+    public List&lt;Attempt&gt; attempts(String merchantId, UUID id) {
+<span class="fc" id="L80">        return jdbc.query(&quot;&quot;&quot;</span>
+                SELECT a.* FROM webhook_delivery_attempts a
+                JOIN webhook_deliveries d ON d.id=a.delivery_id
+                WHERE d.merchant_id=? AND d.id=? ORDER BY a.attempt_number
+<span class="fc" id="L84">                &quot;&quot;&quot;, (rs, row) -&gt; new Attempt(rs.getInt(&quot;attempt_number&quot;), instant(rs,&quot;attempted_at&quot;),</span>
+<span class="fc" id="L85">                rs.getString(&quot;outcome&quot;), rs.getObject(&quot;http_status&quot;, Integer.class),</span>
+<span class="fc" id="L86">                rs.getString(&quot;failure_code&quot;), instant(rs,&quot;next_retry_at&quot;)), merchantId, id);</span>
+    }
+    /** Retain lifetime numbering; after the automatic budget, each manual retry grants one attempt. */
+    public boolean retry(String merchantId, UUID id, Instant now) {
+<span class="fc bfc" id="L90" title="All 2 branches covered.">        return jdbc.update(&quot;&quot;&quot;</span>
+                UPDATE webhook_deliveries SET state='PENDING', next_attempt_at=?, updated_at=?
+                WHERE merchant_id=? AND id=? AND state='FAILED'
+<span class="fc" id="L93">                &quot;&quot;&quot;, Timestamp.from(now), Timestamp.from(now), merchantId, id) == 1;</span>
+    }
+
+    public boolean processOne(UUID id, Instant now, WebhookDeliveryProcessor processor) {
+<span class="fc" id="L97">        return Boolean.TRUE.equals(transactions.execute(tx -&gt; {</span>
+<span class="fc" id="L98">            var rows = jdbc.query(&quot;&quot;&quot;</span>
+                SELECT id,event_id,merchant_id,payload,attempt_count FROM webhook_deliveries
+                WHERE id=? AND state IN ('PENDING','RETRY_SCHEDULED')
+                  AND next_attempt_at &lt;= ? FOR UPDATE SKIP LOCKED
+<span class="fc" id="L102">                &quot;&quot;&quot;, (rs,row) -&gt; new WebhookDelivery(</span>
+<span class="fc" id="L103">                    rs.getObject(&quot;id&quot;,UUID.class), rs.getObject(&quot;event_id&quot;,UUID.class),</span>
+<span class="fc" id="L104">                    rs.getString(&quot;merchant_id&quot;), rs.getBytes(&quot;payload&quot;),</span>
+<span class="fc" id="L105">                    rs.getInt(&quot;attempt_count&quot;)), id,Timestamp.from(now));</span>
+<span class="fc bfc" id="L106" title="All 2 branches covered.">            if (rows.isEmpty()) return false;</span>
+<span class="fc" id="L107">            WebhookDelivery delivery = rows.getFirst();</span>
+            WebhookDeliveryProcessor.Outcome result;
+            try {
+<span class="fc" id="L110">                result = processor.attempt(delivery);</span>
+<span class="nc" id="L111">            } catch (InterruptedException exception) {</span>
+<span class="nc" id="L112">                Thread.currentThread().interrupt();</span>
+<span class="nc" id="L113">                throw new IllegalStateException(&quot;Webhook worker interrupted&quot;, exception);</span>
+<span class="fc" id="L114">            }</span>
+<span class="fc" id="L115">            int attempt = delivery.attemptCount()+1;</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">            Timestamp next = result.nextAttemptAt() == null ? null</span>
+<span class="fc" id="L117">                    : Timestamp.from(result.nextAttemptAt());</span>
+<span class="fc" id="L118">            jdbc.update(&quot;&quot;&quot;</span>
+                INSERT INTO webhook_delivery_attempts
+                (delivery_id,attempt_number,attempted_at,outcome,http_status,failure_code,next_retry_at)
+                VALUES (?,?,?,?,?,?,?)
+<span class="fc" id="L122">                &quot;&quot;&quot;, id,attempt,Timestamp.from(result.attemptedAt()),result.state(),</span>
+<span class="fc" id="L123">                    result.httpStatus(),result.failureCode(),next);</span>
+<span class="fc" id="L124">            jdbc.update(&quot;&quot;&quot;</span>
+                UPDATE webhook_deliveries SET state=?, attempt_count=?,
+                    next_attempt_at=?, updated_at=? WHERE id=?
+<span class="fc" id="L127">                &quot;&quot;&quot;, result.state(),attempt,next,Timestamp.from(result.attemptedAt()),id);</span>
+<span class="fc" id="L128">            return true;</span>
+        }));
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

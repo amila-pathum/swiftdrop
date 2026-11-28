@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BookingTransactions.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">stylecart</a> &gt; <a href="index.source.html" class="el_package">com.stylecart.service</a> &gt; <span class="el_source">BookingTransactions.java</span></div><h1>BookingTransactions.java</h1><pre class="source lang-java linenums">package com.stylecart.service;
+import com.stylecart.model.*;
+import com.stylecart.repo.*;
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.util.*;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+import tools.jackson.databind.ObjectMapper;
+@Service
+public class BookingTransactions {
+    private final OrderRepository orders;private final SettingsRepository settings;private final EventRepository received;
+    private final ApplicationEventPublisher events;private final ObjectMapper json;
+<span class="fc" id="L17">    public BookingTransactions(OrderRepository orders,SettingsRepository settings,EventRepository received,ApplicationEventPublisher events,ObjectMapper json){this.orders=orders;this.settings=settings;this.received=received;this.events=events;this.json=json;}</span>
+    @Transactional public Job prepare(UUID id,boolean verifyDuplicate){
+<span class="pc" id="L19">        var o=orders.lock(id).orElseThrow(()-&gt;new ResponseStatusException(HttpStatus.NOT_FOUND));</span>
+<span class="fc bfc" id="L20" title="All 4 branches covered.">        if(o.trackingNumber!=null&amp;&amp;!verifyDuplicate)return new Job(o.id,o.reference,null);</span>
+<span class="pc bpc" id="L21" title="5 of 6 branches missed.">        if(o.shipmentState.equals(&quot;SUBMITTING&quot;)&amp;&amp;o.submittedAt!=null&amp;&amp;o.submittedAt.isAfter(Instant.now().minusSeconds(45)))throw new ResponseStatusException(HttpStatus.CONFLICT,&quot;This order is already being booked. Please wait.&quot;);</span>
+<span class="fc bfc" id="L22" title="All 2 branches covered.">        if(o.requestPayload==null){</span>
+<span class="fc" id="L23">            var s=settings.findById(1L).orElseThrow();</span>
+<span class="pc bpc" id="L24" title="4 of 8 branches missed.">            if(s.pickupName.isBlank()||s.pickupAddress.isBlank()||!s.pickupPhone.matches(&quot;^(?=(?:[^0-9]*[0-9]){7})[+0-9 ()-]{7,30}$&quot;)||!OrderService.DISTRICTS.contains(s.pickupCity))throw new ResponseStatusException(HttpStatus.CONFLICT,&quot;Save valid shop pickup details in Integration first.&quot;);</span>
+<span class="fc" id="L25">            var pickup=Map.of(&quot;name&quot;,s.pickupName,&quot;phone&quot;,s.pickupPhone,&quot;address&quot;,s.pickupAddress,&quot;city&quot;,s.pickupCity,&quot;postalCode&quot;,s.pickupPostal);</span>
+<span class="fc" id="L26">            var receiver=Map.of(&quot;name&quot;,o.receiverName,&quot;phone&quot;,o.phone,&quot;address&quot;,o.address,&quot;city&quot;,o.city,&quot;postalCode&quot;,o.postalCode);</span>
+<span class="fc" id="L27">            BigDecimal weight=o.items.stream().map(i-&gt;i.weight.multiply(BigDecimal.valueOf(i.quantity))).reduce(BigDecimal.ZERO,BigDecimal::add);</span>
+<span class="pc bpc" id="L28" title="1 of 2 branches missed.">            String description=String.join(&quot;, &quot;,o.items.stream().map(i-&gt;i.quantity+&quot; x &quot;+i.name).toList());if(description.length()&gt;500)description=description.substring(0,500);</span>
+<span class="fc" id="L29">            o.requestPayload=json.writeValueAsString(Map.of(&quot;merchantOrderReference&quot;,o.reference,&quot;pickup&quot;,pickup,&quot;receiver&quot;,receiver,&quot;parcel&quot;,</span>
+<span class="fc" id="L30">                Map.of(&quot;description&quot;,description,&quot;weightKg&quot;,weight,&quot;lengthCm&quot;,35,&quot;widthCm&quot;,25,&quot;heightCm&quot;,12,&quot;size&quot;,&quot;MEDIUM&quot;,&quot;serviceType&quot;,&quot;STANDARD&quot;,&quot;handlingNote&quot;,&quot;Clothing. Keep dry.&quot;)));</span>
+        }
+<span class="fc" id="L32">        o.shipmentState=&quot;SUBMITTING&quot;;o.submittedAt=Instant.now();o.lastError=null;</span>
+<span class="fc" id="L33">        events.publishEvent(new LiveUpdates.Changed(o.customerId,o.id));return new Job(o.id,o.reference,o.requestPayload);</span>
+    }
+    @Transactional public void complete(UUID id,ShipmentService.Reply reply){
+<span class="fc" id="L36">        var o=orders.lock(id).orElseThrow();</span>
+<span class="pc bpc" id="L37" title="1 of 4 branches missed.">        if(o.trackingNumber!=null&amp;&amp;!o.trackingNumber.equals(reply.trackingNumber()))throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,&quot;SwiftDrop returned a conflicting tracking number. Keep the original reference.&quot;);</span>
+<span class="fc" id="L38">        o.trackingNumber=reply.trackingNumber();o.shipmentState=&quot;BOOKED&quot;;o.lastError=null;</span>
+<span class="fc bfc" id="L39" title="All 2 branches covered.">        if(o.statusAt==null)o.deliveryStatus=reply.status();</span>
+<span class="pc bpc" id="L40" title="1 of 2 branches missed.">        if(reply.parcel()!=null)o.shippingCharge=reply.parcel().charge();</span>
+<span class="fc bfc" id="L41" title="All 2 branches covered.">        for(var e:received.findByTrackingNumberOrderByOccurredAtAsc(o.trackingNumber)){</span>
+<span class="pc bpc" id="L42" title="2 of 8 branches missed.">            if((e.orderId==null||e.orderId.equals(o.id))&amp;&amp;(e.merchantReference==null||e.merchantReference.equals(o.reference))){apply(o,e);e.orderId=o.id;}</span>
+<span class="fc" id="L43">        }</span>
+<span class="fc" id="L44">        events.publishEvent(new LiveUpdates.Changed(o.customerId,o.id));</span>
+<span class="fc" id="L45">    }</span>
+<span class="pc bpc" id="L46" title="1 of 2 branches missed.">    @Transactional public void failed(UUID id,String message){var o=orders.lock(id).orElseThrow();o.shipmentState=o.trackingNumber==null?&quot;NEEDS_REVIEW&quot;:&quot;BOOKED&quot;;o.lastError=message;events.publishEvent(new LiveUpdates.Changed(o.customerId,o.id));}</span>
+    public static void apply(StoreOrder o,WebhookEvent e){
+<span class="fc bfc" id="L48" title="All 2 branches covered.">        if(o.trackingNumber==null)o.trackingNumber=e.trackingNumber;</span>
+<span class="pc bpc" id="L49" title="1 of 4 branches missed.">        if(o.statusAt==null||e.occurredAt.isAfter(o.statusAt)){o.deliveryStatus=e.newStatus;o.statusAt=e.occurredAt;}</span>
+<span class="fc" id="L50">        o.shipmentState=&quot;BOOKED&quot;;o.lastError=null;</span>
+<span class="fc" id="L51">    }</span>
+<span class="pc" id="L52">    public record Job(UUID id,String reference,String payload){@Override public String toString(){return &quot;BookingJob[&quot;+id+&quot;]&quot;;}}</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

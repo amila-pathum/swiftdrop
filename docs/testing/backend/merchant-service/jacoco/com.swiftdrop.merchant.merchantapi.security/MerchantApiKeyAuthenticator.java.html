@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MerchantApiKeyAuthenticator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">merchant-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.merchant.merchantapi.security</a> &gt; <span class="el_source">MerchantApiKeyAuthenticator.java</span></div><h1>MerchantApiKeyAuthenticator.java</h1><pre class="source lang-java linenums">package com.swiftdrop.merchant.merchantapi.security;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+
+public class MerchantApiKeyAuthenticator {
+
+    private final MerchantApiKeyLookup keyLookup;
+
+    public MerchantApiKeyAuthenticator(
+            MerchantApiKeyLookup keyLookup
+<span class="fc" id="L12">    ) {</span>
+<span class="fc" id="L13">        this.keyLookup = keyLookup;</span>
+<span class="fc" id="L14">    }</span>
+
+    public MerchantKeyDetails authenticate(String apiKey) {
+
+<span class="fc bfc" id="L18" title="All 4 branches covered.">        if (apiKey == null || apiKey.isBlank()) {</span>
+<span class="fc" id="L19">            throw unauthorized();</span>
+        }
+
+<span class="fc" id="L22">        MerchantKeyDetails merchant = keyLookup</span>
+<span class="fc" id="L23">                .findByApiKey(apiKey)</span>
+<span class="fc" id="L24">                .orElseThrow(this::unauthorized);</span>
+
+<span class="fc bfc" id="L26" title="All 2 branches covered.">        if (!merchant.approved()) {</span>
+<span class="fc" id="L27">            throw new ResponseStatusException(</span>
+                    HttpStatus.FORBIDDEN,
+                    &quot;Merchant account is not approved&quot;
+            );
+        }
+
+<span class="fc" id="L33">        return merchant;</span>
+    }
+
+    private ResponseStatusException unauthorized() {
+<span class="fc" id="L37">        return new ResponseStatusException(</span>
+                HttpStatus.UNAUTHORIZED,
+                &quot;Missing or invalid API key&quot;
+        );
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

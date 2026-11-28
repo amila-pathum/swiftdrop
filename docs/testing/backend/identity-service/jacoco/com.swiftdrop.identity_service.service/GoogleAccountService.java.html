@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GoogleAccountService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.identity_service.service</a> &gt; <span class="el_source">GoogleAccountService.java</span></div><h1>GoogleAccountService.java</h1><pre class="source lang-java linenums">package com.swiftdrop.identity_service.service;
+
+import com.swiftdrop.identity_service.entity.AuthProvider;
+import com.swiftdrop.identity_service.entity.Role;
+import com.swiftdrop.identity_service.entity.User;
+import com.swiftdrop.identity_service.entity.UserIdentity;
+import com.swiftdrop.identity_service.entity.UserStatus;
+import com.swiftdrop.identity_service.exception.GoogleSignInException;
+import com.swiftdrop.identity_service.exception.GoogleSignInException.Reason;
+import com.swiftdrop.identity_service.repository.UserIdentityRepository;
+import com.swiftdrop.identity_service.repository.UserRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Locale;
+
+/**
+ * Decides which SwiftDrop user a verified Google sign-in belongs to.
+ *
+ * &lt;ul&gt;
+ *   &lt;li&gt;A Google account already linked (by &quot;sub&quot;) signs in as its user, if ACTIVE.&lt;/li&gt;
+ *   &lt;li&gt;Otherwise the Google email must be verified.&lt;/li&gt;
+ *   &lt;li&gt;If no SwiftDrop account uses the email, an ACTIVE CUSTOMER without a
+ *       password is created and linked.&lt;/li&gt;
+ *   &lt;li&gt;If one does, sign-in is refused. Accounts are never linked automatically
+ *       by email: SwiftDrop does not verify registration emails, so the existing
+ *       account may not belong to the Google user.&lt;/li&gt;
+ * &lt;/ul&gt;
+ * Existing users' names, emails, passwords and roles are never changed here.
+ */
+@Service
+public class GoogleAccountService {
+
+    private static final int NAME_MAX = 100;
+    private static final int EMAIL_MAX = 255;
+
+    /** Claims taken from Google's validated ID token. */
+<span class="fc" id="L38">    public record GoogleProfile(String subject, String email, boolean emailVerified, String name) {}</span>
+
+    private final UserRepository userRepository;
+    private final UserIdentityRepository identityRepository;
+
+    public GoogleAccountService(UserRepository userRepository,
+<span class="fc" id="L44">            UserIdentityRepository identityRepository) {</span>
+<span class="fc" id="L45">        this.userRepository = userRepository;</span>
+<span class="fc" id="L46">        this.identityRepository = identityRepository;</span>
+<span class="fc" id="L47">    }</span>
+
+    @Transactional
+    public User resolveUser(GoogleProfile profile) {
+<span class="pc bpc" id="L51" title="1 of 4 branches missed.">        if (profile.subject() == null || profile.subject().isBlank()) {</span>
+<span class="fc" id="L52">            throw new GoogleSignInException(Reason.INVALID_PROFILE);</span>
+        }
+
+<span class="fc" id="L55">        var linked = identityRepository.findByProviderAndProviderSubject(</span>
+<span class="fc" id="L56">            AuthProvider.GOOGLE, profile.subject());</span>
+<span class="fc bfc" id="L57" title="All 2 branches covered.">        if (linked.isPresent()) {</span>
+<span class="fc" id="L58">            return requireActive(linked.get().getUser());</span>
+        }
+
+<span class="fc bfc" id="L61" title="All 2 branches covered.">        if (!profile.emailVerified()) {</span>
+<span class="fc" id="L62">            throw new GoogleSignInException(Reason.EMAIL_UNVERIFIED);</span>
+        }
+<span class="fc" id="L64">        String email = normalizeEmail(profile.email());</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">        if (userRepository.existsByEmail(email)) {</span>
+<span class="fc" id="L66">            throw new GoogleSignInException(Reason.ACCOUNT_EXISTS);</span>
+        }
+
+<span class="fc" id="L69">        User user = userRepository.save(new User(</span>
+<span class="fc" id="L70">            displayName(profile.name(), email), email, null, Role.CUSTOMER, UserStatus.ACTIVE));</span>
+<span class="fc" id="L71">        identityRepository.save(</span>
+<span class="fc" id="L72">            new UserIdentity(user, AuthProvider.GOOGLE, profile.subject(), email));</span>
+<span class="fc" id="L73">        return user;</span>
+    }
+
+    private static User requireActive(User user) {
+<span class="fc bfc" id="L77" title="All 2 branches covered.">        if (user.getStatus() != UserStatus.ACTIVE) {</span>
+<span class="fc" id="L78">            throw new GoogleSignInException(Reason.ACCOUNT_INACTIVE);</span>
+        }
+<span class="fc" id="L80">        return user;</span>
+    }
+
+    private static String normalizeEmail(String email) {
+<span class="fc bfc" id="L84" title="All 2 branches covered.">        String normalized = email == null ? &quot;&quot; : email.trim().toLowerCase(Locale.ROOT);</span>
+<span class="pc bpc" id="L85" title="1 of 6 branches missed.">        if (normalized.isEmpty() || normalized.length() &gt; EMAIL_MAX || !normalized.contains(&quot;@&quot;)) {</span>
+<span class="fc" id="L86">            throw new GoogleSignInException(Reason.INVALID_PROFILE);</span>
+        }
+<span class="fc" id="L88">        return normalized;</span>
+    }
+
+    private static String displayName(String name, String email) {
+<span class="pc bpc" id="L92" title="1 of 4 branches missed.">        String value = name == null || name.isBlank()</span>
+<span class="fc" id="L93">            ? email.substring(0, email.indexOf('@'))</span>
+<span class="fc" id="L94">            : name.trim();</span>
+<span class="fc bfc" id="L95" title="All 2 branches covered.">        return value.length() &gt; NAME_MAX ? value.substring(0, NAME_MAX) : value;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

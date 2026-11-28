@@ -1,0 +1,180 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CourierDeliveryService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">courier-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.courier.service</a> &gt; <span class="el_source">CourierDeliveryService.java</span></div><h1>CourierDeliveryService.java</h1><pre class="source lang-java linenums">package com.swiftdrop.courier.service;
+
+import com.swiftdrop.courier.client.CourierIntegrations.*;
+import com.swiftdrop.courier.dto.CourierDtos.*;
+import com.swiftdrop.courier.entity.*;
+import com.swiftdrop.courier.exception.CourierException;
+import com.swiftdrop.courier.repository.*;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+import org.springframework.core.io.Resource;
+import java.time.*;
+import java.security.*;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+
+@Service
+public class CourierDeliveryService {
+    private final CourierProfileService profiles;
+    private final DispatchClient dispatch;
+    private final ParcelClient parcels;
+    private final DeliveryCheckpointRepository checkpoints;
+    private final DeliveryProofRepository proofs;
+    private final ProofStorageService storage;
+    private final TransactionTemplate transactions;
+    public CourierDeliveryService(CourierProfileService profiles,DispatchClient dispatch,ParcelClient parcels,
+<span class="fc" id="L29">        DeliveryCheckpointRepository checkpoints,DeliveryProofRepository proofs,ProofStorageService storage,PlatformTransactionManager manager) {</span>
+<span class="fc" id="L30">        this.profiles=profiles;this.dispatch=dispatch;this.parcels=parcels;this.checkpoints=checkpoints;this.proofs=proofs;this.storage=storage;</span>
+<span class="fc" id="L31">        transactions=new TransactionTemplate(manager);</span>
+<span class="fc" id="L32">    }</span>
+<span class="fc" id="L33">    public record Delivery(Assignment assignment,ParcelDetails parcel) {}</span>
+    public PageResult&lt;Delivery&gt; deliveries(Long userId,String filter,int page,int size,String token) {
+<span class="fc" id="L35">        var courier=profiles.operational(userId);var assignments=assigned(courier.id,token);</span>
+<span class="pc bpc" id="L36" title="1 of 2 branches missed.">        if(!Set.of(&quot;today&quot;,&quot;active&quot;,&quot;history&quot;).contains(filter))throw CourierException.invalid(&quot;Filter must be today, active or history.&quot;);</span>
+<span class="fc" id="L37">        LocalDate today=LocalDate.now(ZoneId.of(&quot;Asia/Colombo&quot;));</span>
+<span class="fc" id="L38">        var selected=new ArrayList&lt;Delivery&gt;();</span>
+        // Assignment and parcel reads use Courier's RabbitMQ projection.
+<span class="fc bfc" id="L40" title="All 2 branches covered.">        for(var assignment:assignments) {</span>
+            // Include unscheduled work assigned today without inventing a schedule.
+<span class="fc bfc" id="L42" title="All 2 branches covered.">            LocalDate workDate=assignment.deliveryDate()!=null?assignment.deliveryDate():</span>
+<span class="pc bpc" id="L43" title="1 of 2 branches missed.">                assignment.assignedAt()==null?null:assignment.assignedAt().atZone(ZoneId.of(&quot;Asia/Colombo&quot;)).toLocalDate();</span>
+<span class="fc bfc" id="L44" title="All 4 branches covered.">            if(filter.equals(&quot;today&quot;)&amp;&amp;!today.equals(workDate))continue;</span>
+<span class="fc" id="L45">            var parcel=parcel(assignment.parcelId(),token);</span>
+<span class="fc" id="L46">            boolean terminal=Set.of(&quot;DELIVERED&quot;,&quot;FAILED&quot;,&quot;CANCELLED&quot;).contains(parcel.status());</span>
+<span class="pc bpc" id="L47" title="2 of 6 branches missed.">            if(filter.equals(&quot;active&quot;)&amp;&amp;(!assignment.active()||terminal))continue;</span>
+<span class="pc bpc" id="L48" title="2 of 6 branches missed.">            if(filter.equals(&quot;history&quot;)&amp;&amp;assignment.active()&amp;&amp;!terminal)continue;</span>
+<span class="fc" id="L49">            selected.add(new Delivery(assignment,parcel));</span>
+<span class="fc" id="L50">        }</span>
+<span class="fc" id="L51">        int start=(int)Math.min((long)page*size,selected.size()),end=Math.min(start+size,selected.size());</span>
+<span class="fc" id="L52">        return new PageResult&lt;&gt;(List.copyOf(selected.subList(start,end)),page,size,selected.size(),(selected.size()+size-1)/size);</span>
+    }
+    public Delivery detail(Long userId,UUID parcelId,String token) {
+<span class="fc" id="L55">        var courier=profiles.operational(userId);var assignment=assignment(courier.id,parcelId,false,token);</span>
+<span class="fc" id="L56">        return new Delivery(assignment,parcel(parcelId,token));</span>
+    }
+    private List&lt;Assignment&gt; assigned(Long courierId,String token) {
+<span class="fc" id="L59">        var result=dispatch.assignments(courierId,token);</span>
+<span class="pc bpc" id="L60" title="6 of 16 branches missed.">        if(result==null || result.stream().anyMatch(a-&gt;a==null||a.id()==null||a.parcelId()==null||!courierId.equals(a.courierId())||a.attemptNo()&lt;1||a.version()&lt;0))</span>
+<span class="fc" id="L61">            throw new RemoteFailure(&quot;Assignment data&quot;,false);</span>
+<span class="fc" id="L62">        return result;</span>
+    }
+    private Assignment assignment(Long courierId,UUID parcelId,boolean active,String token) {
+<span class="pc bpc" id="L65" title="2 of 6 branches missed.">        return assigned(courierId,token).stream().filter(a-&gt;parcelId.equals(a.parcelId())&amp;&amp;(!active||a.active()))</span>
+<span class="fc" id="L66">            .max(Comparator.comparingInt(Assignment::attemptNo)).orElseThrow(()-&gt;CourierException.forbidden(&quot;This parcel is not assigned to your courier profile.&quot;));</span>
+    }
+    private ParcelDetails parcel(UUID id,String token) {
+<span class="fc" id="L69">        var p=parcels.parcel(id,token);</span>
+<span class="pc bpc" id="L70" title="3 of 6 branches missed.">        if(p==null||!id.equals(p.id())||p.status()==null)throw new RemoteFailure(&quot;Parcel service&quot;,false);</span>
+<span class="fc" id="L71">        return p;</span>
+    }
+    public Submission submit(Long userId,UUID parcelId,DeliveryInput input,MultipartFile upload,String token) {
+<span class="fc" id="L74">        var courier=profiles.operational(userId);</span>
+<span class="fc" id="L75">        var photo=storage.validate(upload);validate(input,photo);</span>
+<span class="fc" id="L76">        String fingerprint=fingerprint(parcelId,input,photo);</span>
+<span class="fc" id="L77">        var existing=checkpoints.findById(input.submissionId());</span>
+<span class="fc bfc" id="L78" title="All 2 branches covered.">        if(existing.isPresent()) {</span>
+<span class="fc" id="L79">            var current=existing.get();verifySame(current,courier.id,fingerprint);</span>
+<span class="pc bpc" id="L80" title="1 of 4 branches missed.">            if(current.syncStatus==SyncStatus.CONFIRMED||current.syncStatus==SyncStatus.REJECTED)return response(current);</span>
+        }
+<span class="fc" id="L82">        var assignment=assignment(courier.id,parcelId,true,token);</span>
+<span class="fc" id="L83">        var parcel=parcel(parcelId,token);</span>
+<span class="fc bfc" id="L84" title="All 2 branches covered.">        String photoKey=existing.isEmpty()?storage.store(photo):null;</span>
+<span class="fc" id="L85">        final boolean[] claimed={false};</span>
+        DeliveryCheckpoint operation;
+        try {
+<span class="fc" id="L88">            operation=transactions.execute(tx-&gt;{</span>
+<span class="fc" id="L89">                var previous=checkpoints.lockById(input.submissionId());</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">                if(previous.isPresent()) {</span>
+<span class="fc" id="L91">                    var c=previous.get();verifySame(c,courier.id,fingerprint);</span>
+<span class="pc bpc" id="L92" title="4 of 8 branches missed.">                    if(c.syncStatus==SyncStatus.REJECTED||c.syncStatus==SyncStatus.CONFIRMED||c.leaseUntil!=null&amp;&amp;c.leaseUntil.isAfter(Instant.now()))return c;</span>
+<span class="nc bnc" id="L93" title="All 4 branches missed.">                    if(!c.assignmentId.equals(assignment.id())||c.assignmentVersion!=assignment.version())throw CourierException.conflict(&quot;Assignment changed; refresh the delivery before submitting again.&quot;);</span>
+<span class="nc" id="L94">                    c.leaseUntil=Instant.now().plusSeconds(30);c.syncStatus=SyncStatus.PENDING;claimed[0]=true;</span>
+<span class="nc" id="L95">                    return checkpoints.saveAndFlush(c);</span>
+                }
+<span class="fc" id="L97">                var c=new DeliveryCheckpoint();c.id=input.submissionId();c.parcelId=parcelId;c.courier=courier;</span>
+<span class="fc" id="L98">                c.assignmentId=assignment.id();c.assignmentVersion=assignment.version();c.attemptNo=assignment.attemptNo();c.status=input.status();</span>
+<span class="fc bfc" id="L99" title="All 2 branches covered.">                c.plannedAddressSnapshot=input.status()==DeliveryStatus.PICKED_UP?parcel.pickupAddress():parcel.deliveryAddress();</span>
+<span class="fc" id="L100">                c.locationDescription=clean(input.locationDescription());c.latitude=input.latitude();c.longitude=input.longitude();</span>
+<span class="fc" id="L101">                c.accuracyMeters=input.accuracyMeters();c.capturedAt=input.capturedAt();c.recordedAt=Instant.now();</span>
+<span class="fc" id="L102">                c.note=clean(input.note());c.fingerprint=fingerprint;c.leaseUntil=Instant.now().plusSeconds(30);</span>
+<span class="fc" id="L103">                checkpoints.saveAndFlush(c);</span>
+<span class="fc bfc" id="L104" title="All 2 branches covered.">                if(input.status().terminal()) {</span>
+<span class="fc" id="L105">                    var p=new DeliveryProof();p.parcelId=parcelId;p.courier=courier;p.checkpoint=c;p.attemptNo=c.attemptNo;</span>
+<span class="fc" id="L106">                    p.outcome=input.status();p.recipientName=clean(input.recipientName());p.photoKey=photoKey;</span>
+<span class="fc" id="L107">                    p.failureReason=input.failureReason();p.note=c.note;p.recordedAt=c.recordedAt;</span>
+<span class="fc" id="L108">                    p.collectionAddressSnapshot=parcel.pickupAddress();p.deliveryAddressSnapshot=parcel.deliveryAddress();</span>
+<span class="fc" id="L109">                    proofs.saveAndFlush(p);</span>
+                }
+<span class="fc" id="L111">                claimed[0]=true;return c;</span>
+            });
+<span class="pc" id="L113">        } catch(RuntimeException e) {storage.discard(photoKey);throw e;}</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">        if(!claimed[0]){storage.discard(photoKey);return response(operation);}</span>
+        SyncStatus outcome;
+        try {
+<span class="fc" id="L117">            parcels.update(parcelId,new StatusUpdate(input.status(),clean(input.note()),userId,courier.id,</span>
+<span class="fc" id="L118">                assignment.id(),assignment.version(),assignment.attemptNo(),input.submissionId()),token);</span>
+<span class="fc" id="L119">            outcome=SyncStatus.CONFIRMED;</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">        } catch(RemoteFailure e) {outcome=e.rejected?SyncStatus.REJECTED:SyncStatus.UNKNOWN;}</span>
+<span class="fc" id="L121">        final SyncStatus resolved=outcome;</span>
+<span class="fc" id="L122">        return transactions.execute(tx-&gt;{</span>
+<span class="fc" id="L123">            var c=checkpoints.lockById(input.submissionId()).orElseThrow();c.syncStatus=resolved;</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">            c.leaseUntil=resolved==SyncStatus.UNKNOWN?Instant.now().plusSeconds(30):null;</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">            if(resolved==SyncStatus.REJECTED)proofs.findByCheckpointId(c.id).ifPresent(proof-&gt;{</span>
+<span class="fc" id="L126">                proofs.delete(proof);proofs.flush();</span>
+<span class="fc" id="L127">                org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(</span>
+<span class="fc" id="L128">                    new org.springframework.transaction.support.TransactionSynchronization() {</span>
+<span class="fc" id="L129">                        public void afterCommit(){storage.discard(proof.photoKey);}</span>
+                    });
+<span class="fc" id="L131">            });</span>
+<span class="fc" id="L132">            checkpoints.saveAndFlush(c);return response(c);</span>
+        });
+    }
+    private void verifySame(DeliveryCheckpoint c,Long courierId,String fingerprint) {
+<span class="fc bfc" id="L136" title="All 2 branches covered.">        if(!courierId.equals(c.courier.id))throw CourierException.forbidden(&quot;This submission belongs to another courier.&quot;);</span>
+<span class="fc bfc" id="L137" title="All 2 branches covered.">        if(!c.fingerprint.equals(fingerprint))throw CourierException.conflict(&quot;Submission ID was already used with different content.&quot;);</span>
+<span class="fc" id="L138">    }</span>
+    private String fingerprint(UUID parcelId,DeliveryInput input,ProofStorageService.Photo photo) {
+<span class="fc bfc" id="L140" title="All 2 branches covered.">        try {return HexFormat.of().formatHex(MessageDigest.getInstance(&quot;SHA-256&quot;).digest((parcelId+&quot;|&quot;+input+&quot;|&quot;+(photo==null?&quot;&quot;:photo.digest())).getBytes(StandardCharsets.UTF_8)));}</span>
+<span class="nc" id="L141">        catch(NoSuchAlgorithmException e){throw new IllegalStateException(e);}</span>
+    }
+    private void validate(DeliveryInput i,ProofStorageService.Photo photo) {
+<span class="pc bpc" id="L144" title="3 of 6 branches missed.">        if((i.latitude()==null)!=(i.longitude()==null))throw CourierException.invalid(&quot;Provide both latitude and longitude.&quot;);</span>
+<span class="pc bpc" id="L145" title="3 of 6 branches missed.">        if(i.latitude()==null&amp;&amp;(i.accuracyMeters()!=null||i.capturedAt()!=null))throw CourierException.invalid(&quot;Coordinates are required with GPS accuracy or capture time.&quot;);</span>
+        // Location (GPS or description) is optional for every update.
+<span class="fc bfc" id="L147" title="All 6 branches covered.">        if(i.status()==DeliveryStatus.DELIVERED&amp;&amp;clean(i.recipientName())==null&amp;&amp;photo==null)throw CourierException.invalid(&quot;Delivery requires a recipient name or photo.&quot;);</span>
+<span class="fc bfc" id="L148" title="All 4 branches covered.">        if(i.status()==DeliveryStatus.FAILED&amp;&amp;i.failureReason()==null)throw CourierException.invalid(&quot;Failed delivery requires a reason.&quot;);</span>
+<span class="pc bpc" id="L149" title="1 of 4 branches missed.">        if(i.status()!=DeliveryStatus.FAILED&amp;&amp;i.failureReason()!=null)throw CourierException.invalid(&quot;Failure reason is allowed only for FAILED.&quot;);</span>
+<span class="pc bpc" id="L150" title="2 of 6 branches missed.">        if(!i.status().terminal()&amp;&amp;(photo!=null||clean(i.recipientName())!=null))throw CourierException.invalid(&quot;Proof fields are accepted only for final outcomes.&quot;);</span>
+<span class="pc bpc" id="L151" title="3 of 4 branches missed.">        if(i.failureReason()==FailureReason.OTHER&amp;&amp;clean(i.note())==null)throw CourierException.invalid(&quot;Explain OTHER failure reasons in the note.&quot;);</span>
+<span class="fc" id="L152">    }</span>
+<span class="fc bfc" id="L153" title="All 4 branches covered.">    private static String clean(String value){return value==null||value.isBlank()?null:value.trim();}</span>
+    private Submission response(DeliveryCheckpoint c) {
+<span class="pc bpc" id="L155" title="1 of 4 branches missed.">        String message=switch(c.syncStatus){case CONFIRMED-&gt;&quot;Delivery update and evidence saved.&quot;;case REJECTED-&gt;&quot;Delivery update rejected. Check the current status and assignment before creating a new submission.&quot;;case UNKNOWN-&gt;&quot;Evidence saved; confirmation is unknown. Retry the identical submission after 30 seconds.&quot;;case PENDING-&gt;&quot;Submission is processing. Poll its status before retrying.&quot;;};</span>
+<span class="fc" id="L156">        return new Submission(c.id,c.parcelId,c.syncStatus,message);</span>
+    }
+    @Transactional(readOnly=true)
+    public Submission submission(Long userId,UUID id) {
+<span class="pc" id="L160">        var p=profiles.operational(userId);var c=checkpoints.findById(id).orElseThrow(()-&gt;CourierException.missing(&quot;Submission not found.&quot;));</span>
+<span class="pc bpc" id="L161" title="1 of 2 branches missed.">        if(!p.id.equals(c.courier.id))throw CourierException.forbidden(&quot;This submission belongs to another courier.&quot;);return response(c);</span>
+    }
+    @Transactional(readOnly=true)
+    public List&lt;Checkpoint&gt; tracking(Long userId,UUID parcelId,String token) {
+<span class="fc" id="L165">        var p=profiles.operational(userId);assignment(p.id,parcelId,false,token);</span>
+<span class="fc" id="L166">        return checkpoints.findByParcelIdAndCourierIdAndSyncStatusOrderByRecordedAtAsc(parcelId,p.id,SyncStatus.CONFIRMED).stream().map(Checkpoint::from).toList();</span>
+    }
+    @Transactional(readOnly=true)
+    public List&lt;Proof&gt; proofs(Long userId,UUID parcelId,String token) {
+<span class="fc" id="L170">        var p=profiles.operational(userId);assignment(p.id,parcelId,false,token);</span>
+<span class="fc" id="L171">        return proofs.findByParcelIdAndCourierIdAndCheckpointSyncStatusOrderByRecordedAtAsc(parcelId,p.id,SyncStatus.CONFIRMED).stream().map(Proof::from).toList();</span>
+    }
+    @Transactional(readOnly=true)
+    public Resource photo(Long userId,UUID parcelId,UUID proofId,String token) {
+<span class="nc" id="L175">        var p=profiles.operational(userId);assignment(p.id,parcelId,false,token);</span>
+<span class="nc" id="L176">        var proof=proofs.findByIdAndParcelIdAndCourierIdAndCheckpointSyncStatus(proofId,parcelId,p.id,SyncStatus.CONFIRMED).orElseThrow(()-&gt;CourierException.missing(&quot;Proof not found.&quot;));</span>
+<span class="nc" id="L177">        return storage.load(proof.photoKey);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

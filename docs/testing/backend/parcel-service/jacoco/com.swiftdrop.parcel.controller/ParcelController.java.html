@@ -1,0 +1,239 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ParcelController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">parcel-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.parcel.controller</a> &gt; <span class="el_source">ParcelController.java</span></div><h1>ParcelController.java</h1><pre class="source lang-java linenums">package com.swiftdrop.parcel.controller;
+
+import com.swiftdrop.parcel.dto.request.CreateParcelRequest;
+import com.swiftdrop.parcel.dto.request.UpdateParcelStatusRequest;
+import com.swiftdrop.parcel.dto.response.DispatchParcelResponse;
+import com.swiftdrop.parcel.dto.response.ParcelDetailsResponse;
+import com.swiftdrop.parcel.dto.response.ParcelHistoryResponse;
+import com.swiftdrop.parcel.dto.response.ParcelReceipt;
+import com.swiftdrop.parcel.dto.response.ParcelResponse;
+import com.swiftdrop.parcel.dto.response.ParcelStatusUpdateResponse;
+import com.swiftdrop.parcel.dto.response.ParcelSummaryResponse;
+import com.swiftdrop.parcel.dto.response.PublicTrackingResponse;
+import com.swiftdrop.parcel.entity.ParcelStatus;
+import com.swiftdrop.parcel.service.ParcelCreationService;
+import com.swiftdrop.parcel.service.ParcelQueryService;
+import com.swiftdrop.parcel.service.ParcelService;
+import com.swiftdrop.parcel.service.ParcelStatusUpdateService;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
+import java.util.UUID;
+
+@RestController
+@RequestMapping(&quot;/api/parcels&quot;)
+public class ParcelController {
+    private final ParcelCreationService service;
+    private final ParcelStatusUpdateService statusUpdates;
+    private final ParcelQueryService queryService;
+    private final ParcelService parcelService;
+
+<span class="fc" id="L45">    public ParcelController(ParcelCreationService service, ParcelStatusUpdateService statusUpdates, ParcelQueryService queryService, ParcelService parcelService) {</span>
+<span class="fc" id="L46">        this.service = service;</span>
+<span class="fc" id="L47">        this.statusUpdates = statusUpdates;</span>
+<span class="fc" id="L48">        this.queryService = queryService;</span>
+<span class="fc" id="L49">        this.parcelService = parcelService;</span>
+<span class="fc" id="L50">    }</span>
+
+    @GetMapping(&quot;/track/{trackingNumber}&quot;)
+    public ResponseEntity&lt;PublicTrackingResponse&gt;
+            track(@PathVariable String trackingNumber) {
+<span class="fc" id="L55">        return ResponseEntity.ok()</span>
+<span class="fc" id="L56">            .cacheControl(CacheControl.noStore())</span>
+<span class="fc" id="L57">            .body(parcelService.track(trackingNumber));</span>
+    }
+
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize(&quot;hasRole('CUSTOMER')&quot;)
+    public ParcelResponse create(@Valid @RequestBody CreateParcelRequest request,
+                                 @AuthenticationPrincipal Jwt jwt) {
+<span class="fc" id="L65">        return service.createCustomerParcel(request, parseUserId(jwt), jwt.getTokenValue());</span>
+    }
+
+    @PostMapping(&quot;/merchant&quot;)
+    @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize(&quot;hasRole('MERCHANT')&quot;)
+    public ParcelResponse createMerchant(@Valid @RequestBody CreateParcelRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+<span class="fc" id="L73">        return service.createMerchantParcel(request, parseUserId(jwt), jwt.getTokenValue());</span>
+    }
+
+    @GetMapping(&quot;/merchant&quot;)
+    @PreAuthorize(&quot;hasRole('MERCHANT')&quot;)
+    public Page&lt;ParcelDetailsResponse&gt; getMerchantParcels(
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(defaultValue = &quot;0&quot;) int page,
+            @RequestParam(defaultValue = &quot;10&quot;) int size) {
+<span class="fc" id="L82">        return queryService.getMerchantParcels(parseUserId(jwt),</span>
+<span class="fc" id="L83">            createPageRequest(page, size, Sort.by(&quot;createdAt&quot;).descending()));</span>
+    }
+
+    @PatchMapping(&quot;/{id}/courier&quot;)
+    @PreAuthorize(&quot;hasAnyRole('DISPATCHER', 'ADMIN')&quot;)
+    public ParcelResponse assignCourier(@PathVariable UUID id,
+            @Valid @RequestBody com.swiftdrop.parcel.dto.request.AssignCourierRequest request,
+            @AuthenticationPrincipal Jwt jwt) {
+<span class="fc" id="L91">        parseUserId(jwt);</span>
+<span class="fc" id="L92">        return ParcelResponse.from(parcelService.assignCourier(id, request.courierUserId()));</span>
+    }
+
+    @RequestMapping(value = &quot;/{id}/status&quot;, method = {RequestMethod.PATCH, RequestMethod.POST})
+    @PreAuthorize(&quot;hasAnyRole('COURIER', 'DISPATCHER', 'ADMIN')&quot;)
+    public ParcelStatusUpdateResponse updateStatus(@PathVariable java.util.UUID id,
+            @Valid @RequestBody UpdateParcelStatusRequest request,
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestHeader(value = &quot;Idempotency-Key&quot;, required = false) String idempotencyHeader) {
+<span class="fc" id="L101">        Long actorId = parseUserId(jwt);</span>
+<span class="fc" id="L102">        String role = jwt.getClaimAsString(&quot;role&quot;);</span>
+<span class="fc" id="L103">        UUID idempotencyKey = parseIdempotencyKey(idempotencyHeader, request.submissionId());</span>
+<span class="fc" id="L104">        return statusUpdates.update(id, request, actorId, role, idempotencyKey);</span>
+    }
+
+    @GetMapping(&quot;/my&quot;)
+    @PreAuthorize(&quot;hasRole('CUSTOMER')&quot;)
+    public Page&lt;ParcelDetailsResponse&gt; getMyParcels(@AuthenticationPrincipal Jwt jwt,
+            @RequestParam(required = false) ParcelStatus status,
+            @RequestParam(defaultValue = &quot;0&quot;) int page,
+            @RequestParam(defaultValue = &quot;10&quot;) int size) {
+<span class="fc" id="L113">        return queryService.getMyParcels(parseUserId(jwt), status,</span>
+<span class="fc" id="L114">            createPageRequest(page, size, Sort.by(&quot;createdAt&quot;).descending()));</span>
+    }
+
+    /** Counts of the customer's own parcels per status, for the customer dashboard. */
+    @GetMapping(&quot;/my/summary&quot;)
+    @PreAuthorize(&quot;hasRole('CUSTOMER')&quot;)
+    public ParcelSummaryResponse getMyParcelSummary(@AuthenticationPrincipal Jwt jwt) {
+<span class="fc" id="L121">        return queryService.getMyParcelSummary(parseUserId(jwt));</span>
+    }
+
+    @GetMapping(&quot;/{id}&quot;)
+    @PreAuthorize(&quot;hasAnyRole('CUSTOMER', 'MERCHANT', 'DISPATCHER', 'ADMIN')&quot;)
+    public ParcelDetailsResponse getParcelById(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+<span class="fc" id="L127">        return queryService.getParcelById(id, parseUserId(jwt), jwt.getClaimAsString(&quot;role&quot;));</span>
+    }
+
+    @GetMapping(&quot;/{id}/history&quot;)
+    @PreAuthorize(&quot;hasAnyRole('CUSTOMER', 'MERCHANT', 'DISPATCHER', 'ADMIN')&quot;)
+    public List&lt;ParcelHistoryResponse&gt; getParcelHistory(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+<span class="fc" id="L133">        return queryService.getParcelHistory(id, parseUserId(jwt), jwt.getClaimAsString(&quot;role&quot;));</span>
+    }
+
+    @GetMapping(&quot;/{id}/receipt&quot;)
+    @PreAuthorize(&quot;hasRole('CUSTOMER')&quot;)
+    public ResponseEntity&lt;byte[]&gt; getReceipt(@PathVariable(&quot;id&quot;) UUID id,
+                                            @AuthenticationPrincipal Jwt jwt) {
+<span class="fc" id="L140">        ParcelReceipt receipt = parcelService.generateReceipt(id, parseUserId(jwt));</span>
+<span class="fc" id="L141">        HttpHeaders headers = new HttpHeaders();</span>
+<span class="fc" id="L142">        headers.setContentType(MediaType.APPLICATION_PDF);</span>
+<span class="fc" id="L143">        headers.setContentDisposition(ContentDisposition.attachment().filename(receipt.filename()).build());</span>
+<span class="fc" id="L144">        return new ResponseEntity&lt;&gt;(receipt.content(), headers, HttpStatus.OK);</span>
+    }
+
+    /** Parses and validates the JWT subject as a UUID. Shared by all endpoints. */
+    private UUID extractUserId(Jwt jwt) {
+        try {
+<span class="nc" id="L150">            return UUID.fromString(jwt.getSubject());</span>
+<span class="nc" id="L151">        } catch (IllegalArgumentException ex) {</span>
+<span class="nc" id="L152">            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED,</span>
+                &quot;Invalid authenticated user identifier&quot;);
+        }
+    }
+
+    @GetMapping
+    @PreAuthorize(&quot;hasAnyRole('DISPATCHER', 'ADMIN')&quot;)
+    public Page&lt;ParcelDetailsResponse&gt; getParcelsByStatus(@RequestParam ParcelStatus status,
+            @AuthenticationPrincipal Jwt jwt,
+            @RequestParam(defaultValue = &quot;0&quot;) int page,
+            @RequestParam(defaultValue = &quot;10&quot;) int size) {
+<span class="fc" id="L163">        parseUserId(jwt);</span>
+<span class="fc" id="L164">        return queryService.getParcelsByStatus(status, jwt.getClaimAsString(&quot;role&quot;),</span>
+<span class="fc" id="L165">            createPageRequest(page, size, Sort.by(&quot;createdAt&quot;).ascending()));</span>
+    }
+
+    private Long parseUserId(Jwt jwt) {
+        try {
+<span class="pc bpc" id="L170" title="1 of 2 branches missed.">            Long userId = Long.valueOf(jwt == null ? null : jwt.getSubject());</span>
+<span class="fc bfc" id="L171" title="All 4 branches covered.">            if (userId &lt;= 0 || !userId.toString().equals(jwt.getSubject())) {</span>
+<span class="fc" id="L172">                throw new NumberFormatException(&quot;Invalid user ID&quot;);</span>
+            }
+<span class="fc" id="L174">            return userId;</span>
+<span class="fc" id="L175">        } catch (NumberFormatException ex) {</span>
+<span class="fc" id="L176">            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, &quot;Invalid authenticated user identifier&quot;);</span>
+        }
+    }
+
+    private UUID parseIdempotencyKey(String header, UUID submissionId) {
+<span class="pc bpc" id="L181" title="1 of 4 branches missed.">        if (header == null || header.isBlank()) {</span>
+<span class="pc bpc" id="L182" title="1 of 2 branches missed.">            if (submissionId != null) {</span>
+<span class="nc" id="L183">                throw new ResponseStatusException(HttpStatus.BAD_REQUEST,</span>
+                    &quot;Idempotency-Key header is required when submissionId is supplied&quot;);
+            }
+<span class="fc" id="L186">            return null;</span>
+        }
+        try {
+<span class="fc" id="L189">            UUID key = UUID.fromString(header.trim());</span>
+<span class="pc bpc" id="L190" title="2 of 4 branches missed.">            if (submissionId != null &amp;&amp; !submissionId.equals(key)) {</span>
+<span class="nc" id="L191">                throw new ResponseStatusException(HttpStatus.CONFLICT,</span>
+                    &quot;Idempotency-Key must match submissionId&quot;);
+            }
+<span class="fc" id="L194">            return key;</span>
+<span class="nc" id="L195">        } catch (IllegalArgumentException exception) {</span>
+<span class="nc" id="L196">            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,</span>
+                &quot;Idempotency-Key must be a UUID&quot;);
+        }
+    }
+
+    private PageRequest createPageRequest(int page, int size, Sort sort) {
+<span class="fc bfc" id="L202" title="All 6 branches covered.">        if (page &lt; 0 || size &lt; 1 || size &gt; 100) {</span>
+<span class="fc" id="L203">            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,</span>
+                &quot;Page must be non-negative and size must be between 1 and 100&quot;);
+        }
+<span class="fc" id="L206">        return PageRequest.of(page, size, sort);</span>
+    }
+
+    @RequestMapping(value = &quot;/{id}/cancel&quot;, method = {RequestMethod.PATCH, RequestMethod.POST})
+    @PreAuthorize(&quot;hasRole('CUSTOMER')&quot;)
+    public ParcelResponse cancelParcel(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+<span class="fc" id="L212">        return ParcelResponse.from(parcelService.cancelParcel(id, parseUserId(jwt)));</span>
+    }
+
+    // Separate projection contract: the Phase 4 endpoints retain their paginated DTOs.
+    @GetMapping(&quot;/dispatch&quot;)
+    @PreAuthorize(&quot;hasAnyRole('DISPATCHER', 'ADMIN')&quot;)
+    public List&lt;DispatchParcelResponse&gt; listForDispatch(
+            @RequestParam(required = false) String status, @AuthenticationPrincipal Jwt jwt) {
+<span class="fc" id="L220">        parseUserId(jwt);</span>
+        ParcelStatus parcelStatus;
+        try {
+<span class="pc bpc" id="L223" title="2 of 4 branches missed.">            parcelStatus = status == null || status.isBlank() ? null</span>
+<span class="fc" id="L224">                : ParcelStatus.valueOf(status.trim().toUpperCase(java.util.Locale.ROOT));</span>
+<span class="nc" id="L225">        } catch (IllegalArgumentException exception) {</span>
+<span class="nc" id="L226">            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, &quot;Invalid parcel status&quot;);</span>
+<span class="fc" id="L227">        }</span>
+<span class="fc" id="L228">        return parcelService.listParcels(parcelStatus).stream().map(DispatchParcelResponse::from).toList();</span>
+    }
+
+    @GetMapping(&quot;/dispatch/{id}&quot;)
+    @PreAuthorize(&quot;hasAnyRole('DISPATCHER', 'ADMIN')&quot;)
+    public DispatchParcelResponse findForDispatch(@PathVariable UUID id, @AuthenticationPrincipal Jwt jwt) {
+<span class="fc" id="L234">        parseUserId(jwt);</span>
+<span class="fc" id="L235">        return parcelService.findParcel(id).map(DispatchParcelResponse::from)</span>
+<span class="fc" id="L236">            .orElseThrow(() -&gt; new ResponseStatusException(HttpStatus.NOT_FOUND, &quot;Parcel not found&quot;));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

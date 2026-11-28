@@ -1,0 +1,303 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MerchantService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">merchant-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.merchant.service</a> &gt; <span class="el_source">MerchantService.java</span></div><h1>MerchantService.java</h1><pre class="source lang-java linenums">package com.swiftdrop.merchant.service;
+
+import com.swiftdrop.merchant.client.MerchantParcelClient;
+import com.swiftdrop.merchant.client.MerchantParcelDto;
+import com.swiftdrop.merchant.client.MerchantParcelHistoryDto;
+import com.swiftdrop.merchant.dto.request.MerchantRegistrationRequest;
+import com.swiftdrop.merchant.dto.response.MerchantDashboardOrderDto;
+import com.swiftdrop.merchant.dto.response.MerchantDashboardResponse;
+import com.swiftdrop.merchant.dto.response.MerchantOrderStatusHistoryDto;
+import com.swiftdrop.merchant.dto.response.MerchantResponse;
+import com.swiftdrop.merchant.entity.Merchant;
+import com.swiftdrop.merchant.entity.MerchantStatus;
+import com.swiftdrop.merchant.repository.MerchantRepository;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+@Service
+public class MerchantService {
+
+    private final MerchantRepository merchantRepository;
+    private final MerchantParcelClient parcelClient;
+    private final MerchantIdentityActivationClient identityActivation;
+
+    @Autowired
+    public MerchantService(
+            MerchantRepository merchantRepository,
+            MerchantParcelClient parcelClient,
+            MerchantIdentityActivationClient identityActivation
+<span class="fc" id="L42">    ) {</span>
+<span class="fc" id="L43">        this.merchantRepository = merchantRepository;</span>
+<span class="fc" id="L44">        this.parcelClient = parcelClient;</span>
+<span class="fc" id="L45">        this.identityActivation = identityActivation;</span>
+<span class="fc" id="L46">    }</span>
+
+    public MerchantService(MerchantRepository merchantRepository, MerchantIdentityActivationClient identityActivation) {
+<span class="fc" id="L49">        this(merchantRepository, null, identityActivation);</span>
+<span class="fc" id="L50">    }</span>
+
+    // Register a merchant application
+    @Transactional
+    public MerchantResponse registerMerchant(
+            Long userId,
+            MerchantRegistrationRequest request) {
+
+<span class="nc bnc" id="L58" title="All 2 branches missed.">        if (merchantRepository.existsByUserId(userId)) {</span>
+<span class="nc" id="L59">            throw new ResponseStatusException(</span>
+                    HttpStatus.CONFLICT,
+                    &quot;User already has a merchant application&quot;);
+        }
+
+<span class="nc" id="L64">        String registrationNumber =</span>
+<span class="nc" id="L65">                request.registrationNumber().trim();</span>
+
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        if (merchantRepository.existsByRegistrationNumber(</span>
+                registrationNumber)) {
+<span class="nc" id="L69">            throw new ResponseStatusException(</span>
+                    HttpStatus.CONFLICT,
+                    &quot;Business registration number already exists&quot;);
+        }
+
+<span class="nc" id="L74">        Merchant merchant = new Merchant();</span>
+
+<span class="nc" id="L76">        merchant.setUserId(userId);</span>
+<span class="nc" id="L77">        merchant.setBusinessName(request.businessName().trim());</span>
+<span class="nc" id="L78">        merchant.setRegistrationNumber(registrationNumber);</span>
+<span class="nc" id="L79">        merchant.setContactName(request.contactName().trim());</span>
+<span class="nc" id="L80">        merchant.setEmail(request.email().trim());</span>
+<span class="nc" id="L81">        merchant.setPhone(request.phone().trim());</span>
+<span class="nc" id="L82">        merchant.setAddress(request.address().trim());</span>
+<span class="nc" id="L83">        merchant.setStatus(MerchantStatus.PENDING);</span>
+<span class="nc" id="L84">        merchant.setCreatedAt(OffsetDateTime.now(ZoneOffset.UTC));</span>
+
+        try {
+<span class="nc" id="L87">            Merchant saved = merchantRepository.saveAndFlush(merchant);</span>
+<span class="nc" id="L88">            return MerchantResponse.from(saved);</span>
+<span class="nc" id="L89">        } catch (DataIntegrityViolationException ex) {</span>
+<span class="nc" id="L90">            throw new ResponseStatusException(</span>
+                    HttpStatus.CONFLICT,
+                    &quot;Merchant application conflicts with an existing record&quot;);
+        }
+    }
+
+    // Get logged-in user's merchant application
+    @Transactional(readOnly = true)
+    public MerchantResponse getMyMerchant(Long userId) {
+
+<span class="nc" id="L100">        Merchant merchant = merchantRepository.findByUserId(userId)</span>
+<span class="nc" id="L101">                .orElseThrow(() -&gt; new ResponseStatusException(</span>
+                        HttpStatus.NOT_FOUND,
+                        &quot;Merchant application not found&quot;));
+
+<span class="nc" id="L105">        return MerchantResponse.from(merchant);</span>
+    }
+
+    // Get merchant dashboard metrics and recent orders from parcel-service
+    @Transactional(readOnly = true)
+    public MerchantDashboardResponse getMyDashboard(Long userId) {
+<span class="fc" id="L111">        Merchant merchant = approvedMerchant(userId);</span>
+
+<span class="fc" id="L113">        List&lt;MerchantParcelDto&gt; parcels = parcelClient.getParcelsByMerchant(userId, merchant.getId());</span>
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">        if (parcels == null) {</span>
+<span class="nc" id="L115">            parcels = List.of();</span>
+        }
+
+<span class="fc" id="L118">        long totalOrders = parcels.size();</span>
+<span class="fc" id="L119">        long pendingOrders = 0;</span>
+<span class="fc" id="L120">        long inTransitOrders = 0;</span>
+<span class="fc" id="L121">        long deliveredOrders = 0;</span>
+
+<span class="fc" id="L123">        Map&lt;String, Long&gt; ordersByStatus = new LinkedHashMap&lt;&gt;();</span>
+
+<span class="fc bfc" id="L125" title="All 2 branches covered.">        for (MerchantParcelDto parcel : parcels) {</span>
+<span class="pc bpc" id="L126" title="1 of 2 branches missed.">            String status = parcel.status() != null ? parcel.status().toUpperCase(Locale.ROOT) : &quot;UNKNOWN&quot;;</span>
+<span class="fc" id="L127">            ordersByStatus.put(status, ordersByStatus.getOrDefault(status, 0L) + 1);</span>
+
+<span class="pc bpc" id="L129" title="1 of 4 branches missed.">            switch (status) {</span>
+<span class="fc" id="L130">                case &quot;CREATED&quot;, &quot;PENDING&quot;, &quot;PICKED_UP&quot; -&gt; pendingOrders++;</span>
+<span class="fc" id="L131">                case &quot;IN_TRANSIT&quot;, &quot;OUT_FOR_DELIVERY&quot; -&gt; inTransitOrders++;</span>
+<span class="fc" id="L132">                case &quot;DELIVERED&quot; -&gt; deliveredOrders++;</span>
+            }
+<span class="fc" id="L134">        }</span>
+
+<span class="fc" id="L136">        List&lt;MerchantDashboardOrderDto&gt; recentOrders = parcels.stream()</span>
+<span class="fc" id="L137">                .sorted(Comparator.comparing(MerchantParcelDto::createdAt, Comparator.nullsLast(Comparator.reverseOrder())))</span>
+<span class="fc" id="L138">                .limit(10)</span>
+<span class="fc" id="L139">                .map(p -&gt; {</span>
+<span class="fc" id="L140">                    List&lt;MerchantOrderStatusHistoryDto&gt; history = List.of();</span>
+<span class="pc bpc" id="L141" title="1 of 2 branches missed.">                    if (p.id() != null) {</span>
+<span class="fc" id="L142">                        List&lt;MerchantParcelHistoryDto&gt; rawHistory = parcelClient.getParcelHistory(p.id());</span>
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">                        if (rawHistory != null) {</span>
+<span class="fc" id="L144">                            history = rawHistory.stream().map(h -&gt; new MerchantOrderStatusHistoryDto(</span>
+<span class="fc" id="L145">                                    h.newStatus(),</span>
+<span class="fc" id="L146">                                    h.note(),</span>
+<span class="pc bpc" id="L147" title="1 of 2 branches missed.">                                    h.changedAt() != null ? h.changedAt().toString() : null</span>
+<span class="fc" id="L148">                            )).toList();</span>
+                        }
+                    }
+<span class="fc" id="L151">                    return new MerchantDashboardOrderDto(</span>
+<span class="fc" id="L152">                            p.id(),</span>
+<span class="fc" id="L153">                            p.trackingNumber(),</span>
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">                            p.receiverName() != null ? p.receiverName() : &quot;Customer&quot;,</span>
+<span class="fc" id="L155">                            formatDestination(p.deliveryAddress()),</span>
+<span class="fc" id="L156">                            p.pickupAddress(),</span>
+<span class="fc" id="L157">                            p.deliveryAddress(),</span>
+<span class="fc" id="L158">                            p.status(),</span>
+<span class="pc bpc" id="L159" title="1 of 2 branches missed.">                            p.createdAt() != null ? p.createdAt().toString() : null,</span>
+                            history
+                    );
+                })
+<span class="fc" id="L163">                .toList();</span>
+
+<span class="fc" id="L165">        return new MerchantDashboardResponse(</span>
+<span class="fc" id="L166">                merchant.getId(),</span>
+<span class="fc" id="L167">                merchant.getBusinessName(),</span>
+<span class="fc" id="L168">                merchant.getStatus().name(),</span>
+                totalOrders,
+                pendingOrders,
+                inTransitOrders,
+                deliveredOrders,
+                ordersByStatus,
+                recentOrders
+        );
+    }
+
+    private Merchant approvedMerchant(Long userId) {
+<span class="fc" id="L179">        Merchant merchant = merchantRepository.findByUserId(userId)</span>
+<span class="pc" id="L180">                .orElseThrow(() -&gt; new ResponseStatusException(HttpStatus.NOT_FOUND,</span>
+                        &quot;Merchant application not found&quot;));
+<span class="fc bfc" id="L182" title="All 2 branches covered.">        if (merchant.getStatus() != MerchantStatus.APPROVED) {</span>
+<span class="fc" id="L183">            throw new ResponseStatusException(HttpStatus.FORBIDDEN,</span>
+                    &quot;Merchant must be approved to access dashboard data&quot;);
+        }
+<span class="fc" id="L186">        return merchant;</span>
+    }
+
+    private String formatDestination(String deliveryAddress) {
+<span class="pc bpc" id="L190" title="2 of 4 branches missed.">        if (deliveryAddress == null || deliveryAddress.isBlank()) {</span>
+<span class="nc" id="L191">            return &quot;Destination not specified&quot;;</span>
+        }
+<span class="fc" id="L193">        String[] parts = deliveryAddress.split(&quot;,&quot;);</span>
+<span class="pc bpc" id="L194" title="1 of 2 branches missed.">        if (parts.length &gt;= 2) {</span>
+<span class="fc" id="L195">            return parts[parts.length - 2].trim() + &quot;, &quot; + parts[parts.length - 1].trim();</span>
+        }
+<span class="nc" id="L197">        return deliveryAddress.trim();</span>
+    }
+
+    // Admin: get all merchants or filter by status
+    @Transactional(readOnly = true)
+    public List&lt;MerchantResponse&gt; getAllMerchants(
+            MerchantStatus status) {
+
+        List&lt;Merchant&gt; merchants;
+
+<span class="nc bnc" id="L207" title="All 2 branches missed.">        if (status == null) {</span>
+<span class="nc" id="L208">            merchants = merchantRepository.findAll();</span>
+        } else {
+<span class="nc" id="L210">            merchants = merchantRepository.findByStatus(status);</span>
+        }
+
+<span class="nc" id="L213">        return merchants.stream()</span>
+<span class="nc" id="L214">                .map(MerchantResponse::from)</span>
+<span class="nc" id="L215">                .toList();</span>
+    }
+
+    // Admin: get merchant by ID
+    @Transactional(readOnly = true)
+    public MerchantResponse getMerchantById(Long merchantId) {
+
+<span class="nc" id="L222">        Merchant merchant = findMerchant(merchantId);</span>
+
+<span class="nc" id="L224">        return MerchantResponse.from(merchant);</span>
+    }
+
+    // Admin: approve pending merchant
+    @Transactional
+    public MerchantResponse approveMerchant(
+            Long merchantId,
+            Long adminId,
+            String authorization) {
+
+<span class="fc" id="L234">        Merchant merchant = findForReview(merchantId);</span>
+
+<span class="fc bfc" id="L236" title="All 4 branches covered.">        if (merchant.getStatus() != MerchantStatus.PENDING &amp;&amp; merchant.getStatus() != MerchantStatus.APPROVED) {</span>
+<span class="nc" id="L237">            validatePending(merchant);</span>
+        }
+        // Retry also repairs records approved before identity activation was integrated.
+        // If the remote response is lost or our commit fails, retry reads ACTIVE and completes safely.
+<span class="fc" id="L241">        identityActivation.ensureActive(merchant.getUserId(), authorization);</span>
+<span class="fc bfc" id="L242" title="All 2 branches covered.">        if (merchant.getStatus() == MerchantStatus.APPROVED) return MerchantResponse.from(merchant);</span>
+
+<span class="fc" id="L244">        merchant.setStatus(MerchantStatus.APPROVED);</span>
+<span class="fc" id="L245">        merchant.setRejectionReason(null);</span>
+<span class="fc" id="L246">        merchant.setReviewedBy(adminId);</span>
+<span class="fc" id="L247">        merchant.setReviewedAt(OffsetDateTime.now(ZoneOffset.UTC));</span>
+
+<span class="fc" id="L249">        return MerchantResponse.from(</span>
+<span class="fc" id="L250">                merchantRepository.save(merchant));</span>
+    }
+
+    // Admin: reject pending merchant
+    @Transactional
+    public MerchantResponse rejectMerchant(
+            Long merchantId,
+            Long adminId,
+            String reason) {
+
+<span class="pc bpc" id="L260" title="1 of 4 branches missed.">        if (reason == null || reason.isBlank()) {</span>
+<span class="fc" id="L261">            throw new ResponseStatusException(</span>
+                    HttpStatus.BAD_REQUEST,
+                    &quot;Rejection reason is required&quot;);
+        }
+
+<span class="fc" id="L266">        Merchant merchant = findForReview(merchantId);</span>
+
+<span class="fc" id="L268">        validatePending(merchant);</span>
+
+<span class="fc" id="L270">        merchant.setStatus(MerchantStatus.REJECTED);</span>
+<span class="fc" id="L271">        merchant.setRejectionReason(reason.trim());</span>
+<span class="fc" id="L272">        merchant.setReviewedBy(adminId);</span>
+<span class="fc" id="L273">        merchant.setReviewedAt(OffsetDateTime.now(ZoneOffset.UTC));</span>
+
+<span class="fc" id="L275">        return MerchantResponse.from(</span>
+<span class="fc" id="L276">                merchantRepository.save(merchant));</span>
+    }
+
+    // Shared helper: find merchant
+    private Merchant findForReview(Long merchantId) {
+<span class="fc" id="L281">        return merchantRepository.findForReviewById(merchantId).orElseThrow(() -&gt;</span>
+<span class="nc" id="L282">                new ResponseStatusException(HttpStatus.NOT_FOUND, &quot;Merchant not found&quot;));</span>
+    }
+
+    private Merchant findMerchant(Long merchantId) {
+
+<span class="nc" id="L287">        return merchantRepository.findById(merchantId)</span>
+<span class="nc" id="L288">                .orElseThrow(() -&gt; new ResponseStatusException(</span>
+                        HttpStatus.NOT_FOUND,
+                        &quot;Merchant not found&quot;));
+    }
+
+    // Shared helper: only pending applications can be reviewed
+    private void validatePending(Merchant merchant) {
+
+<span class="fc bfc" id="L296" title="All 2 branches covered.">        if (merchant.getStatus() != MerchantStatus.PENDING) {</span>
+<span class="fc" id="L297">            throw new ResponseStatusException(</span>
+                    HttpStatus.CONFLICT,
+                    &quot;Only pending merchant applications can be reviewed&quot;);
+        }
+<span class="fc" id="L301">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

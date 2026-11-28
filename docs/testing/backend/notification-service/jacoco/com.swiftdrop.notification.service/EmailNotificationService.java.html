@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>EmailNotificationService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">notification-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.notification.service</a> &gt; <span class="el_source">EmailNotificationService.java</span></div><h1>EmailNotificationService.java</h1><pre class="source lang-java linenums">package com.swiftdrop.notification.service;
+
+import com.swiftdrop.notification.client.IdentityServiceClient;
+import com.swiftdrop.notification.event.ParcelStatusChangedEvent;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+<span class="fc" id="L23">@Slf4j</span>
+@Service
+public class EmailNotificationService {
+
+<span class="fc" id="L27">    public static final ZoneId SRI_LANKA_ZONE = ZoneId.of(&quot;Asia/Colombo&quot;);</span>
+<span class="fc" id="L28">    public static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern(&quot;MMMM d, yyyy&quot;, Locale.ENGLISH);</span>
+<span class="fc" id="L29">    public static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern(&quot;h:mm a&quot;, Locale.ENGLISH);</span>
+
+    private final JavaMailSender mailSender;
+    private final IdentityServiceClient identityServiceClient;
+    private final String mailHost;
+    private final int mailPort;
+    private final String mailFrom;
+    private final String testRecipient;
+    private final String mailUsername;
+
+    public EmailNotificationService(
+            @Autowired(required = false) JavaMailSender mailSender,
+            @Autowired(required = false) IdentityServiceClient identityServiceClient,
+            @Value(&quot;${notification.mail.host:localhost}&quot;) String mailHost,
+            @Value(&quot;${notification.mail.port:587}&quot;) int mailPort,
+            @Value(&quot;${notification.mail.from:notifications@swiftdrop.com}&quot;) String mailFrom,
+            @Value(&quot;${notification.mail.test-recipient:}&quot;) String testRecipient,
+<span class="fc" id="L46">            @Value(&quot;${spring.mail.username:}&quot;) String mailUsername) {</span>
+<span class="fc" id="L47">        this.mailSender = mailSender;</span>
+<span class="fc" id="L48">        this.identityServiceClient = identityServiceClient;</span>
+<span class="fc" id="L49">        this.mailHost = mailHost;</span>
+<span class="fc" id="L50">        this.mailPort = mailPort;</span>
+<span class="fc" id="L51">        this.mailFrom = mailFrom;</span>
+<span class="fc" id="L52">        this.testRecipient = testRecipient;</span>
+<span class="fc" id="L53">        this.mailUsername = mailUsername;</span>
+<span class="fc" id="L54">    }</span>
+
+    /**
+     * Resolves the target email address for a given customerId.
+     * 1. If customerId is already an email address (e.g. test events or OAuth
+     * logins), uses it directly.
+     * 2. Queries identity-service to resolve the user's registered email address.
+     * 3. Otherwise falls back to configured test recipient or MAIL_USERNAME for
+     * local development testing.
+     */
+    public String resolveCustomerEmail(String customerId) {
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">        if (!StringUtils.hasText(customerId)) {</span>
+<span class="nc" id="L66">            return null;</span>
+        }
+
+        // 1. Direct email in customerId
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        if (customerId.contains(&quot;@&quot;)) {</span>
+<span class="fc" id="L71">            return customerId.trim();</span>
+        }
+
+        // 2. Query Identity Service
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">        if (identityServiceClient != null) {</span>
+<span class="fc" id="L76">            Optional&lt;String&gt; emailOpt = identityServiceClient.findEmailByCustomerId(customerId);</span>
+<span class="fc bfc" id="L77" title="All 2 branches covered.">            if (emailOpt.isPresent()) {</span>
+<span class="fc" id="L78">                log.info(&quot;Resolved customer email '{}' from identity-service for customerId '{}'&quot;,</span>
+<span class="fc" id="L79">                        emailOpt.get(), customerId);</span>
+<span class="fc" id="L80">                return emailOpt.get();</span>
+            }
+        }
+
+        // 3. Fallback for testing / dev environment
+<span class="pc bpc" id="L85" title="2 of 4 branches missed.">        if (StringUtils.hasText(testRecipient) &amp;&amp; testRecipient.contains(&quot;@&quot;)) {</span>
+<span class="fc" id="L86">            log.info(&quot;Using configured test-recipient '{}' for customerId '{}'&quot;, testRecipient, customerId);</span>
+<span class="fc" id="L87">            return testRecipient.trim();</span>
+        }
+<span class="nc bnc" id="L89" title="All 4 branches missed.">        if (StringUtils.hasText(mailUsername) &amp;&amp; mailUsername.contains(&quot;@&quot;)) {</span>
+<span class="nc" id="L90">            log.info(&quot;Using MAIL_USERNAME '{}' as recipient for customerId '{}'&quot;, mailUsername, customerId);</span>
+<span class="nc" id="L91">            return mailUsername.trim();</span>
+        }
+
+<span class="nc" id="L94">        return null;</span>
+    }
+
+    /**
+     * Converts raw system statuses like &quot;IN_TRANSIT&quot; into friendly status words
+     * like &quot;In Transit&quot;.
+     */
+    public static String formatFriendlyStatus(String status) {
+<span class="nc bnc" id="L102" title="All 4 branches missed.">        if (status == null || status.isBlank()) {</span>
+<span class="nc" id="L103">            return &quot;Updated&quot;;</span>
+        }
+<span class="nc bnc" id="L105" title="All 10 branches missed.">        return switch (status.trim().toUpperCase()) {</span>
+<span class="nc" id="L106">            case &quot;CREATED&quot; -&gt; &quot;Created&quot;;</span>
+<span class="nc" id="L107">            case &quot;PENDING&quot; -&gt; &quot;Pending&quot;;</span>
+<span class="nc" id="L108">            case &quot;PICKED_UP&quot; -&gt; &quot;Picked Up&quot;;</span>
+<span class="nc" id="L109">            case &quot;IN_TRANSIT&quot; -&gt; &quot;In Transit&quot;;</span>
+<span class="nc" id="L110">            case &quot;OUT_FOR_DELIVERY&quot; -&gt; &quot;Out for Delivery&quot;;</span>
+<span class="nc" id="L111">            case &quot;DELIVERED&quot; -&gt; &quot;Delivered&quot;;</span>
+<span class="nc" id="L112">            case &quot;CANCELLED&quot; -&gt; &quot;Cancelled&quot;;</span>
+<span class="nc" id="L113">            case &quot;RETURNED&quot; -&gt; &quot;Returned&quot;;</span>
+<span class="nc" id="L114">            case &quot;FAILED&quot;, &quot;FAILED_DELIVERY&quot; -&gt; &quot;Delivery Failed&quot;;</span>
+<span class="nc" id="L115">            default -&gt; Arrays.stream(status.split(&quot;_&quot;))</span>
+<span class="nc bnc" id="L116" title="All 2 branches missed.">                    .map(word -&gt; word.isEmpty() ? &quot;&quot;</span>
+<span class="nc" id="L117">                            : Character.toUpperCase(word.charAt(0)) + word.substring(1).toLowerCase())</span>
+<span class="nc" id="L118">                    .collect(Collectors.joining(&quot; &quot;));</span>
+        };
+    }
+
+    /**
+     * Generates a customer-friendly, professional email subject based on the new
+     * parcel status.
+     * Technical transitions and old status are never displayed.
+     */
+    public static String resolveEmailSubject(String newStatus) {
+<span class="fc bfc" id="L128" title="All 2 branches covered.">        if (!StringUtils.hasText(newStatus)) {</span>
+<span class="fc" id="L129">            return &quot;SwiftDrop – Parcel Status Update&quot;;</span>
+        }
+<span class="pc bpc" id="L131" title="1 of 9 branches missed.">        return switch (newStatus.trim().toUpperCase()) {</span>
+<span class="fc" id="L132">            case &quot;DELIVERED&quot; -&gt; &quot;SwiftDrop – Parcel Successfully Delivered&quot;;</span>
+<span class="fc" id="L133">            case &quot;OUT_FOR_DELIVERY&quot; -&gt; &quot;SwiftDrop – Parcel Out for Delivery&quot;;</span>
+<span class="fc" id="L134">            case &quot;IN_TRANSIT&quot; -&gt; &quot;SwiftDrop – Parcel In Transit&quot;;</span>
+<span class="fc" id="L135">            case &quot;PICKED_UP&quot; -&gt; &quot;SwiftDrop – Parcel Picked Up&quot;;</span>
+<span class="fc" id="L136">            case &quot;CREATED&quot;, &quot;PENDING&quot; -&gt; &quot;SwiftDrop – Parcel Registered&quot;;</span>
+<span class="fc" id="L137">            case &quot;FAILED&quot;, &quot;FAILED_DELIVERY&quot; -&gt; &quot;SwiftDrop – Delivery Attempt Unsuccessful&quot;;</span>
+<span class="fc" id="L138">            case &quot;CANCELLED&quot; -&gt; &quot;SwiftDrop – Parcel Delivery Cancelled&quot;;</span>
+<span class="fc" id="L139">            case &quot;RETURNED&quot; -&gt; &quot;SwiftDrop – Parcel Being Returned&quot;;</span>
+<span class="nc" id="L140">            default -&gt; &quot;SwiftDrop – Parcel Status Update&quot;;</span>
+        };
+    }
+
+    /**
+     * Generates the primary status sentence for the customer email.
+     * Converts UTC instant to Sri Lanka Standard Time (Asia/Colombo).
+     */
+    public static String resolveStatusSentence(String newStatus, String trackingNumber, ZonedDateTime slTime) {
+<span class="pc bpc" id="L149" title="1 of 2 branches missed.">        String tracking = StringUtils.hasText(trackingNumber) ? trackingNumber.trim() : &quot;your parcel&quot;;</span>
+<span class="fc" id="L150">        String deliveryDate = DATE_FORMATTER.format(slTime);</span>
+<span class="fc" id="L151">        String deliveryTime = TIME_FORMATTER.format(slTime);</span>
+
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">        if (!StringUtils.hasText(newStatus)) {</span>
+<span class="nc" id="L154">            return String.format(&quot;Your parcel %s status has been updated as of %s, at %s (Sri Lanka time).&quot;,</span>
+                    tracking, deliveryDate, deliveryTime);
+        }
+
+<span class="pc bpc" id="L158" title="5 of 9 branches missed.">        return switch (newStatus.trim().toUpperCase()) {</span>
+            case &quot;DELIVERED&quot; -&gt;
+<span class="fc" id="L160">                String.format(&quot;Your parcel %s has been successfully delivered on %s, at %s (Sri Lanka time).&quot;,</span>
+                        tracking, deliveryDate, deliveryTime);
+            case &quot;OUT_FOR_DELIVERY&quot; -&gt;
+<span class="fc" id="L163">                String.format(</span>
+                        &quot;Your parcel %s is out for delivery as of %s, at %s (Sri Lanka time) and will arrive soon.&quot;,
+                        tracking, deliveryDate, deliveryTime);
+            case &quot;IN_TRANSIT&quot; -&gt;
+<span class="fc" id="L167">                String.format(&quot;Your parcel %s is on the way to the delivery location as of %s, at %s (Sri Lanka time).&quot;,</span>
+                        tracking, deliveryDate, deliveryTime);
+            case &quot;PICKED_UP&quot; -&gt;
+<span class="fc" id="L170">                String.format(&quot;Your parcel %s has been picked up by the courier on %s, at %s (Sri Lanka time).&quot;,</span>
+                        tracking, deliveryDate, deliveryTime);
+            case &quot;CREATED&quot;, &quot;PENDING&quot; -&gt;
+<span class="nc" id="L173">                String.format(</span>
+                        &quot;Your parcel %s has been registered on %s, at %s (Sri Lanka time) and is being processed.&quot;,
+                        tracking, deliveryDate, deliveryTime);
+            case &quot;FAILED&quot;, &quot;FAILED_DELIVERY&quot; -&gt;
+<span class="nc" id="L177">                String.format(</span>
+                        &quot;A delivery attempt for your parcel %s was unsuccessful on %s, at %s (Sri Lanka time). Our team will attempt delivery again soon.&quot;,
+                        tracking, deliveryDate, deliveryTime);
+            case &quot;CANCELLED&quot; -&gt;
+<span class="nc" id="L181">                String.format(&quot;Your delivery for parcel %s has been cancelled on %s, at %s (Sri Lanka time).&quot;,</span>
+                        tracking, deliveryDate, deliveryTime);
+            case &quot;RETURNED&quot; -&gt;
+<span class="nc" id="L184">                String.format(&quot;Your parcel %s is being returned to the sender as of %s, at %s (Sri Lanka time).&quot;,</span>
+                        tracking, deliveryDate, deliveryTime);
+            default -&gt;
+<span class="nc" id="L187">                String.format(&quot;Your parcel %s status is now %s as of %s, at %s (Sri Lanka time).&quot;,</span>
+<span class="nc" id="L188">                        tracking, formatFriendlyStatus(newStatus), deliveryDate, deliveryTime);</span>
+        };
+    }
+
+    /**
+     * Constructs the full email body with salutation, status description, and
+     * closing sign-off.
+     */
+    public static String resolveEmailBody(String newStatus, String trackingNumber, Instant occurredAt) {
+<span class="pc bpc" id="L197" title="1 of 2 branches missed.">        Instant eventTime = occurredAt != null ? occurredAt : Instant.now();</span>
+<span class="fc" id="L198">        ZonedDateTime slTime = eventTime.atZone(SRI_LANKA_ZONE);</span>
+
+<span class="fc" id="L200">        String statusSentence = resolveStatusSentence(newStatus, trackingNumber, slTime);</span>
+
+<span class="fc" id="L202">        return String.format(</span>
+                &quot;Dear Customer,\n\n&quot; +
+                        &quot;%s\n\n&quot; +
+                        &quot;Thank you for choosing SwiftDrop. We appreciate your trust in our service.\n\n&quot; +
+                        &quot;Best regards,\n&quot; +
+                        &quot;SwiftDrop Team&quot;,
+                statusSentence);
+    }
+
+    /**
+     * Sends an email notification to the customer informing them of parcel status
+     * change.
+     */
+    public void sendParcelUpdateEmail(ParcelStatusChangedEvent event) {
+<span class="fc" id="L216">        Objects.requireNonNull(event, &quot;event must not be null&quot;);</span>
+
+<span class="fc" id="L218">        String recipientEmail = resolveCustomerEmail(event.customerId());</span>
+
+<span class="fc" id="L220">        String subject = resolveEmailSubject(event.newStatus());</span>
+<span class="fc" id="L221">        String body = resolveEmailBody(event.newStatus(), event.trackingNumber(), event.occurredAt());</span>
+
+<span class="pc bpc" id="L223" title="1 of 2 branches missed.">        if (!StringUtils.hasText(recipientEmail)) {</span>
+<span class="nc" id="L224">            log.warn(&quot;No recipient email could be resolved for customerId={}. Skipping email dispatch.&quot;,</span>
+<span class="nc" id="L225">                    event.customerId());</span>
+<span class="nc" id="L226">            return;</span>
+        }
+
+<span class="fc" id="L229">        log.info(</span>
+                &quot;Sending email notification: host={}:{}, from={}, to={}, customerId={}, trackingNumber={}, subject='{}'&quot;,
+<span class="fc" id="L231">                mailHost, mailPort, mailFrom, recipientEmail, event.customerId(), event.trackingNumber(), subject);</span>
+
+<span class="pc bpc" id="L233" title="1 of 2 branches missed.">        if (mailSender == null) {</span>
+<span class="nc" id="L234">            log.warn(&quot;JavaMailSender is not configured. Email to {} was not sent.&quot;, recipientEmail);</span>
+<span class="nc" id="L235">            return;</span>
+        }
+
+        try {
+<span class="fc" id="L239">            SimpleMailMessage mailMessage = new SimpleMailMessage();</span>
+<span class="fc" id="L240">            mailMessage.setFrom(mailFrom);</span>
+<span class="fc" id="L241">            mailMessage.setTo(recipientEmail);</span>
+<span class="fc" id="L242">            mailMessage.setSubject(subject);</span>
+<span class="fc" id="L243">            mailMessage.setText(body);</span>
+
+<span class="fc" id="L245">            mailSender.send(mailMessage);</span>
+<span class="fc" id="L246">            log.info(&quot;Email notification successfully sent to {} for parcel {}&quot;,</span>
+<span class="fc" id="L247">                    recipientEmail, event.trackingNumber());</span>
+<span class="fc" id="L248">        } catch (Exception ex) {</span>
+<span class="fc" id="L249">            log.error(&quot;Failed to send email to {} for parcel {}: {}&quot;,</span>
+<span class="fc" id="L250">                    recipientEmail, event.trackingNumber(), ex.getMessage(), ex);</span>
+<span class="fc" id="L251">        }</span>
+<span class="fc" id="L252">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

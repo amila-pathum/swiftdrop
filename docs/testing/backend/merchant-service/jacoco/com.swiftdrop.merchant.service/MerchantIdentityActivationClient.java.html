@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MerchantIdentityActivationClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">merchant-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.merchant.service</a> &gt; <span class="el_source">MerchantIdentityActivationClient.java</span></div><h1>MerchantIdentityActivationClient.java</h1><pre class="source lang-java linenums">package com.swiftdrop.merchant.service;
+
+import java.net.http.HttpClient;
+import java.time.Duration;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.server.ResponseStatusException;
+
+/** Uses the approving administrator's token; Identity remains the owner of account status. */
+@Component
+public class MerchantIdentityActivationClient {
+    private final RestClient client;
+
+    public MerchantIdentityActivationClient(
+<span class="fc" id="L21">            @Value(&quot;${IDENTITY_SERVICE_URL:http://localhost:8081}&quot;) String url) {</span>
+<span class="fc" id="L22">        var factory = new JdkClientHttpRequestFactory(HttpClient.newBuilder()</span>
+<span class="fc" id="L23">                .connectTimeout(Duration.ofSeconds(2)).followRedirects(HttpClient.Redirect.NEVER).build());</span>
+<span class="fc" id="L24">        factory.setReadTimeout(Duration.ofSeconds(5));</span>
+<span class="fc" id="L25">        client = RestClient.builder().baseUrl(url).requestFactory(factory).build();</span>
+<span class="fc" id="L26">    }</span>
+
+    public void ensureActive(Long userId, String authorization) {
+<span class="pc bpc" id="L29" title="2 of 6 branches missed.">        if (authorization == null || !authorization.startsWith(&quot;Bearer &quot;) || authorization.length() &lt;= 7) {</span>
+<span class="fc" id="L30">            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, &quot;Administrator authentication is required&quot;);</span>
+        }
+<span class="pc bpc" id="L32" title="2 of 4 branches missed.">        if (userId == null || userId &lt;= 0) throw conflict();</span>
+        try {
+<span class="fc" id="L34">            var lookup = client.get().uri(&quot;/api/admin/users/{id}&quot;, userId)</span>
+<span class="fc" id="L35">                    .header(HttpHeaders.AUTHORIZATION, authorization).retrieve().toEntity(Account.class);</span>
+<span class="fc bfc" id="L36" title="All 2 branches covered.">            if (!lookup.getStatusCode().is2xxSuccessful()) throw unavailable();</span>
+<span class="fc" id="L37">            Account account = lookup.getBody();</span>
+<span class="fc" id="L38">            validateOwner(account, userId);</span>
+<span class="fc bfc" id="L39" title="All 2 branches covered.">            if (&quot;ACTIVE&quot;.equals(account.status())) return;</span>
+<span class="fc bfc" id="L40" title="All 2 branches covered.">            if (!&quot;PENDING_APPROVAL&quot;.equals(account.status())) throw conflict();</span>
+<span class="fc" id="L41">            var activation = client.post().uri(&quot;/api/admin/users/{id}/activate&quot;, userId)</span>
+<span class="fc" id="L42">                    .header(HttpHeaders.AUTHORIZATION, authorization).retrieve().toEntity(Account.class);</span>
+<span class="pc bpc" id="L43" title="1 of 2 branches missed.">            if (!activation.getStatusCode().is2xxSuccessful()) throw unavailable();</span>
+<span class="fc" id="L44">            Account activated = activation.getBody();</span>
+<span class="fc" id="L45">            validateOwner(activated, userId);</span>
+<span class="pc bpc" id="L46" title="1 of 2 branches missed.">            if (!&quot;ACTIVE&quot;.equals(activated.status())) throw unavailable();</span>
+<span class="fc" id="L47">        } catch (RestClientResponseException exception) {</span>
+<span class="fc" id="L48">            int status = exception.getStatusCode().value();</span>
+<span class="pc bpc" id="L49" title="1 of 4 branches missed.">            if (status == 401 || status == 403) {</span>
+<span class="fc" id="L50">                throw new ResponseStatusException(HttpStatus.FORBIDDEN,</span>
+                        &quot;Administrator authorization could not be verified by Identity Service&quot;);
+            }
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">            if (status == 404) throw new ResponseStatusException(HttpStatus.CONFLICT, &quot;Linked login account not found&quot;);</span>
+<span class="fc" id="L54">            throw unavailable();</span>
+<span class="nc" id="L55">        } catch (RestClientException exception) {</span>
+            // Never expose remote bodies, headers or exception text containing credentials.
+<span class="nc" id="L57">            throw unavailable();</span>
+<span class="fc" id="L58">        }</span>
+<span class="fc" id="L59">    }</span>
+
+    private static void validateOwner(Account account, Long userId) {
+<span class="pc bpc" id="L62" title="1 of 6 branches missed.">        if (account == null || !userId.equals(account.id()) || !&quot;MERCHANT&quot;.equals(account.role())) throw conflict();</span>
+<span class="fc" id="L63">    }</span>
+    private static ResponseStatusException conflict() {
+<span class="fc" id="L65">        return new ResponseStatusException(HttpStatus.CONFLICT,</span>
+                &quot;Linked account must be a pending or active merchant; suspended and disabled accounts cannot be activated here&quot;);
+    }
+    private static ResponseStatusException unavailable() {
+<span class="fc" id="L69">        return new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,</span>
+                &quot;Account activation could not be confirmed. Retry approval to check the account status&quot;);
+    }
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+<span class="fc" id="L73">    public record Account(Long id, String role, String status) { }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

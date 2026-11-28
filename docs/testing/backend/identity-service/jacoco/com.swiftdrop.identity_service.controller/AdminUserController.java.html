@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AdminUserController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report"></a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.identity_service.controller</a> &gt; <span class="el_source">AdminUserController.java</span></div><h1>AdminUserController.java</h1><pre class="source lang-java linenums">package com.swiftdrop.identity_service.controller;
+
+import com.swiftdrop.identity_service.dto.ChangeRoleRequest;
+import com.swiftdrop.identity_service.dto.ChangeStatusRequest;
+import com.swiftdrop.identity_service.dto.CreateStaffRequest;
+import com.swiftdrop.identity_service.dto.PasswordResetTokenResponse;
+import com.swiftdrop.identity_service.dto.UserResponse;
+import com.swiftdrop.identity_service.entity.Role;
+import com.swiftdrop.identity_service.entity.UserStatus;
+import com.swiftdrop.identity_service.security.AuthenticatedUser;
+import com.swiftdrop.identity_service.service.AdminUserService;
+import com.swiftdrop.identity_service.service.PasswordResetService;
+import jakarta.validation.Valid;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping(&quot;/api/admin/users&quot;)
+@PreAuthorize(&quot;hasRole('ADMIN')&quot;)
+public class AdminUserController {
+
+    private final AdminUserService adminUserService;
+    private final PasswordResetService passwordResetService;
+
+    public AdminUserController(AdminUserService adminUserService,
+<span class="fc" id="L41">            PasswordResetService passwordResetService) {</span>
+<span class="fc" id="L42">        this.adminUserService = adminUserService;</span>
+<span class="fc" id="L43">        this.passwordResetService = passwordResetService;</span>
+<span class="fc" id="L44">    }</span>
+
+    /**
+     * Lists users with pagination, optional search (by name, email, or phone),
+     * and optional filtering by role and account status.
+     */
+    @GetMapping
+    public Page&lt;UserResponse&gt; listUsers(
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String phone,
+            @RequestParam(required = false) Role role,
+            @RequestParam(required = false) UserStatus status,
+            @PageableDefault(size = 10, sort = &quot;createdAt&quot;, direction = Sort.Direction.DESC) Pageable pageable) {
+<span class="pc bpc" id="L60" title="2 of 4 branches missed.">        String searchTerm = search != null &amp;&amp; !search.isBlank() ? search : q;</span>
+<span class="fc" id="L61">        return adminUserService.listUsers(searchTerm, name, email, phone, role, status, pageable);</span>
+    }
+
+    /** Creates a DISPATCHER or ADMIN account. */
+    @PostMapping
+    public ResponseEntity&lt;UserResponse&gt; createStaff(
+            @AuthenticationPrincipal AuthenticatedUser admin,
+            @Valid @RequestBody CreateStaffRequest request) {
+<span class="fc" id="L69">        return ResponseEntity.status(HttpStatus.CREATED)</span>
+<span class="fc" id="L70">            .body(adminUserService.createStaff(admin.id(), request));</span>
+    }
+
+    @GetMapping(&quot;/{id}&quot;)
+    public UserResponse getUser(@PathVariable long id) {
+<span class="fc" id="L75">        return adminUserService.getUser(id);</span>
+    }
+
+    /** Changes a user's role. */
+    @PatchMapping(&quot;/{id}/role&quot;)
+    public UserResponse changeRole(@AuthenticationPrincipal AuthenticatedUser admin,
+            @PathVariable long id, @Valid @RequestBody ChangeRoleRequest request) {
+<span class="nc" id="L82">        return adminUserService.changeRole(admin.id(), id, request.role());</span>
+    }
+
+    @PutMapping(&quot;/{id}/role&quot;)
+    public UserResponse updateRole(@AuthenticationPrincipal AuthenticatedUser admin,
+            @PathVariable long id, @Valid @RequestBody ChangeRoleRequest request) {
+<span class="nc" id="L88">        return adminUserService.changeRole(admin.id(), id, request.role());</span>
+    }
+
+    /** Activates, suspends or disables an account. */
+    @PatchMapping(&quot;/{id}/status&quot;)
+    public UserResponse changeStatus(@AuthenticationPrincipal AuthenticatedUser admin,
+            @PathVariable long id, @Valid @RequestBody ChangeStatusRequest request) {
+<span class="fc" id="L95">        return adminUserService.changeStatus(admin.id(), id, request.status());</span>
+    }
+
+    /**
+     * Activates a PENDING_APPROVAL merchant or courier. The Merchant or Courier
+     * Service forwards the approving admin's own Authorization header.
+     */
+    @PostMapping(&quot;/{id}/activate&quot;)
+    public UserResponse activate(@AuthenticationPrincipal AuthenticatedUser admin,
+            @PathVariable long id) {
+<span class="fc" id="L105">        return adminUserService.activate(admin.id(), id);</span>
+    }
+
+    /**
+     * Records that the admin rejected an application. The identity account
+     * stays PENDING_APPROVAL; application status is in the business service.
+     */
+    @PostMapping(&quot;/{id}/reject&quot;)
+    public UserResponse reject(@AuthenticationPrincipal AuthenticatedUser admin,
+            @PathVariable long id) {
+<span class="fc" id="L115">        return adminUserService.reject(admin.id(), id);</span>
+    }
+
+    @PostMapping(&quot;/{id}/password-reset&quot;)
+    public ResponseEntity&lt;PasswordResetTokenResponse&gt; issuePasswordReset(
+            @AuthenticationPrincipal AuthenticatedUser admin,
+            @PathVariable long id) {
+<span class="fc" id="L122">        return ResponseEntity.status(HttpStatus.CREATED)</span>
+<span class="fc" id="L123">            .body(passwordResetService.issueFor(admin.id(), id));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

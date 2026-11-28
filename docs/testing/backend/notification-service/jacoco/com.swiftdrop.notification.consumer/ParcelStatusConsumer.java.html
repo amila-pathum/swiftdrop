@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ParcelStatusConsumer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">notification-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.notification.consumer</a> &gt; <span class="el_source">ParcelStatusConsumer.java</span></div><h1>ParcelStatusConsumer.java</h1><pre class="source lang-java linenums">package com.swiftdrop.notification.consumer;
+
+import com.swiftdrop.notification.client.IdentityServiceClient;
+import com.swiftdrop.notification.config.RabbitMQConfig;
+import com.swiftdrop.notification.dto.response.NotificationResponse;
+import com.swiftdrop.notification.entity.Notification;
+import com.swiftdrop.notification.entity.ProcessedEvent;
+import com.swiftdrop.notification.event.ParcelStatusChangedEvent;
+import com.swiftdrop.notification.repository.NotificationRepository;
+import com.swiftdrop.notification.repository.ProcessedEventRepository;
+import com.swiftdrop.notification.service.EmailNotificationService;
+import com.swiftdrop.notification.service.NotificationStreamService;
+import com.swiftdrop.notification.service.SmsNotificationService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import tools.jackson.databind.ObjectMapper;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
+
+<span class="fc" id="L27">@Slf4j</span>
+@Component
+@RequiredArgsConstructor
+@ConditionalOnProperty(name = &quot;swiftdrop.notifications.consumer-enabled&quot;, havingValue = &quot;true&quot;, matchIfMissing = true)
+public class ParcelStatusConsumer {
+
+    private final ObjectMapper objectMapper;
+    private final NotificationRepository notificationRepository;
+    private final ProcessedEventRepository processedEventRepository;
+    private final EmailNotificationService emailNotificationService;
+    private final SmsNotificationService smsNotificationService;
+    private final NotificationStreamService notificationStreamService;
+    private final IdentityServiceClient identityServiceClient;
+
+    @Transactional
+    @RabbitListener(queues = RabbitMQConfig.NOTIFICATION_QUEUE)
+    public void consume(byte[] message) throws Exception {
+<span class="fc" id="L44">        ParcelStatusChangedEvent event = objectMapper.readValue(</span>
+                message,
+                ParcelStatusChangedEvent.class);
+
+<span class="fc" id="L48">        log.info(</span>
+                &quot;Received parcel status event: eventId={}, trackingNumber={}, oldStatus={}, newStatus={}&quot;,
+<span class="fc" id="L50">                event.eventId(),</span>
+<span class="fc" id="L51">                event.trackingNumber(),</span>
+<span class="fc" id="L52">                event.oldStatus(),</span>
+<span class="fc" id="L53">                event.newStatus());</span>
+
+        // 1. Duplicate events check : ignore repeats
+<span class="pc bpc" id="L56" title="1 of 4 branches missed.">        if (event.eventId() != null &amp;&amp; processedEventRepository.existsByEventId(event.eventId())) {</span>
+<span class="fc" id="L57">            log.info(&quot;Duplicate event ignored: eventId={}, trackingNumber={}&quot;, event.eventId(), event.trackingNumber());</span>
+<span class="fc" id="L58">            return;</span>
+        }
+
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">        Instant eventTime = event.occurredAt() != null ? event.occurredAt() : Instant.now();</span>
+
+        // 2. Customer notification : Save in-app notification, send email and mock SMS
+<span class="fc bfc" id="L64" title="All 2 branches covered.">        if (StringUtils.hasText(event.customerId())) {</span>
+<span class="fc" id="L65">            String title = resolveNotificationTitle(event.newStatus());</span>
+<span class="fc" id="L66">            String messageText = resolveNotificationDescription(event.newStatus(), event.trackingNumber());</span>
+
+<span class="fc" id="L68">            Notification notification = Notification.builder()</span>
+<span class="fc" id="L69">                    .id(UUID.randomUUID())</span>
+<span class="fc" id="L70">                    .userId(event.customerId())</span>
+<span class="fc" id="L71">                    .trackingNumber(event.trackingNumber())</span>
+<span class="fc" id="L72">                    .title(title)</span>
+<span class="fc" id="L73">                    .message(messageText)</span>
+<span class="fc" id="L74">                    .isRead(false)</span>
+<span class="fc" id="L75">                    .createdAt(eventTime)</span>
+<span class="fc" id="L76">                    .build();</span>
+
+<span class="fc" id="L78">            Notification saved = notificationRepository.save(notification);</span>
+
+            // Send email &amp; mock SMS
+<span class="fc" id="L81">            emailNotificationService.sendParcelUpdateEmail(event);</span>
+<span class="fc" id="L82">            smsNotificationService.sendParcelUpdateSms(event);</span>
+
+            // Broadcast real-time update to customer's active browser sessions (Task 6)
+<span class="fc" id="L85">            notificationStreamService.broadcastToUser(event.customerId(), NotificationResponse.from(saved));</span>
+        }
+
+        // 3. Dispatcher notification : a new parcel is waiting to be assigned a courier
+<span class="fc bfc" id="L89" title="All 2 branches covered.">        if (&quot;CREATED&quot;.equalsIgnoreCase(event.newStatus())) {</span>
+<span class="fc" id="L90">            notifyDispatchers(event, eventTime);</span>
+        }
+
+        // 4. Broadcast real-time update to public tracking stream (Task 6)
+<span class="fc" id="L94">        notificationStreamService.broadcastParcelStatus(event.trackingNumber(), event.newStatus(), eventTime);</span>
+
+        // 5. Mark event ID as processed for idempotency
+<span class="pc bpc" id="L97" title="1 of 2 branches missed.">        if (event.eventId() != null) {</span>
+<span class="fc" id="L98">            ProcessedEvent processedEvent = ProcessedEvent.builder()</span>
+<span class="fc" id="L99">                    .eventId(event.eventId())</span>
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">                    .eventType(StringUtils.hasText(event.eventType()) ? event.eventType() : &quot;parcel.status-changed&quot;)</span>
+<span class="fc" id="L101">                    .processedAt(Instant.now())</span>
+<span class="fc" id="L102">                    .build();</span>
+<span class="fc" id="L103">            processedEventRepository.save(processedEvent);</span>
+        }
+<span class="fc" id="L105">    }</span>
+
+    /**
+     * One in-app notification (and live push) per ACTIVE dispatcher. No email or
+     * SMS: dispatchers work in the app. If identity-service is unreachable the
+     * customer notification still goes out and this step is skipped.
+     */
+    private void notifyDispatchers(ParcelStatusChangedEvent event, Instant eventTime) {
+<span class="fc" id="L113">        List&lt;String&gt; dispatchers = identityServiceClient.findActiveUserIdsByRole(&quot;DISPATCHER&quot;);</span>
+<span class="fc bfc" id="L114" title="All 2 branches covered.">        if (dispatchers.isEmpty()) {</span>
+<span class="fc" id="L115">            log.warn(&quot;No active dispatchers found for new parcel {}&quot;, event.trackingNumber());</span>
+<span class="fc" id="L116">            return;</span>
+        }
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">        String tracking = StringUtils.hasText(event.trackingNumber()) ? event.trackingNumber() : &quot;A new parcel&quot;;</span>
+<span class="fc bfc" id="L119" title="All 2 branches covered.">        for (String dispatcherId : dispatchers) {</span>
+<span class="fc" id="L120">            Notification saved = notificationRepository.save(Notification.builder()</span>
+<span class="fc" id="L121">                    .id(UUID.randomUUID())</span>
+<span class="fc" id="L122">                    .userId(dispatcherId)</span>
+<span class="fc" id="L123">                    .trackingNumber(event.trackingNumber())</span>
+<span class="fc" id="L124">                    .title(DISPATCHER_NEW_PARCEL_TITLE)</span>
+<span class="fc" id="L125">                    .message(String.format(&quot;Parcel %s has been created and is waiting for a courier.&quot;, tracking))</span>
+<span class="fc" id="L126">                    .isRead(false)</span>
+<span class="fc" id="L127">                    .createdAt(eventTime)</span>
+<span class="fc" id="L128">                    .build());</span>
+<span class="fc" id="L129">            notificationStreamService.broadcastToUser(dispatcherId, NotificationResponse.from(saved));</span>
+<span class="fc" id="L130">        }</span>
+<span class="fc" id="L131">    }</span>
+
+    public static final String DISPATCHER_NEW_PARCEL_TITLE = &quot;New Parcel to Assign&quot;;
+
+    public static String resolveNotificationTitle(String newStatus) {
+<span class="pc bpc" id="L136" title="1 of 2 branches missed.">        if (!StringUtils.hasText(newStatus)) {</span>
+<span class="nc" id="L137">            return &quot;Parcel Status Update&quot;;</span>
+        }
+<span class="pc bpc" id="L139" title="2 of 9 branches missed.">        return switch (newStatus.trim().toUpperCase()) {</span>
+<span class="fc" id="L140">            case &quot;CREATED&quot;, &quot;PENDING&quot; -&gt; &quot;Parcel Registered&quot;;</span>
+<span class="fc" id="L141">            case &quot;PICKED_UP&quot; -&gt; &quot;Parcel Picked Up&quot;;</span>
+<span class="fc" id="L142">            case &quot;IN_TRANSIT&quot; -&gt; &quot;Parcel In Transit&quot;;</span>
+<span class="fc" id="L143">            case &quot;OUT_FOR_DELIVERY&quot; -&gt; &quot;Parcel Out for Delivery&quot;;</span>
+<span class="fc" id="L144">            case &quot;DELIVERED&quot; -&gt; &quot;Parcel Delivered&quot;;</span>
+<span class="fc" id="L145">            case &quot;CANCELLED&quot; -&gt; &quot;Parcel Cancelled&quot;;</span>
+<span class="nc" id="L146">            case &quot;RETURNED&quot; -&gt; &quot;Parcel Returned&quot;;</span>
+<span class="fc" id="L147">            case &quot;FAILED&quot;, &quot;FAILED_DELIVERY&quot; -&gt; &quot;Delivery Attempt Failed&quot;;</span>
+<span class="nc" id="L148">            default -&gt; &quot;Parcel &quot; + EmailNotificationService.formatFriendlyStatus(newStatus);</span>
+        };
+    }
+
+    public static String resolveNotificationDescription(String newStatus, String trackingNumber) {
+<span class="pc bpc" id="L153" title="1 of 2 branches missed.">        String tracking = StringUtils.hasText(trackingNumber) ? trackingNumber : &quot;your parcel&quot;;</span>
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">        if (!StringUtils.hasText(newStatus)) {</span>
+<span class="nc" id="L155">            return String.format(&quot;Your parcel %s status has been updated.&quot;, tracking);</span>
+        }
+<span class="pc bpc" id="L157" title="4 of 9 branches missed.">        return switch (newStatus.trim().toUpperCase()) {</span>
+            case &quot;CREATED&quot;, &quot;PENDING&quot; -&gt;
+<span class="fc" id="L159">                String.format(&quot;Your parcel %s has been registered and is being processed.&quot;, tracking);</span>
+            case &quot;PICKED_UP&quot; -&gt;
+<span class="fc" id="L161">                String.format(&quot;Your parcel %s has been picked up by the courier.&quot;, tracking);</span>
+            case &quot;IN_TRANSIT&quot; -&gt;
+<span class="fc" id="L163">                String.format(&quot;Your parcel %s is on the way to the delivery location.&quot;, tracking);</span>
+            case &quot;OUT_FOR_DELIVERY&quot; -&gt;
+<span class="fc" id="L165">                String.format(&quot;Your parcel %s is out for delivery and will arrive soon.&quot;, tracking);</span>
+            case &quot;DELIVERED&quot; -&gt;
+<span class="fc" id="L167">                String.format(&quot;Your parcel %s has been successfully delivered.&quot;, tracking);</span>
+            case &quot;CANCELLED&quot; -&gt;
+<span class="nc" id="L169">                String.format(&quot;Your delivery for parcel %s has been cancelled.&quot;, tracking);</span>
+            case &quot;RETURNED&quot; -&gt;
+<span class="nc" id="L171">                String.format(&quot;Your parcel %s is being returned to the sender.&quot;, tracking);</span>
+            case &quot;FAILED&quot;, &quot;FAILED_DELIVERY&quot; -&gt;
+<span class="nc" id="L173">                String.format(&quot;Delivery attempt for parcel %s was unsuccessful.&quot;, tracking);</span>
+            default -&gt;
+<span class="nc" id="L175">                String.format(&quot;Your parcel %s is now %s.&quot;, tracking, EmailNotificationService.formatFriendlyStatus(newStatus));</span>
+        };
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

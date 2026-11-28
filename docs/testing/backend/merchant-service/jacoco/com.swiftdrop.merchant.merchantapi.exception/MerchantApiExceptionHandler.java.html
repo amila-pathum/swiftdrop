@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MerchantApiExceptionHandler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">merchant-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.merchant.merchantapi.exception</a> &gt; <span class="el_source">MerchantApiExceptionHandler.java</span></div><h1>MerchantApiExceptionHandler.java</h1><pre class="source lang-java linenums">package com.swiftdrop.merchant.merchantapi.exception;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.Map;
+
+@RestControllerAdvice(
+        basePackages = &quot;com.swiftdrop.merchant.merchantapi.controller&quot;
+)
+<span class="fc" id="L15">public class MerchantApiExceptionHandler {</span>
+
+    @ExceptionHandler(org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class)
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; invalidParameter(Exception exception) {
+<span class="nc" id="L19">        return ResponseEntity.badRequest().body(Map.of(&quot;error&quot;, &quot;Invalid request parameter&quot;));</span>
+    }
+
+    @ExceptionHandler(org.springframework.security.access.AccessDeniedException.class)
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; accessDenied(
+            org.springframework.security.access.AccessDeniedException exception) {
+<span class="fc" id="L25">        return ResponseEntity.status(403).body(Map.of(&quot;error&quot;, &quot;Access is denied&quot;));</span>
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; invalidOrder(
+            MethodArgumentNotValidException exception
+    ) {
+<span class="fc" id="L32">        return ResponseEntity.badRequest()</span>
+<span class="fc" id="L33">                .body(Map.of(&quot;error&quot;, &quot;Invalid order details&quot;));</span>
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; invalidJson(
+            HttpMessageNotReadableException exception
+    ) {
+<span class="fc" id="L40">        return ResponseEntity.badRequest()</span>
+<span class="fc" id="L41">                .body(Map.of(&quot;error&quot;, &quot;Invalid JSON request&quot;));</span>
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; serviceError(
+            ResponseStatusException exception
+    ) {
+<span class="pc bpc" id="L48" title="1 of 2 branches missed.">        String message = exception.getReason() == null</span>
+<span class="nc" id="L49">                ? &quot;Request could not be completed&quot;</span>
+<span class="fc" id="L50">                : exception.getReason();</span>
+
+<span class="fc" id="L52">        return ResponseEntity.status(exception.getStatusCode())</span>
+<span class="fc" id="L53">                .body(Map.of(&quot;error&quot;, message));</span>
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity&lt;Map&lt;String, String&gt;&gt; unexpectedError(
+            Exception exception
+    ) {
+<span class="nc" id="L60">        return ResponseEntity.internalServerError()</span>
+<span class="nc" id="L61">                .body(Map.of(&quot;error&quot;, &quot;Order request could not be completed&quot;));</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

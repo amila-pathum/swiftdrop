@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ParcelStatusHistory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">parcel-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.parcel.entity</a> &gt; <span class="el_source">ParcelStatusHistory.java</span></div><h1>ParcelStatusHistory.java</h1><pre class="source lang-java linenums">package com.swiftdrop.parcel.entity;
+
+import jakarta.persistence.*;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.UUID;
+
+@Entity
+@Table(name = &quot;parcel_status_history&quot;, indexes = {
+    @Index(name = &quot;idx_parcel_status_history_parcel_time&quot;, columnList = &quot;parcel_id, changed_at&quot;)
+})
+public class ParcelStatusHistory {
+    @Id
+        @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+        @JoinColumn(name = &quot;parcel_id&quot;, nullable = false)
+    private Parcel parcel;
+
+    @Enumerated(EnumType.STRING)
+        @Column(name = &quot;previous_status&quot;, length = 30)
+    private ParcelStatus previousStatus;
+
+    @Enumerated(EnumType.STRING)
+        @Column(name = &quot;new_status&quot;, nullable = false, length = 30)
+    private ParcelStatus newStatus;
+
+    @Column(name = &quot;changed_at&quot;, nullable = false, updatable = false)
+    private Instant changedAt;
+
+    @Column(name = &quot;changed_by&quot;, nullable = false)
+    private Long changedBy;
+
+    @Column(name = &quot;note&quot;, columnDefinition = &quot;text&quot;)
+    private String note;
+
+<span class="fc" id="L38">    protected ParcelStatusHistory() { }</span>
+
+    public ParcelStatusHistory(Parcel parcel, ParcelStatus previousStatus,
+<span class="fc" id="L41">                               ParcelStatus newStatus, Long changedBy, String note) {</span>
+<span class="fc" id="L42">        this.parcel = parcel;</span>
+<span class="fc" id="L43">        this.previousStatus = previousStatus;</span>
+<span class="fc" id="L44">        this.newStatus = newStatus;</span>
+<span class="fc" id="L45">        this.changedBy = changedBy;</span>
+<span class="fc" id="L46">        this.note = note;</span>
+        // PostgreSQL TIMESTAMPTZ stores microseconds; normalize before returning
+        // responses so an idempotent replay is byte-for-byte stable.
+<span class="fc" id="L49">        this.changedAt = Instant.now().truncatedTo(ChronoUnit.MICROS);</span>
+<span class="fc" id="L50">    }</span>
+
+<span class="fc" id="L52">    public UUID getId() { return id; }</span>
+<span class="fc" id="L53">    public Parcel getParcel() { return parcel; }</span>
+<span class="fc" id="L54">    public ParcelStatus getPreviousStatus() { return previousStatus; }</span>
+<span class="fc" id="L55">    public ParcelStatus getNewStatus() { return newStatus; }</span>
+<span class="fc" id="L56">    public Instant getChangedAt() { return changedAt; }</span>
+<span class="fc" id="L57">    public Long getChangedBy() { return changedBy; }</span>
+<span class="fc" id="L58">    public String getNote() { return note; }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

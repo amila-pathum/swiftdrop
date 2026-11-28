@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ParcelOrderClient.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">merchant-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.merchant.merchantapi.client</a> &gt; <span class="el_source">ParcelOrderClient.java</span></div><h1>ParcelOrderClient.java</h1><pre class="source lang-java linenums">package com.swiftdrop.merchant.merchantapi.client;
+
+import com.swiftdrop.merchant.merchantapi.dto.CreateMerchantOrderRequest;
+import com.swiftdrop.merchant.merchantapi.dto.MerchantOrderResponse;
+
+public interface ParcelOrderClient {
+
+    MerchantOrderResponse createOrder(
+            String merchantId,
+            CreateMerchantOrderRequest request
+    );
+
+    /** True only for a downstream endpoint that atomically deduplicates the same reference and body. */
+<span class="nc" id="L14">    default boolean idempotentCreation() { return false; }</span>
+<span class="nc" id="L15">    default java.util.Optional&lt;MerchantOrderResponse&gt; current(String merchantId, String reference) { return java.util.Optional.empty(); }</span>
+    default java.util.Optional&lt;com.swiftdrop.merchant.merchantapi.service.MerchantOrderStore.Page&gt; list(
+<span class="nc" id="L17">            String merchantId, int page, int size) { return java.util.Optional.empty(); }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SecurityConfig.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">pricing-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.pricing.config</a> &gt; <span class="el_source">SecurityConfig.java</span></div><h1>SecurityConfig.java</h1><pre class="source lang-java linenums">package com.swiftdrop.pricing.config;
+
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
+import java.util.List;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwtClaimNames;
+import org.springframework.security.oauth2.jwt.JwtClaimValidator;
+import org.springframework.security.oauth2.jwt.JwtDecoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
+import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
+import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.util.StringUtils;
+import tools.jackson.databind.ObjectMapper;
+
+import javax.crypto.spec.SecretKeySpec;
+import java.io.IOException;
+import java.time.Instant;
+import java.util.Base64;
+import java.util.Map;
+import java.util.Objects;
+
+/**
+ * Every endpoint requires a valid JWT issued by the Identity Service, except
+ * {@code GET /actuator/health}. This service verifies the token itself with the
+ * shared JWT_SECRET; it does not rely on the API Gateway having checked it.
+ *
+ * &lt;p&gt;The token's {@code role} claim becomes the authority {@code ROLE_&lt;role&gt;} when
+ * its {@code status} claim is {@code ACTIVE} (accounts awaiting approval get none), so
+ * endpoints declare who may call them with, for example,
+ * {@code @PreAuthorize(&quot;hasRole('MERCHANT')&quot;)}. The caller's user id is the token
+ * subject: {@code @AuthenticationPrincipal Jwt jwt}, then {@code jwt.getSubject()}.
+ *
+ * &lt;p&gt;Unlike the Identity Service, this service cannot see the user's current
+ * account status, so a token stays usable here until it expires
+ * (JWT_EXPIRATION_MS, 15 minutes by default) even if the account is suspended.
+ */
+@Configuration
+@EnableMethodSecurity
+<span class="fc" id="L54">public class SecurityConfig {</span>
+
+    @Bean
+    SecurityFilterChain securityFilterChain(HttpSecurity http, ObjectMapper objectMapper)
+            throws Exception {
+<span class="fc" id="L59">        AuthenticationEntryPoint unauthenticated = (request, response, exception) -&gt;</span>
+<span class="fc" id="L60">            writeError(response, HttpServletResponse.SC_UNAUTHORIZED,</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">                exception instanceof OAuth2AuthenticationException</span>
+<span class="fc" id="L62">                    ? &quot;Invalid or expired access token&quot; : &quot;Authentication is required&quot;,</span>
+                objectMapper);
+<span class="fc" id="L64">        AccessDeniedHandler denied = (request, response, exception) -&gt;</span>
+<span class="fc" id="L65">            writeError(response, HttpServletResponse.SC_FORBIDDEN, &quot;Access is denied&quot;, objectMapper);</span>
+
+<span class="fc" id="L67">        return http</span>
+<span class="fc" id="L68">            .csrf(csrf -&gt; csrf.disable())</span>
+<span class="fc" id="L69">            .httpBasic(httpBasic -&gt; httpBasic.disable())</span>
+<span class="fc" id="L70">            .formLogin(form -&gt; form.disable())</span>
+<span class="fc" id="L71">            .sessionManagement(session -&gt;</span>
+<span class="fc" id="L72">                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))</span>
+<span class="fc" id="L73">            .authorizeHttpRequests(auth -&gt; auth</span>
+<span class="fc" id="L74">                .requestMatchers(HttpMethod.GET, &quot;/actuator/health&quot;).permitAll()</span>
+<span class="fc" id="L75">                .anyRequest().authenticated())</span>
+<span class="fc" id="L76">            .oauth2ResourceServer(oauth -&gt; oauth</span>
+<span class="fc" id="L77">                .jwt(jwt -&gt; jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))</span>
+<span class="fc" id="L78">                .authenticationEntryPoint(unauthenticated)</span>
+<span class="fc" id="L79">                .accessDeniedHandler(denied))</span>
+<span class="fc" id="L80">            .exceptionHandling(exceptions -&gt; exceptions</span>
+<span class="fc" id="L81">                .authenticationEntryPoint(unauthenticated)</span>
+<span class="fc" id="L82">                .accessDeniedHandler(denied))</span>
+<span class="fc" id="L83">            .build();</span>
+    }
+
+    @Bean
+    JwtDecoder jwtDecoder(@Value(&quot;${swiftdrop.jwt.secret:}&quot;) String encodedSecret) {
+<span class="fc" id="L88">        return decoderFor(encodedSecret);</span>
+    }
+
+    /** Verifies tokens exactly as the Identity Service signs them. */
+    static JwtDecoder decoderFor(String encodedSecret) {
+<span class="fc bfc" id="L93" title="All 2 branches covered.">        if (!StringUtils.hasText(encodedSecret)) {</span>
+<span class="fc" id="L94">            throw new IllegalStateException(&quot;JWT_SECRET must be configured&quot;);</span>
+        }
+        byte[] key;
+        try {
+<span class="fc" id="L98">            key = Base64.getDecoder().decode(encodedSecret.trim());</span>
+<span class="fc" id="L99">        } catch (IllegalArgumentException exception) {</span>
+<span class="fc" id="L100">            throw new IllegalStateException(&quot;JWT_SECRET must be valid Base64&quot;, exception);</span>
+<span class="fc" id="L101">        }</span>
+<span class="fc bfc" id="L102" title="All 2 branches covered.">        if (key.length &lt; 32) {</span>
+<span class="fc" id="L103">            throw new IllegalStateException(&quot;JWT_SECRET must contain at least 256 bits&quot;);</span>
+        }
+        // The Identity Service (jjwt) picks the HMAC strength from the key length.
+<span class="fc bfc" id="L106" title="All 2 branches covered.">        MacAlgorithm algorithm = key.length &gt;= 64 ? MacAlgorithm.HS512</span>
+<span class="fc bfc" id="L107" title="All 2 branches covered.">            : key.length &gt;= 48 ? MacAlgorithm.HS384 : MacAlgorithm.HS256;</span>
+
+<span class="fc" id="L109">        NimbusJwtDecoder decoder = NimbusJwtDecoder</span>
+<span class="fc" id="L110">            .withSecretKey(new SecretKeySpec(key, &quot;Hmac&quot; + algorithm.getName().replace(&quot;HS&quot;, &quot;SHA&quot;)))</span>
+<span class="fc" id="L111">            .macAlgorithm(algorithm)</span>
+<span class="fc" id="L112">            .build();</span>
+<span class="fc" id="L113">        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator&lt;&gt;(</span>
+<span class="fc" id="L114">            JwtValidators.createDefault(),</span>
+            new JwtClaimValidator&lt;Instant&gt;(JwtClaimNames.EXP, Objects::nonNull),
+            new JwtClaimValidator&lt;String&gt;(JwtClaimNames.SUB, StringUtils::hasText),
+            new JwtClaimValidator&lt;String&gt;(&quot;role&quot;, StringUtils::hasText)));
+<span class="fc" id="L118">        return decoder;</span>
+    }
+
+    private static JwtAuthenticationConverter jwtAuthenticationConverter() {
+<span class="fc" id="L122">        JwtGrantedAuthoritiesConverter roles = new JwtGrantedAuthoritiesConverter();</span>
+<span class="fc" id="L123">        roles.setAuthoritiesClaimName(&quot;role&quot;);</span>
+<span class="fc" id="L124">        roles.setAuthorityPrefix(&quot;ROLE_&quot;);</span>
+<span class="fc" id="L125">        JwtAuthenticationConverter converter = new JwtAuthenticationConverter();</span>
+<span class="fc" id="L126">        converter.setJwtGrantedAuthoritiesConverter(jwt -&gt; {</span>
+<span class="fc" id="L127">            String status = jwt.getClaimAsString(&quot;status&quot;);</span>
+<span class="fc bfc" id="L128" title="All 4 branches covered.">            if (status == null || &quot;ACTIVE&quot;.equals(status)) {</span>
+<span class="fc" id="L129">                return roles.convert(jwt);</span>
+            }
+<span class="fc bfc" id="L131" title="All 2 branches covered.">            if (&quot;PENDING_APPROVAL&quot;.equals(status)) {</span>
+<span class="fc" id="L132">                String role = jwt.getClaimAsString(&quot;role&quot;);</span>
+<span class="pc bpc" id="L133" title="1 of 2 branches missed.">                return role != null</span>
+<span class="fc" id="L134">                    ? List.&lt;GrantedAuthority&gt;of(new SimpleGrantedAuthority(&quot;APPLICANT_&quot; + role))</span>
+<span class="nc" id="L135">                    : List.of();</span>
+            }
+<span class="fc" id="L137">            return List.of();</span>
+        });
+<span class="fc" id="L139">        return converter;</span>
+    }
+
+    private static void writeError(HttpServletResponse response, int status, String message,
+            ObjectMapper objectMapper) throws IOException {
+<span class="fc" id="L144">        response.setStatus(status);</span>
+<span class="fc" id="L145">        response.setContentType(&quot;application/json&quot;);</span>
+<span class="fc" id="L146">        objectMapper.writeValue(response.getOutputStream(), Map.of(&quot;error&quot;, message));</span>
+<span class="fc" id="L147">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>

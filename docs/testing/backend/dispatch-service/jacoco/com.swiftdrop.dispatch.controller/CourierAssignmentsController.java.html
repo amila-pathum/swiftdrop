@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CourierAssignmentsController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">dispatch-service</a> &gt; <a href="index.source.html" class="el_package">com.swiftdrop.dispatch.controller</a> &gt; <span class="el_source">CourierAssignmentsController.java</span></div><h1>CourierAssignmentsController.java</h1><pre class="source lang-java linenums">package com.swiftdrop.dispatch.controller;
+
+import com.swiftdrop.dispatch.dto.response.DispatchResponses.CourierAssignment;
+import com.swiftdrop.dispatch.exception.DispatchException;
+import com.swiftdrop.dispatch.service.DispatchService;
+import jakarta.validation.constraints.Positive;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+
+/**
+ * Hand-off to courier-service (Member 6): the assignments of one courier
+ * profile. Courier-service calls it with the courier's own token, so COURIER is
+ * allowed here, limited to the caller's own assignments.
+ */
+@RestController
+@Validated
+public class CourierAssignmentsController {
+    private final DispatchService dispatch;
+
+<span class="fc" id="L28">    public CourierAssignmentsController(DispatchService dispatch) {</span>
+<span class="fc" id="L29">        this.dispatch = dispatch;</span>
+<span class="fc" id="L30">    }</span>
+
+    @GetMapping(&quot;/api/dispatch/couriers/{courierId}/assignments&quot;)
+    @PreAuthorize(&quot;hasAnyRole('COURIER', 'DISPATCHER', 'ADMIN')&quot;)
+    public List&lt;CourierAssignment&gt; assignments(@PathVariable @Positive Long courierId,
+            @AuthenticationPrincipal Jwt jwt) {
+<span class="fc" id="L36">        boolean courier = &quot;COURIER&quot;.equals(jwt.getClaimAsString(&quot;role&quot;));</span>
+<span class="fc" id="L37">        Long callerUserId = null;</span>
+<span class="fc bfc" id="L38" title="All 2 branches covered.">        if (courier) {</span>
+            try {
+<span class="fc" id="L40">                callerUserId = Long.valueOf(jwt.getSubject());</span>
+<span class="nc" id="L41">            } catch (NumberFormatException exception) {</span>
+<span class="nc" id="L42">                throw new DispatchException(HttpStatus.FORBIDDEN, &quot;Access is denied&quot;);</span>
+<span class="fc" id="L43">            }</span>
+        }
+<span class="fc" id="L45">        return dispatch.courierAssignments(courierId, callerUserId, courier);</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.13.202504020838</span></div></body></html>
