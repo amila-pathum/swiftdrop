@@ -21,7 +21,14 @@
 .dispatch-dashboard .dispatch-table th:last-child, .dispatch-dashboard .dispatch-table td:last-child { padding-right: 20px; }
 .dispatch-dashboard .dispatch-table tbody tr:hover { background: #fafcff; }
 .dispatch-dashboard .dispatch-link-button { font-family: monospace; font-size: 13.5px; }
-.dd-route { font-size: 13.5px; }
+.dd-route-cell { width: 100%; min-width: 220px; }
+.dispatch-dashboard .dispatch-table td:first-child { width: 190px; max-width: 190px; white-space: normal; }
+.dispatch-dashboard .dispatch-table td.dd-route-cell { white-space: normal; }
+.dd-route { display: grid; gap: 4px; font-size: 13.5px; line-height: 1.35; }
+.dd-route > span { display: grid; grid-template-columns: 46px minmax(0, 1fr); align-items: baseline; overflow-wrap: anywhere; }
+.dd-route small { color: #8193ab; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+.dispatch-dashboard .dispatch-link-button { display: block; max-width: 170px; text-align: left; white-space: normal; overflow-wrap: anywhere; word-break: break-all; line-height: 1.35; }
+.dispatch-dashboard .dispatch-table td.dd-actions-cell, .dispatch-dashboard .dispatch-table .dd-muted { width: 1%; white-space: nowrap; }
 .dd-size { display: inline-block; padding: 1px 8px; border: 1px solid #dce5f1; border-radius: 6px; font-size: 12px; color: #47566c; }
 .dd-muted { color: #62738d; font-size: 13px; white-space: nowrap; }
 .dd-courier { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
@@ -29,22 +36,3 @@
 .dd-actions-cell .dispatch-row-actions { justify-content: flex-end; }
 .dd-actions-cell .dispatch-hint { display: block; margin-top: 4px; }
 .dd-pagination.dispatch-pagination { margin: 0 -20px; padding: 12px 20px; border-top: 1px solid #e8eef6; }
-
-/* Courier workload list */
-.dd-workload-panel { position: sticky; top: 16px; }
-.dd-workload { margin: 0; padding: 0; list-style: none; max-height: 560px; overflow-y: auto; }
-.dd-workload li { display: flex; align-items: center; gap: 12px; padding: 12px 20px; border-top: 1px solid #edf2f8; }
-.dd-workload li:first-child { border-top: 0; }
-.dd-workload-main { flex: 1; display: grid; gap: 5px; min-width: 0; }
-.dd-workload-name { overflow: hidden; font-size: 13.5px; text-overflow: ellipsis; white-space: nowrap; }
-.dd-workload-meta { display: flex; align-items: center; gap: 10px; }
-.dd-workload-meta .db-pill { flex: none; padding: 1px 8px; font-size: 11px; }
-.dd-load { flex: 1; height: 5px; border-radius: 99px; background: #eef3f9; overflow: hidden; }
-.dd-load span { display: block; height: 100%; border-radius: inherit; background: #1c5dfb; }
-.dd-load span.is-heavy { background: #f59e0b; }
-.dd-workload-count { flex: none; width: 46px; color: #62738d; font-size: 11px; line-height: 1.2; text-align: center; }
-.dd-workload-count strong { display: block; color: #161d2f; font-size: 17px; line-height: 1.1; }
-
-@media (max-width: 1100px) {
-  .dd-workload-panel { position: static; }
-}

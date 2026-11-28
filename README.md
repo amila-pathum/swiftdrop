@@ -351,11 +351,11 @@ Every service builds its JDBC URL from `POSTGRES_HOST` and `POSTGRES_PORT`, so c
 
 ```bash
 infrastructure/scripts/run-all.sh                    # local Docker PostgreSQL
-DB_PROFILE=rds infrastructure/scripts/run-all.sh     # AWS RDS (.env.rds; Docker not started)
+DB_PROFILE=rds infrastructure/scripts/run-all.sh     # AWS RDS (RDS_* values in .env; Docker not started)
 infrastructure/scripts/run-all.sh identity-service api-gateway frontend   # only some parts
 ```
 
-Before starting anything, it refuses if a port is already in use and, with `DB_PROFILE=rds`, checks `.env.rds` for every service. All nine parts need about 2–3 GB of memory.
+Before starting anything, it refuses if a port is already in use and, with `DB_PROFILE=rds`, checks the `RDS_*` settings for every service. All nine parts need about 2–3 GB of memory.
 
 ## Starting only what you need
 
@@ -444,23 +444,19 @@ What the profile does, identically in every service:
 - Baselining is off: if a database already contains tables but no Flyway history, startup fails instead of skipping the first migration.
 - A pool of at most 2 connections per service, closed after 2 minutes idle: one developer running all seven services uses at most 14 of the instance's connections, so start only the services you need.
 
-### 1. Create `.env.rds` and set the seven passwords
+### 1. Set the RDS values in `.env`
 
-RDS settings live in their own file, **`.env.rds`**, separate from the local `.env`. Create it from the example:
-
-```bash
-cp .env.rds.example .env.rds
-```
-
-`.env.rds.example` already contains the endpoint, port, database names and usernames. Fill in the seven `*_DB_PASSWORD` values (ask the team; every service has a different password), for example:
+All settings live in the one root **`.env`**. Its last section, *AWS RDS* (copied from `.env.example`), holds the RDS endpoint, port, database names and usernames under `RDS_*` names. Fill in the seven `RDS_*_DB_PASSWORD` values (ask the team; every service has a different password), for example:
 
 ```env
-IDENTITY_DB_NAME=identity_db
-IDENTITY_DB_USERNAME=identity_user
-IDENTITY_DB_PASSWORD=<identity_user's password>
+RDS_IDENTITY_DB_NAME=identity_db
+RDS_IDENTITY_DB_USERNAME=identity_user
+RDS_IDENTITY_DB_PASSWORD=<identity_user's password>
 ```
 
-You only need the passwords of the services you will run. `.env.rds` is ignored by Git: **never commit it, never put a real password in `.env.rds.example`, and never paste passwords into issues, chat or screenshots.** Your local `.env` stays as it is; it is still used for everything else (`JWT_SECRET`, ports, Google sign-in) and for Docker.
+You only need the passwords of the services you will run. The `RDS_` prefix keeps them apart from the local Docker passwords in the same file (`PARCEL_DB_PASSWORD` and so on), which have the same service names but different values. `.env` is ignored by Git: **never commit it, never put a real password in `.env.example`, and never paste passwords into issues, chat or screenshots.**
+
+*Upgrading from a separate `.env.rds`:* move its lines into `.env` with `RDS_` added to every name (`DB_HOST` becomes `RDS_DB_HOST`, `PARCEL_DB_PASSWORD` becomes `RDS_PARCEL_DB_PASSWORD`), then delete `.env.rds`. Until you do, the scripts still read `.env.rds` whenever `.env` has no `RDS_DB_HOST`, and print a note saying so.
 
 ### 2. Run a service against RDS
 
@@ -478,28 +474,28 @@ DB_PROFILE=rds infrastructure/scripts/run-service.sh notification-service   # :8
 
 With `DB_PROFILE=rds`, `run-service.sh`:
 
-1. loads `.env` for the non-database settings, then **discards every database variable from it** (they are the local Docker credentials) and loads `.env.rds`;
-2. copies the selected service's `<SERVICE>_DB_NAME`, `<SERVICE>_DB_USERNAME` and `<SERVICE>_DB_PASSWORD` into the `DB_NAME`, `DB_USERNAME` and `DB_PASSWORD` that `application-rds.properties` reads, keeps `DB_HOST` and `DB_PORT`, and passes no other service's credentials to the Java process;
+1. loads `.env`, then **discards its local Docker database variables** (`PARCEL_DB_PASSWORD` and so on) and uses the `RDS_*` ones instead;
+2. copies the selected service's `RDS_<SERVICE>_DB_NAME`, `RDS_<SERVICE>_DB_USERNAME` and `RDS_<SERVICE>_DB_PASSWORD` into the `DB_NAME`, `DB_USERNAME` and `DB_PASSWORD` that `application-rds.properties` reads (and `RDS_DB_HOST` / `RDS_DB_PORT` into `DB_HOST` / `DB_PORT`), and passes no other service's credentials, and no `RDS_*` variable, to the Java process;
 3. checks that every value is set and that the database name is the service's own, then activates the Spring profile `rds` and prints the host, database and user it will use (never the password).
 
-Variables exported in your shell still win over `.env.rds`, so you can, for example, enter a password for one run without storing it: `read -rsp 'Parcel DB password: ' PARCEL_DB_PASSWORD; echo; export PARCEL_DB_PASSWORD`. To see which database and user a service would use without starting it, add `DRY_RUN=1`:
+Variables exported in your shell still win over `.env`, so you can, for example, enter a password for one run without storing it: `read -rsp 'Parcel DB password: ' RDS_PARCEL_DB_PASSWORD; echo; export RDS_PARCEL_DB_PASSWORD`. To see which database and user a service would use without starting it, add `DRY_RUN=1`:
 
 ```bash
 DRY_RUN=1 DB_PROFILE=rds infrastructure/scripts/run-service.sh parcel-service
 ```
 
-Do not start a service with `SPRING_PROFILES_ACTIVE=rds` alone: the script refuses, because the database settings would then come from the wrong file. From an IDE, add `SPRING_PROFILES_ACTIVE=rds` plus that service's `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME` and `DB_PASSWORD` (its values from `.env.rds`) to the run configuration's environment. Outbound port 5432 must be allowed by your network.
+Do not start a service with `SPRING_PROFILES_ACTIVE=rds` alone: the script refuses, because the database settings would then be the local Docker ones. From an IDE, add `SPRING_PROFILES_ACTIVE=rds` plus that service's `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USERNAME` and `DB_PASSWORD` (its `RDS_*` values from `.env`) to the run configuration's environment. Outbound port 5432 must be allowed by your network.
 
 ### Running locally with Docker instead
 
-Without `DB_PROFILE`, nothing changes: the script uses the local `.env` and the Docker PostgreSQL, and never reads `.env.rds`:
+Without `DB_PROFILE`, nothing changes: the script uses the local Docker values in `.env` and the Docker PostgreSQL, and ignores every `RDS_*` variable:
 
 ```bash
 docker compose up -d postgres
 infrastructure/scripts/run-service.sh identity-service
 ```
 
-`docker compose` reads only `.env`, so `.env.rds` never affects the local containers. A service running in `rds` mode does not need the Docker `postgres` container.
+`docker compose` only uses the local (un-prefixed) passwords, so the `RDS_*` values never affect the local containers. A service running in `rds` mode does not need the Docker `postgres` container.
 
 ### 3. Check the active profile and connection in the logs
 
@@ -509,14 +505,14 @@ When the service starts, look for:
 - Spring's `The following 1 profile is active: "rds"` (no such line, or `No active profile set`, means it is using the local database);
 - Flyway's connection line naming the service's own database, for example `Database: jdbc:postgresql://swiftdrop-postgres-dev...:5432/parcel_db?sslmode=require (PostgreSQL 1x.x)`, followed by `Successfully validated ... migrations` and `Schema "public" is up to date` (or the migrations it applied).
 
-Then `curl http://localhost:<port>/actuator/health` returns `{"status":"UP"}`. Common failures: `password authentication failed for user "parcel_user"` (wrong password in `.env.rds`), `missing or empty for parcel-service: PARCEL_DB_PASSWORD` (the script's own check), `Found non-empty schema(s) "public" but no schema history table` (the database holds tables that Flyway did not create; ask the team before changing anything), or a connection timeout (network or security group).
+Then `curl http://localhost:<port>/actuator/health` returns `{"status":"UP"}`. Common failures: `password authentication failed for user "parcel_user"` (wrong `RDS_PARCEL_DB_PASSWORD` in `.env`), `missing or empty for parcel-service: PARCEL_DB_PASSWORD` (the script's own check: set `RDS_PARCEL_DB_PASSWORD`), `Found non-empty schema(s) "public" but no schema history table` (the database holds tables that Flyway did not create; ask the team before changing anything), or a connection timeout (network or security group).
 
 ### 4. Connect to one database in pgAdmin
 
 Register one server per database you want to inspect, because each user can only use its own database:
 
 1. *Register → Server*. **General**: a name such as `SwiftDrop RDS – parcel_db`.
-2. **Connection**: host `DB_HOST` from `.env.rds`, port `5432`, maintenance database the service's database (for example `parcel_db`), username its user (for example `parcel_user`); enter that user's password but do not tick *Save password* on a shared machine.
+2. **Connection**: host `RDS_DB_HOST` from `.env`, port `5432`, maintenance database the service's database (for example `parcel_db`), username its user (for example `parcel_user`); enter that user's password but do not tick *Save password* on a shared machine.
 3. **Parameters** tab (pgAdmin 7+; *SSL* tab in older versions): *SSL mode* `require`.
 4. Open *parcel_db → Schemas → public → Tables*: you should see the tables listed above. In the Query Tool, the migration history should show the migrations as `SQL` (not `BASELINE`):
 

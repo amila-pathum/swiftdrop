@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import Button from '../../components/Button'
 import LoadingSpinner from '../../components/LoadingSpinner'
-import { Avatar, DashboardHeader, KpiCard, KpiGrid, Panel } from '../../components/dashboard/Dashboard'
+import { Avatar, DashboardHeader, KpiCard, KpiGrid } from '../../components/dashboard/Dashboard'
 import { dateTimeLabel, todayLabel } from '../../utils/dashboardFormat'
 import DashboardIcon from '../../components/dashboard/DashboardIcon'
 import { dispatchService } from '../../services/dispatchService'
@@ -10,41 +10,11 @@ import './dispatcherDashboard.css'
 
 const titleCase = (value) => value ? value.charAt(0) + value.slice(1).toLowerCase().replaceAll('_', ' ') : '—'
 const STATUS_TONE = { CREATED: '', PICKED_UP: 'info', IN_TRANSIT: 'info', OUT_FOR_DELIVERY: 'warning', DELIVERED: 'success', FAILED: 'danger', CANCELLED: '' }
-const AVAILABILITY_ORDER = { Available: 0, Busy: 1, Offline: 2, Inactive: 3 }
-const AVAILABILITY_TONE = { Available: 'success', Busy: 'warning', Offline: '', Inactive: 'danger' }
 
 function Pill({ tone = '', children }) {
   return <span className={`db-pill${tone ? ` db-pill-${tone}` : ''}`}><span className="db-pill-dot" aria-hidden="true" />{children}</span>
 }
 
-function CourierWorkload({ couriers, loading }) {
-  if (loading && couriers.length === 0) return <div className="dispatch-loading"><LoadingSpinner label="Loading courier workload" /></div>
-  if (couriers.length === 0) return <p className="db-empty">No courier profiles were returned by courier service.</p>
-  const most = Math.max(5, ...couriers.map((courier) => Number(courier.activeParcelCount) || 0))
-  const sorted = [...couriers].sort((a, b) => AVAILABILITY_ORDER[availabilityLabel(a)] - AVAILABILITY_ORDER[availabilityLabel(b)]
-    || a.activeParcelCount - b.activeParcelCount || a.name.localeCompare(b.name))
-  return (
-    <ul className="dd-workload">
-      {sorted.map((courier) => {
-        const label = availabilityLabel(courier)
-        const count = Number(courier.activeParcelCount) || 0
-        return (
-          <li key={courier.courierId}>
-            <Avatar name={courier.name} size={34} />
-            <div className="dd-workload-main">
-              <strong className="dd-workload-name">{courier.name}</strong>
-              <div className="dd-workload-meta">
-                <Pill tone={AVAILABILITY_TONE[label]}>{label}</Pill>
-                <div className="dd-load" aria-hidden="true"><span style={{ width: `${(count / most) * 100}%` }} className={count >= 5 ? 'is-heavy' : ''} /></div>
-              </div>
-            </div>
-            <span className="dd-workload-count"><strong>{count}</strong> active</span>
-          </li>
-        )
-      })}
-    </ul>
-  )
-}
 
 function Pagination({ result, noun, onPageChange }) {
   return (
@@ -88,7 +58,12 @@ function WaitingParcelsTable({ parcels, onAssign, onDetails }) {
                   {parcel.trackingNumber}
                 </button>
               </td>
-              <td><span className="dd-route">{parcel.pickupArea} → {parcel.dropoffArea}</span></td>
+              <td className="dd-route-cell">
+                <span className="dd-route" aria-label={`${parcel.pickupArea} to ${parcel.dropoffArea}`}>
+                  <span><small>From</small>{parcel.pickupArea}</span>
+                  <span><small>To</small>{parcel.dropoffArea}</span>
+                </span>
+              </td>
               <td><span className="dd-size">{titleCase(parcel.size)}</span></td>
               <td className="dd-muted">{dateTimeLabel(parcel.createdAt)}</td>
               <td className="dd-actions-cell">
@@ -342,7 +317,7 @@ export default function DispatcherDashboardPage() {
           detail={activeCouriers.length ? `${(onTheRoad / activeCouriers.length).toFixed(1)} per active courier` : 'No active couriers'} tone="neutral" />
       </KpiGrid>
 
-      <div className="db-grid-2-1">
+      <div>
         <section className="db-panel dd-work" aria-label="Parcels">
           <div className="dispatch-tabs dd-tabs" role="tablist" aria-label="Parcel views">
             <button role="tab" aria-selected={activeTab === 'waiting'} onClick={() => setActiveTab('waiting')}>
@@ -397,9 +372,6 @@ export default function DispatcherDashboardPage() {
           )}
         </section>
 
-        <Panel id="courier-workload" title="Courier workload" description="Available couriers first, lightest load at the top." flush className="dd-workload-panel">
-          <CourierWorkload couriers={couriers} loading={loading} />
-        </Panel>
       </div>
 
       {dialog && (

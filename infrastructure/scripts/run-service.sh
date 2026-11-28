@@ -5,14 +5,17 @@
 #   infrastructure/scripts/run-service.sh identity-service
 #
 # AWS RDS: activates the Spring profile "rds" and takes the database settings
-# from the root .env.rds (copy .env.rds.example) instead of .env:
+# from the RDS_* variables in the root .env (see .env.example) instead of the
+# local Docker ones:
 #   DB_PROFILE=rds infrastructure/scripts/run-service.sh identity-service
 #
 # Show which database and user would be used, without starting anything:
 #   DRY_RUN=1 DB_PROFILE=rds infrastructure/scripts/run-service.sh identity-service
 #
-# Variables already exported in your shell win over both files, so one run can
+# Variables already exported in your shell win over .env, so one run can
 # override a value without editing a file. Passwords are never printed.
+# An old separate .env.rds file (un-prefixed names) is still read when .env has
+# no RDS_DB_HOST, so teammates can move their passwords over in their own time.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -35,8 +38,9 @@ local | rds) ;;
 *) fail "DB_PROFILE must be 'local' (the default) or 'rds', not '$profile'." ;;
 esac
 
-# Prefix of each service's variables in .env.rds; the service connects to RDS
-# with <PREFIX>_DB_NAME, <PREFIX>_DB_USERNAME and <PREFIX>_DB_PASSWORD.
+# Prefix of each service's RDS variables; the service connects to RDS with
+# RDS_<PREFIX>_DB_NAME, RDS_<PREFIX>_DB_USERNAME and RDS_<PREFIX>_DB_PASSWORD from
+# .env (a legacy .env.rds uses the same names without the RDS_ prefix).
 rds_prefixes=(IDENTITY PARCEL MERCHANT COURIER DISPATCH PRICING NOTIFICATION)
 rds_prefix() {
 	case "$1" in
@@ -101,8 +105,10 @@ if [[ "$profile" == local ]]; then
 	if [[ ",${SPRING_PROFILES_ACTIVE-}," == *,rds,* ]]; then
 		fail "SPRING_PROFILES_ACTIVE includes 'rds' but DB_PROFILE is not 'rds'. Run
   DB_PROFILE=rds infrastructure/scripts/run-service.sh $service
-so the database settings come from .env.rds, and unset SPRING_PROFILES_ACTIVE."
+so the database settings come from the RDS_* variables, and unset SPRING_PROFILES_ACTIVE."
 	fi
+	# RDS credentials never reach a service running against the local database.
+	for name in $(compgen -e | grep '^RDS_' || true); do unset "$name"; done
 	echo "run-service.sh: $service with the local Docker PostgreSQL (settings from .env)"
 	[[ "${DRY_RUN:-}" == 1 ]] && exit 0
 	cd "$dir"
@@ -114,18 +120,32 @@ prefix="$(rds_prefix "$service")" ||
 	fail "'$service' has no AWS RDS database mapping. Services with an RDS database:
   identity-service parcel-service merchant-service courier-service dispatch-service pricing-service notification-service"
 
-# Database values from .env must never reach RDS: there they are local Docker
-# credentials (PARCEL_DB_PASSWORD and so on share their names with .env.rds).
+# The un-prefixed database values in .env are the local Docker credentials
+# (PARCEL_DB_PASSWORD and so on); they must never reach RDS.
 unset DB_HOST DB_PORT DB_NAME DB_USERNAME DB_PASSWORD
 for p in "${rds_prefixes[@]}"; do
 	unset "${p}_DB_NAME" "${p}_DB_USERNAME" "${p}_DB_PASSWORD"
 done
-if [[ -f "$root/.env.rds" ]]; then
-	load_env_file "$root/.env.rds"
-else
-	echo "Warning: $root/.env.rds not found; copy .env.rds.example to .env.rds and set the passwords." >&2
-fi
+settings_source=".env (RDS_* variables)"
 restore_shell_env
+if [[ -n "${RDS_DB_HOST-}" ]]; then
+	# Copy RDS_<NAME> to <NAME>, unless the shell exported <NAME> itself.
+	for name in DB_HOST DB_PORT $(for p in "${rds_prefixes[@]}"; do echo "${p}_DB_NAME ${p}_DB_USERNAME ${p}_DB_PASSWORD"; done); do
+		rds_name="RDS_$name"
+		if ! shell_has "$name" && [[ -n "${!rds_name-}" ]]; then
+			export "$name=${!rds_name}"
+		fi
+	done
+elif [[ -f "$root/.env.rds" ]]; then
+	settings_source=".env.rds (legacy; move these values into .env as RDS_* variables)"
+	echo "Note: reading $root/.env.rds. Move its values into .env with an RDS_ prefix (see .env.example)." >&2
+	load_env_file "$root/.env.rds"
+	restore_shell_env
+else
+	fail "no AWS RDS settings found. Add the RDS_* variables to $root/.env (see the AWS RDS section of .env.example)."
+fi
+# Only the generic DB_* variables below reach the Java process.
+for name in $(compgen -e | grep '^RDS_' || true); do unset "$name"; done
 validate_jwt_secret
 
 # The generic variables are always derived from this service's own ones, so a
@@ -144,8 +164,8 @@ for var in DB_HOST "$name_var" "$user_var" "$password_var"; do
 	[[ -n "${!var-}" ]] || missing+=("$var")
 done
 if ((${#missing[@]})); then
-	fail "missing or empty for $service: ${missing[*]}
-Set them in $root/.env.rds (cp .env.rds.example .env.rds) or export them."
+	fail "missing or empty for $service: ${missing[*]} (from $settings_source)
+Set RDS_DB_HOST and RDS_${prefix}_DB_NAME / _DB_USERNAME / _DB_PASSWORD in $root/.env, or export them."
 fi
 DB_PORT="${DB_PORT:-5432}"
 [[ "$DB_PORT" =~ ^[0-9]+$ ]] || fail "DB_PORT must be a number, not '$DB_PORT'."
@@ -170,7 +190,7 @@ export SPRING_PROFILES_ACTIVE
 export SPRING_FLYWAY_CONNECT_RETRIES="${SPRING_FLYWAY_CONNECT_RETRIES:-10}"
 export SPRING_FLYWAY_CONNECT_RETRIES_INTERVAL="${SPRING_FLYWAY_CONNECT_RETRIES_INTERVAL:-10}"
 
-# Each service owns exactly one database; catch a copy-paste mix-up in .env.rds.
+# Each service owns exactly one database; catch a copy-paste mix-up in the settings.
 expected_database="${service%-service}_db"
 [[ "$DB_NAME" == "$expected_database" ]] ||
 	fail "$name_var is '$DB_NAME', but $service must use its own database '$expected_database'."
@@ -181,7 +201,8 @@ run-service.sh: $service against AWS RDS (Spring profile '$SPRING_PROFILES_ACTIV
   port:     $DB_PORT
   database: $DB_NAME
   user:     $DB_USERNAME
-  password: set from $password_var (not shown)
+  password: set (not shown)
+  settings: $settings_source
 EOF
 [[ "${DRY_RUN:-}" == 1 ]] && exit 0
 cd "$dir"
